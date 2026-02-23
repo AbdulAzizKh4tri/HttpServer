@@ -21,7 +21,7 @@ int main() {
 
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
-  TcpListenerSocket listener("0.0.0.0", "8080");
+  TcpListenerSocket listener("localhost", "8080");
   listener.listen(10);
 
   TcpConnectionSocket conn = listener.accept();
