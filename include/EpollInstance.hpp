@@ -11,7 +11,7 @@ public:
   EpollInstance(EpollInstance const &) = delete;
   EpollInstance &operator=(EpollInstance const &) = delete;
 
-  EpollInstance(int threadsUsed = 1) {
+  EpollInstance() {
     epoll_fd_ = ::epoll_create1(EPOLL_CLOEXEC);
     if (epoll_fd_ == -1) {
       SPDLOG_ERROR("ERROR: {}", strerror(errno));
