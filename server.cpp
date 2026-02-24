@@ -1,11 +1,16 @@
+#include <memory>
 #ifdef NDEBUG
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #else
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #endif
 
+#include <TcpConnectionSocket.hpp>
 #include <TcpListenerSocket.hpp>
 #include <spdlog/spdlog.h>
+#include <sys/epoll.h>
+
+#include "EpollInstance.hpp"
 
 void configureLog() {
 #ifdef NDEBUG
@@ -22,12 +27,8 @@ int main() {
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
   TcpListenerSocket listener("localhost", "8080");
+  listener.setSocketNonBlocking();
   listener.listen(10);
-
-  TcpConnectionSocket conn = listener.accept();
-  while (1) {
-    conn.send(conn.recv());
-  }
 
   return 0;
 }

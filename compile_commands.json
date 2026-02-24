@@ -1,8 +1,8 @@
 [
 {
-  "directory": "/home/pair/stuff/random/cpp_stuff/1test/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/stuff/random/cpp_stuff/1test/include -I/home/pair/cmake-source-cache/fmt-src/include -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=gnu++23 -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/random/cpp_stuff/1test/server.cpp",
-  "file": "/home/pair/stuff/random/cpp_stuff/1test/server.cpp",
+  "directory": "/home/pair/stuff/HttpServer/build/debug",
+  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/stuff/HttpServer/include -I/home/pair/cmake-source-cache/fmt-src/include -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=gnu++23 -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
+  "file": "/home/pair/stuff/HttpServer/server.cpp",
   "output": "CMakeFiles/server.dir/server.cpp.o"
 },
 {
