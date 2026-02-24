@@ -37,7 +37,10 @@ public:
     return fd;
   }
 
-  int setNonBlocking() { return fcntl(socket_fd_, F_SETFL, O_NONBLOCK); }
+  int setNonBlocking() {
+    int flags = fcntl(socket_fd_, F_GETFL, 0);
+    return fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK);
+  }
 
 private:
   int socket_fd_;

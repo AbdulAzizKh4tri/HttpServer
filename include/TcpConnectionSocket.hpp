@@ -10,10 +10,14 @@
 
 class TcpConnectionSocket {
   static constexpr std::size_t READ_BUFFER_SIZE = 4096;
+  static constexpr std::size_t WRITE_BUFFER_SIZE = 4096;
 
 public:
+  std::vector<std::byte> writeBuffer;
+
   TcpConnectionSocket(int fd, sockaddr_storage cli_addr)
-      : socket_(fd), client_address_(cli_addr) {
+      : socket_(fd), client_address_(cli_addr),
+        writeBuffer(std::vector<std::byte>(WRITE_BUFFER_SIZE)) {
 
     if (client_address_.ss_family == AF_INET) {
       char ipstr[INET_ADDRSTRLEN];
@@ -31,7 +35,7 @@ public:
                 INET6_ADDRSTRLEN);
 
       ip_ = ipstr;
-      port_ = ((sockaddr_in6 *)&client_address_)->sin6_port;
+      port_ = ntohs(((sockaddr_in6 *)&client_address_)->sin6_port);
 
       SPDLOG_INFO("Connected to {}:{}", ip_, ntohs(port_));
     }
@@ -44,6 +48,9 @@ public:
       ssize_t n = ::send(socket_.getFd(), data.data() + total_sent,
                          data.size() - total_sent, flags);
       if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          return total_sent;
+        }
         SPDLOG_ERROR("ERROR on sending: {}", strerror(errno));
         throw std::runtime_error(strerror(errno));
       }
@@ -82,10 +89,10 @@ public:
 
   int setSocketNonBlocking() { return socket_.setNonBlocking(); }
 
-  std::string getIp() { return ip_; }
-  uint16_t getPort() { return port_; }
+  std::string getIp() const { return ip_; }
+  uint16_t getPort() const { return port_; }
 
-  int getFd() { return socket_.getFd(); }
+  int getFd() const { return socket_.getFd(); }
 
 private:
   Socket socket_;

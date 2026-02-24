@@ -22,8 +22,9 @@ public:
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if (getaddrinfo(host_.c_str(), port_.c_str(), &hints, &raw) != 0) {
-      SPDLOG_ERROR("ERROR on getaddrinfo %s", strerror(errno));
+    int gai = getaddrinfo(host_.c_str(), port_.c_str(), &hints, &raw);
+    if (gai != 0) {
+      SPDLOG_ERROR("ERROR on getaddrinfo %s", gai_strerror(gai));
       throw std::runtime_error("Failed to locate address");
     }
     res.reset(raw);
@@ -49,9 +50,8 @@ public:
   TcpConnectionSocket accept() {
     sockaddr_storage clientAddress;
     socklen_t clientAddressLength = sizeof(clientAddress);
-    int newSocket_fd =
-        ::accept(socket_.getFd(), (sockaddr *)&clientAddress,
-                 &clientAddressLength);
+    int newSocket_fd = ::accept(socket_.getFd(), (sockaddr *)&clientAddress,
+                                &clientAddressLength);
 
     if (newSocket_fd < 0) {
       SPDLOG_ERROR("ERROR on accepting %s", strerror(errno));
