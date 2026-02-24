@@ -46,7 +46,7 @@ public:
   }
 
   int add(int fd, uint32_t events, int data) {
-    struct epoll_event event = {};
+    epoll_event event = {};
     event.events = events;
     event.data.fd = data;
 
@@ -63,7 +63,7 @@ public:
   }
 
   int modify(int fd, uint32_t events, int data) {
-    struct epoll_event event = {};
+    epoll_event event = {};
     event.events = events;
     event.data.fd = data;
 
@@ -89,7 +89,7 @@ public:
     return ret;
   }
 
-  int wait(struct epoll_event *events, int maxevents, int timeout = -1) {
+  int wait(epoll_event *events, int maxevents, int timeout = -1) {
     for (;;) {
       int numEvents = ::epoll_wait(epoll_fd_, events, maxevents, timeout);
       if (numEvents == -1) {
@@ -102,10 +102,10 @@ public:
     }
   }
 
-  std::vector<struct epoll_event> wait(int maxevents, int timeout = -1) {
+  std::vector<epoll_event> wait(int maxevents, int timeout = -1) {
     if (maxevents <= 0)
       return {};
-    std::vector<struct epoll_event> events(maxevents);
+    std::vector<epoll_event> events(maxevents);
     int numEvents = wait(events.data(), maxevents, timeout);
     events.resize(numEvents);
     return events;

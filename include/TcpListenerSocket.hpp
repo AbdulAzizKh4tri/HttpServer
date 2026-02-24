@@ -47,10 +47,10 @@ public:
   }
 
   TcpConnectionSocket accept() {
-    struct sockaddr_storage clientAddress;
+    sockaddr_storage clientAddress;
     socklen_t clientAddressLength = sizeof(clientAddress);
     int newSocket_fd =
-        ::accept(socket_.getFd(), (struct sockaddr *)&clientAddress,
+        ::accept(socket_.getFd(), (sockaddr *)&clientAddress,
                  &clientAddressLength);
 
     if (newSocket_fd < 0) {

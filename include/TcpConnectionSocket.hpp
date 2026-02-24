@@ -12,26 +12,26 @@ class TcpConnectionSocket {
   static constexpr std::size_t READ_BUFFER_SIZE = 4096;
 
 public:
-  TcpConnectionSocket(int fd, struct sockaddr_storage cli_addr)
+  TcpConnectionSocket(int fd, sockaddr_storage cli_addr)
       : socket_(fd), client_address_(cli_addr) {
 
     if (client_address_.ss_family == AF_INET) {
       char ipstr[INET_ADDRSTRLEN];
-      inet_ntop(AF_INET, &((struct sockaddr_in *)&client_address_)->sin_addr,
-                ipstr, INET_ADDRSTRLEN);
+      inet_ntop(AF_INET, &((sockaddr_in *)&client_address_)->sin_addr, ipstr,
+                INET_ADDRSTRLEN);
 
       ip_ = ipstr;
-      port_ = ntohs(((struct sockaddr_in *)&client_address_)->sin_port);
+      port_ = ntohs(((sockaddr_in *)&client_address_)->sin_port);
 
       SPDLOG_INFO("Connected to {}:{}", ip_, ntohs(port_));
 
     } else if (client_address_.ss_family == AF_INET6) {
       char ipstr[INET6_ADDRSTRLEN];
-      inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&client_address_)->sin6_addr,
-                ipstr, INET6_ADDRSTRLEN);
+      inet_ntop(AF_INET6, &((sockaddr_in6 *)&client_address_)->sin6_addr, ipstr,
+                INET6_ADDRSTRLEN);
 
       ip_ = ipstr;
-      port_ = ((struct sockaddr_in6 *)&client_address_)->sin6_port;
+      port_ = ((sockaddr_in6 *)&client_address_)->sin6_port;
 
       SPDLOG_INFO("Connected to {}:{}", ip_, ntohs(port_));
     }
@@ -52,26 +52,32 @@ public:
     return total_sent;
   }
 
-  std::vector<std::byte> receive(int flags = 0) {
-    std::vector<std::byte> data(READ_BUFFER_SIZE);
+  int receive(std::vector<std::byte> &data) {
+    return ::recv(socket_.getFd(), data.data(), data.size(), 0);
+  }
 
-    ssize_t n = ::recv(socket_.getFd(), data.data(), data.size(), flags);
-    if (n < 0) {
-      if (errno == ECONNRESET || errno == ENOTCONN) {
-        SPDLOG_DEBUG("Client {}:{} disconnected abruptly: {}", ip_, port_,
-                     strerror(errno));
-        return {}; // return empty to signal disconnect
+  std::vector<std::byte> receiveAll() {
+    std::vector<std::byte> all;
+    std::vector<std::byte> chunk(READ_BUFFER_SIZE);
+
+    for (;;) {
+      ssize_t n = ::recv(socket_.getFd(), chunk.data(), chunk.size(), 0);
+      if (n > 0) {
+        all.insert(all.end(), chunk.begin(), chunk.begin() + n);
+      } else if (n == 0) {
+        return {};
+      } else {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          break;
+        }
+        if (errno == ECONNRESET || errno == ENOTCONN) {
+          return {};
+        }
+        throw std::runtime_error("Failed to receive data");
       }
-      SPDLOG_ERROR("ERROR on receiving: {}", strerror(errno));
-      throw std::runtime_error("Failed to receive data");
     }
 
-    if (n == 0) {
-      SPDLOG_DEBUG("Client {}:{} disconnected cleanly", ip_, port_);
-      return {};
-    }
-    data.resize(n);
-    return data;
+    return all;
   }
 
   int setSocketNonBlocking() { return socket_.setNonBlocking(); }
@@ -83,7 +89,7 @@ public:
 
 private:
   Socket socket_;
-  const struct sockaddr_storage client_address_;
+  const sockaddr_storage client_address_;
   std::string ip_;
   uint16_t port_;
 };
