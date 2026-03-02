@@ -4,7 +4,7 @@
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #endif
 
-#include <TcpConnectionSocket.hpp>
+#include <TcpStream.hpp>
 #include <TcpListenerSocket.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
@@ -33,7 +33,7 @@ int main() {
   EpollInstance epoll;
   epoll.add(listener.getFd(), EPOLLIN, listener.getFd());
 
-  std::unordered_map<int, std::shared_ptr<TcpConnectionSocket>> connections;
+  std::unordered_map<int, std::shared_ptr<TcpStream>> connections;
 
   for (;;) {
     std::vector<epoll_event> events = epoll.wait(64);
@@ -41,7 +41,7 @@ int main() {
 
       if (event.data.fd == listener.getFd()) {
         auto newConnection =
-            std::make_shared<TcpConnectionSocket>(listener.accept());
+            std::make_shared<TcpStream>(listener.accept());
         newConnection->setSocketNonBlocking();
         int connFd = newConnection->getFd();
         connections[connFd] = newConnection;

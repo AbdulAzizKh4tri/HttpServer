@@ -1,11 +1,11 @@
-include(FetchContent)
-
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include(FetchContent)
+
 set(FETCHCONTENT_QUIET OFF)  # more verbose output to debug
-set(FETCHCONTENT_BASE_DIR "/home/ubkn0909/dev/pair/cmake-source-cache" CACHE PATH "Global FetchContent cache" FORCE)
+set(FETCHCONTENT_BASE_DIR "/home/pair/cmake-source-cache" CACHE PATH "Global FetchContent cache" FORCE)
 
 cmake_minimum_required(VERSION 3.28)
 project(1test)

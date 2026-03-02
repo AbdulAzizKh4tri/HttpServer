@@ -6,7 +6,8 @@
 #include <sys/socket.h> // socket, bind, listen, accept, setsockopt, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 
 #include "Socket.hpp"
-#include "TcpConnectionSocket.hpp"
+#include "TcpStream.hpp"
+#include "TlsStream.hpp"
 
 class TcpListenerSocket {
 public:
@@ -24,7 +25,7 @@ public:
 
     int gai = getaddrinfo(host_.c_str(), port_.c_str(), &hints, &raw);
     if (gai != 0) {
-      SPDLOG_ERROR("ERROR on getaddrinfo %s", gai_strerror(gai));
+      SPDLOG_ERROR("ERROR on getaddrinfo {}", gai_strerror(gai));
       throw std::runtime_error("Failed to locate address");
     }
     res.reset(raw);
@@ -32,7 +33,7 @@ public:
     socket_ =
         Socket(socket(res->ai_family, res->ai_socktype, res->ai_protocol));
     if (!socket_) {
-      SPDLOG_ERROR("Failed to create socket %s", strerror(errno));
+      SPDLOG_ERROR("Failed to create socket {}", strerror(errno));
       throw std::runtime_error("Failed to create socket");
     }
 
@@ -41,23 +42,28 @@ public:
 
   void listen(int backlog) {
     if (::listen(socket_.getFd(), backlog) < 0) {
-      SPDLOG_ERROR("ERROR on listening %s", strerror(errno));
+      SPDLOG_ERROR("ERROR on listening {}", strerror(errno));
       throw std::runtime_error("Failed to listen on socket");
     }
     SPDLOG_INFO("Listening on {}:{}", host_, port_);
   }
 
-  TcpConnectionSocket accept() {
-    sockaddr_storage clientAddress;
-    socklen_t clientAddressLength = sizeof(clientAddress);
-    int newSocket_fd = ::accept(socket_.getFd(), (sockaddr *)&clientAddress,
-                                &clientAddressLength);
+  TlsStream acceptTls(SSL_CTX *ctx) {
+	int newSocket_fd = ::accept(socket_.getFd(), nullptr, nullptr);
+	if (newSocket_fd < 0) {
+	  SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
+	  throw std::runtime_error("Failed to accept connection");
+	}
+	return TlsStream(newSocket_fd, ctx);
+  }
 
+  TcpStream accept() {
+    int newSocket_fd = ::accept(socket_.getFd(), nullptr, nullptr);
     if (newSocket_fd < 0) {
-      SPDLOG_ERROR("ERROR on accepting %s", strerror(errno));
+      SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
       throw std::runtime_error("Failed to accept connection");
     }
-    return TcpConnectionSocket(newSocket_fd, clientAddress);
+    return TcpStream(newSocket_fd);
   }
 
   int setSocketNonBlocking() { return socket_.setNonBlocking(); }
@@ -69,10 +75,14 @@ private:
 
   void bind_socket(std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> &res) {
     int reuse = 1;
-    setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+    if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEADDR, &reuse,
+                   sizeof(int)) < 0) {
+      SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
+      throw std::runtime_error("Failed to set socket options");
+    }
 
     if (bind(socket_.getFd(), res->ai_addr, res->ai_addrlen) < 0) {
-      SPDLOG_ERROR("ERROR on binding %s", strerror(errno));
+      SPDLOG_ERROR("ERROR on binding {}", strerror(errno));
       throw std::runtime_error("Failed to bind socket");
     }
     SPDLOG_INFO("Socket Bound for {}:{}", host_, port_);
