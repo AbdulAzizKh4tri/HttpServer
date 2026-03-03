@@ -79,6 +79,9 @@ int main() {
 
         auto &conn = it->second;
 
+        SPDLOG_DEBUG("fd: {}, events: {}", (int)event.data.fd,
+                     (int)event.events & EPOLLIN ? "EPOLLIN" : "EPOLLOUT");
+
         if (event.events & EPOLLIN)
           conn->onReadable();
 
@@ -94,8 +97,10 @@ int main() {
         }
 
         uint32_t newEvents = EPOLLIN | EPOLLET;
-        if (conn->wantsWrite())
+        if (conn->wantsWrite()) {
+          SPDLOG_DEBUG("wants write");
           newEvents |= EPOLLOUT;
+        }
         epoll.modify(event.data.fd, newEvents, event.data.fd);
       }
     }
