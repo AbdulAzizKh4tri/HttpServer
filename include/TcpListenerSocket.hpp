@@ -49,12 +49,12 @@ public:
   }
 
   TlsStream acceptTls(SSL_CTX *ctx) {
-	int newSocket_fd = ::accept(socket_.getFd(), nullptr, nullptr);
-	if (newSocket_fd < 0) {
-	  SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
-	  throw std::runtime_error("Failed to accept connection");
-	}
-	return TlsStream(newSocket_fd, ctx);
+    int newSocket_fd = ::accept(socket_.getFd(), nullptr, nullptr);
+    if (newSocket_fd < 0) {
+      SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
+      throw std::runtime_error("Failed to accept connection");
+    }
+    return TlsStream(newSocket_fd, ctx);
   }
 
   TcpStream accept() {

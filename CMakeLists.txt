@@ -1,14 +1,14 @@
+cmake_minimum_required(VERSION 3.28)
+project(HttpServer)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
-set(FETCHCONTENT_QUIET OFF)  # more verbose output to debug
+set(FETCHCONTENT_QUIET OFF)
 set(FETCHCONTENT_BASE_DIR "/home/pair/cmake-source-cache" CACHE PATH "Global FetchContent cache" FORCE)
-
-cmake_minimum_required(VERSION 3.28)
-project(1test)
 
 add_executable(server server.cpp)
 target_include_directories(server PRIVATE ${PROJECT_SOURCE_DIR}/include)
@@ -29,4 +29,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-target_link_libraries(server PRIVATE fmt::fmt spdlog::spdlog)
+# OpenSSL (system)
+find_package(OpenSSL REQUIRED)
+
+target_link_libraries(server PRIVATE
+  fmt::fmt
+  spdlog::spdlog
+  OpenSSL::SSL
+  OpenSSL::Crypto
+)
