@@ -15,6 +15,8 @@
 class HttpServer {
 public:
   void setTlsContext(std::string certPath, std::string keyPath) {
+    // takes the cert.pem and key.pem files and sets up the context needed
+    // for TLS
     tlsContext_ = std::shared_ptr<SSL_CTX>(SSL_CTX_new(TLS_server_method()),
                                            SSL_CTX_free);
     if (!tlsContext_)
@@ -29,6 +31,7 @@ public:
       throw std::runtime_error("Failed to load private key");
   }
 
+  // Add listeners, either TCP or TLS
   void addListener(const std::string &host, const std::string &port) {
     auto listener = std::make_unique<ListenerSocket>(host, port);
     listener->setSocketNonBlocking();
@@ -41,35 +44,48 @@ public:
     tlsListeners_.push_back(std::move(listener));
   };
 
+  // duh
   void setRouter(Router &router) { router_ = &router; };
 
   void run() {
+
+    // Go through every TCP listener and set up the socket, then add to epoll
     for (auto &listener : tcpListeners_) {
       listener->listen(BACKLOG);
       epoll_.add(listener->getFd(), EPOLLIN, listener->getFd());
     }
 
+    // TLS listeners added without tls context = bad
     if (!tlsListeners_.empty() && !tlsContext_) {
       throw std::runtime_error("TLS context not set");
     }
+
+    // Same thing as above for Tls listeners
     for (auto &listener : tlsListeners_) {
       listener->listen(BACKLOG);
       epoll_.add(listener->getFd(), EPOLLIN, listener->getFd());
     }
 
     for (;;) {
+      // event queue
       std::vector<epoll_event> events = epoll_.wait(64);
 
       for (auto &event : events) {
 
+        // Timer Event, close connection
         auto timerIt = timerConnections_.find(event.data.fd);
         if (timerIt != timerConnections_.end()) {
           uint64_t val;
+          // must read because timer is level triggered
+          // would fire every iteration otherwise
           ::read(event.data.fd, &val, sizeof(val));
           timerIt->second->onTimeout();
+          closeConnection(timerIt->second->getFd());
           continue;
         }
 
+        // Check whether event is a TCP or TLS listener,
+        // if neither, it's a connection event
         auto tcpIt = std::find_if(
             tcpListeners_.begin(), tcpListeners_.end(),
             [&](auto &listener) { return listener->getFd() == event.data.fd; });
@@ -107,6 +123,7 @@ public:
           continue;
         }
 
+        // Connection event
         auto it = connections_.find(event.data.fd);
         if (it == connections_.end())
           continue;
@@ -125,6 +142,7 @@ public:
         }
 
         uint32_t newEvents = EPOLLIN | EPOLLET;
+        // if there's data left to write, add EPOLLOUT
         if (conn->wantsWrite())
           newEvents |= EPOLLOUT;
         epoll_.modify(event.data.fd, newEvents, event.data.fd);

@@ -16,6 +16,7 @@ inline std::vector<std::string> split(std::string_view s,
 class HttpRequest {
 
 public:
+  static constexpr size_t MAX_HEADER_SIZE = 8 * 1024;
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
   static const int NO_CONTENT_LENGTH_HEADER = -1;
   static const int CONTENT_LENGTH_TOO_LARGE = -2;
@@ -44,6 +45,7 @@ public:
 
     method = tokens[0];
 
+    // Extract query parameters
     std::string rawPath = tokens[1];
     auto qpos = rawPath.find('?');
     if (qpos == std::string::npos) {

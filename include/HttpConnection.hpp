@@ -18,6 +18,12 @@ enum class ConnectionState {
   CLOSING
 };
 
+enum class ChunkState {
+  READING_SIZE,
+  READING_DATA,
+  READING_TRAILING_CRLF,
+};
+
 enum class ReadResult { DATA, CLOSED, WOULD_BLOCK };
 
 class HttpConnection {
@@ -28,6 +34,7 @@ public:
     request_.ip = stream_->getIp();
     request_.port = stream_->getPort();
 
+    // create timer for Connection: keep alive
     timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timerFd_ == -1)
       throw std::runtime_error("Failed to create timerfd");
@@ -59,7 +66,6 @@ public:
       handleWritingResponse();
       break;
     case ConnectionState::CLOSING:
-    default:
       break;
     }
   }
@@ -77,11 +83,6 @@ public:
     SPDLOG_DEBUG("Connection timed out {}:{}", stream_->getIp(),
                  stream_->getPort());
     state_ = ConnectionState::CLOSING;
-  }
-
-  void disarmTimer() {
-    itimerspec spec = {};
-    timerfd_settime(timerFd_, 0, &spec, nullptr);
   }
 
   bool wantsWrite() const {
@@ -106,9 +107,20 @@ private:
   Router &router_;
   int timerFd_ = -1;
 
+  ChunkState chunkState_ = ChunkState::READING_SIZE;
+  size_t currentChunkSize_ = 0;
+  size_t currentChunkBytesRead_ = 0;
+  std::string assembledBody_;
+
   void armTimer() {
     itimerspec spec = {};
     spec.it_value.tv_sec = IDLE_TIMEOUT_SECS;
+    timerfd_settime(timerFd_, 0, &spec, nullptr);
+  }
+
+  void disarmTimer() {
+    // For websockets eventually, nothing useful yet
+    itimerspec spec = {};
     timerfd_settime(timerFd_, 0, &spec, nullptr);
   }
 
@@ -125,8 +137,11 @@ private:
     request_ = HttpRequest();
     request_.ip = stream_->getIp();
     request_.port = stream_->getPort();
-    readBuffer_.clear();
     state_ = ConnectionState::READING_HEADERS;
+    chunkState_ = ChunkState::READING_SIZE;
+    currentChunkSize_ = 0;
+    currentChunkBytesRead_ = 0;
+    assembledBody_.clear();
     resetTimer();
   }
 
@@ -156,19 +171,28 @@ private:
     if (result != ReadResult::DATA)
       return;
 
+    while (readBuffer_.size() >= 2 && readBuffer_[0] == '\r' &&
+           readBuffer_[1] == '\n') {
+      readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
+    }
+
     std::string data(readBuffer_.begin(), readBuffer_.end());
     size_t end = data.find("\r\n\r\n");
-    if (end == std::string::npos)
-      return;
+    if (end == std::string::npos) {
+      if (readBuffer_.size() > HttpRequest::MAX_HEADER_SIZE) {
+        sendErrorResponse(431); // 431 = Request Header Fields Too Large
+        return;
+      }
+    }
 
     std::string headerString = data.substr(0, end);
     if (!request_.parseHeader(headerString)) {
-      sendErrorResponse(400);
+      sendErrorResponse(400); // malformed header
       return;
     }
 
     if (request_.headers.find("Host") == request_.headers.end()) {
-      sendErrorResponse(400);
+      sendErrorResponse(400); // no Host header
       return;
     }
 
@@ -178,6 +202,99 @@ private:
   }
 
   void handleReadingBody() {
+    bool hasContentLengthHeader =
+        request_.headers.find("Content-Length") != request_.headers.end();
+    auto transferEncodingHeader = request_.headers.find("Transfer-Encoding");
+
+    if (hasContentLengthHeader &&
+        transferEncodingHeader != request_.headers.end()) {
+      sendErrorResponse(400);
+      return;
+    }
+
+    if (transferEncodingHeader != request_.headers.end()) {
+      if (transferEncodingHeader->second == "chunked") {
+        handleReadingBodyChunked();
+        return;
+      }
+    }
+
+    handleReadingBodyContentLength();
+  }
+
+  void handleReadingBodyChunked() {
+    ReadResult result = drainIntoBuffer();
+    if (result == ReadResult::CLOSED)
+      return;
+
+    while (true) {
+      switch (chunkState_) {
+      case ChunkState::READING_SIZE:
+        if (!readChunkSize()) // returns false if needs more data
+          return;
+        break;
+      case ChunkState::READING_DATA:
+        if (!readChunkData())
+          return;
+        break;
+      case ChunkState::READING_TRAILING_CRLF:
+        if (!readTrailingCrlf())
+          return;
+        break;
+      }
+    }
+  }
+
+  bool readChunkSize() {
+    std::string data(readBuffer_.begin(), readBuffer_.end());
+    size_t end = data.find("\r\n");
+    if (end == std::string::npos)
+      return false; // need more data
+
+    std::stringstream ss(data.substr(0, end));
+    ss >> std::hex >> currentChunkSize_;
+    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 2);
+
+    if (currentChunkSize_ == 0) {
+      request_.body = assembledBody_;
+      sendResponse();
+      return false; // done, stop looping
+    }
+
+    chunkState_ = ChunkState::READING_DATA;
+    return true;
+  }
+
+  bool readChunkData() {
+    if (readBuffer_.size() < currentChunkSize_)
+      return false;
+
+    currentChunkBytesRead_ += currentChunkSize_;
+    if (currentChunkBytesRead_ > HttpRequest::MAX_CONTENT_LENGTH) {
+      sendErrorResponse(413);
+      return false;
+    }
+
+    assembledBody_.append(readBuffer_.begin(),
+                          readBuffer_.begin() + currentChunkSize_);
+    readBuffer_.erase(readBuffer_.begin(),
+                      readBuffer_.begin() + currentChunkSize_);
+
+    currentChunkSize_ = 0;
+    chunkState_ = ChunkState::READING_TRAILING_CRLF;
+    return true;
+  }
+
+  bool readTrailingCrlf() {
+    if (readBuffer_.size() < 2)
+      return false;
+
+    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
+    chunkState_ = ChunkState::READING_SIZE;
+    return true;
+  }
+
+  void handleReadingBodyContentLength() {
     int contentLength = request_.getContentLength();
 
     if (contentLength == HttpRequest::CONTENT_LENGTH_TOO_LARGE) {
@@ -206,12 +323,27 @@ private:
 
     request_.body =
         std::string(readBuffer_.begin(), readBuffer_.begin() + bodySize);
-    readBuffer_.clear();
+    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + bodySize);
 
+    sendResponse();
+  }
+
+  void sendResponse() {
     bool keepAlive = shouldKeepAlive();
 
     state_ = ConnectionState::WRITING_RESPONSE;
-    HttpResponse response = router_.dispatch(request_);
+    HttpResponse response;
+    try {
+      response = router_.dispatch(request_);
+    } catch (const std::exception &e) {
+      SPDLOG_ERROR("Handler threw exception: {}", e.what());
+      response = HttpResponse(500);
+      keepAlive = false;
+    } catch (...) {
+      SPDLOG_ERROR("Handler threw unknown exception");
+      response = HttpResponse(500);
+      keepAlive = false;
+    }
     response.addHeader("Connection", keepAlive ? "keep-alive" : "close");
 
     std::vector<unsigned char> serialized = response.serialize();
@@ -283,6 +415,7 @@ private:
     writeBuffer_.clear();
     writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
                         serialized.end());
+    logRequest(request_, response);
     handleWritingResponse();
   }
 };
