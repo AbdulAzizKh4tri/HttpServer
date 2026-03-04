@@ -89,6 +89,5 @@ private:
       SPDLOG_ERROR("ERROR on binding {}", strerror(errno));
       throw std::runtime_error("Failed to bind socket");
     }
-    SPDLOG_INFO("Socket Bound for {}:{}", host_, port_);
   }
 };

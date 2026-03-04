@@ -5,7 +5,9 @@
 #include <sys/types.h>
 
 #include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
 #include "IStream.hpp"
+#include "Router.hpp"
 
 enum class ConnectionState {
   HANDSHAKING,
@@ -19,9 +21,9 @@ enum class ReadResult { DATA, CLOSED, WOULD_BLOCK };
 
 class HttpConnection {
 public:
-  HttpConnection(std::shared_ptr<IStream> stream)
-      : stream_(std::move(stream)), state_(ConnectionState::HANDSHAKING),
-        request_(HttpRequest()) {}
+  HttpConnection(std::shared_ptr<IStream> stream, Router &router)
+      : stream_(std::move(stream)), router_(router),
+        state_(ConnectionState::HANDSHAKING), request_(HttpRequest()) {}
 
   void onReadable() {
     switch (state_) {
@@ -68,6 +70,7 @@ private:
   std::vector<unsigned char> writeBuffer_;
   bool handshakeWantsWrite_ = false;
   HttpRequest request_;
+  Router router_;
 
   void handleHandshake() {
     handshakeWantsWrite_ = false;
@@ -75,14 +78,10 @@ private:
     HandshakeResult result = stream_->handshake();
     switch (result) {
     case HandshakeResult::DONE:
-      SPDLOG_INFO("TLS handshake complete for {}:{}", stream_->getIp(),
-                  stream_->getPort());
       state_ = ConnectionState::READING_HEADERS;
       break;
 
     case HandshakeResult::NO_TLS:
-      SPDLOG_INFO("No TLS handshake for {}:{}", stream_->getIp(),
-                  stream_->getPort());
       state_ = ConnectionState::READING_HEADERS;
       break;
 
@@ -143,22 +142,18 @@ private:
     if (!bodyComplete)
       return;
 
-    state_ = ConnectionState::WRITING_RESPONSE;
     size_t bodySize = (contentLength == -1) ? 0 : (size_t)contentLength;
 
-    std::string response = "HTTP/1.1 200 OK\r\n"
-                           "Content-Type: application/json\r\n"
-                           "Content-Length: " +
-                           std::to_string(bodySize) +
-                           "\r\n"
-                           "Connection: close\r\n"
-                           "\r\n";
+    request_.body =
+        std::string(readBuffer_.begin(), readBuffer_.begin() + bodySize);
+    readBuffer_.clear();
+
+    state_ = ConnectionState::WRITING_RESPONSE;
+    std::vector<unsigned char> response =
+        router_.dispatch(request_).serialize();
 
     writeBuffer_.clear();
     writeBuffer_.insert(writeBuffer_.end(), response.begin(), response.end());
-    writeBuffer_.insert(writeBuffer_.end(), readBuffer_.begin(),
-                        readBuffer_.begin() + bodySize);
-    readBuffer_.clear();
 
     handleWritingResponse();
   };

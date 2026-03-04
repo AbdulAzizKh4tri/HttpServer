@@ -42,6 +42,16 @@ int main() {
   if (SSL_CTX_use_PrivateKey_file(ctx.get(), "key.pem", SSL_FILETYPE_PEM) <= 0)
     throw std::runtime_error("Failed to load private key");
 
+  Router router;
+
+  router.get("/", [](const HttpRequest &request) {
+    return HttpResponse(200, "Hello world!");
+  });
+
+  router.post("/", [](const HttpRequest &request) {
+    return HttpResponse(200, request.body);
+  });
+
   // --- Listener setup ---
   ListenerSocket TlsListener("localhost", "8443");
   TlsListener.setSocketNonBlocking();
@@ -70,7 +80,7 @@ int main() {
         stream->setSocketNonBlocking();
 
         int fd = stream->getFd();
-        auto conn = std::make_shared<HttpConnection>(std::move(stream));
+        auto conn = std::make_shared<HttpConnection>(std::move(stream), router);
         connections[fd] = conn;
 
         // Start with EPOLLIN so we can drive the handshake forward.
@@ -82,7 +92,7 @@ int main() {
         stream->setSocketNonBlocking();
 
         int fd = stream->getFd();
-        auto conn = std::make_shared<HttpConnection>(std::move(stream));
+        auto conn = std::make_shared<HttpConnection>(std::move(stream), router);
         connections[fd] = conn;
 
         epoll.add(fd, EPOLLIN | EPOLLET, fd);
@@ -109,7 +119,6 @@ int main() {
 
         uint32_t newEvents = EPOLLIN | EPOLLET;
         if (conn->wantsWrite()) {
-          SPDLOG_DEBUG("wants write");
           newEvents |= EPOLLOUT;
         }
         epoll.modify(event.data.fd, newEvents, event.data.fd);

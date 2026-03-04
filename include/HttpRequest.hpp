@@ -15,10 +15,10 @@ inline std::vector<std::string> split(std::string_view s,
 
 class HttpRequest {
 
+public:
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
 
-public:
-  std::string method, path, version;
+  std::string method, path, version, body;
   std::unordered_map<std::string, std::string> headers;
 
   HttpRequest() {}
@@ -42,8 +42,6 @@ public:
     method = tokens[0];
     path = tokens[1];
     version = tokens[2];
-
-    SPDLOG_DEBUG("Method: {}, Path: {}, Version: {}", method, path, version);
 
     while (std::getline(iss, line)) {
       if (!line.empty() && line.back() == '\r')
