@@ -12,12 +12,13 @@
 
 class TlsStream : public IStream {
 public:
-  TlsStream(int fd, SSL_CTX *ctx) : socket_(fd) {
+  TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len)
+      : socket_(fd) {
     ssl_ = SSL_new(ctx);
     if (!ssl_)
       throw std::runtime_error("Failed to create SSL object");
     SSL_set_fd(ssl_, fd);
-    auto [ip, port] = resolvePeerAddress(socket_.getFd());
+    auto [ip, port] = resolvePeerAddress(addr, len);
     ip_ = ip;
     port_ = port;
   }
@@ -72,11 +73,11 @@ public:
     }
   }
 
-  ssize_t receive(std::vector<std::byte> &buf) const override {
+  ssize_t receive(std::vector<unsigned char> &buf) const override {
     return SSL_read(ssl_, buf.data(), buf.size());
   }
 
-  ssize_t send(const std::span<const std::byte> &data) const override {
+  ssize_t send(const std::span<const unsigned char> &data) const override {
     int n = SSL_write(ssl_, data.data(), data.size());
     if (n <= 0) {
       int err = SSL_get_error(ssl_, n);

@@ -15,6 +15,8 @@ enum class ConnectionState {
   CLOSING
 };
 
+enum class ReadResult { DATA, CLOSED, WOULD_BLOCK };
+
 class HttpConnection {
 public:
   HttpConnection(std::shared_ptr<IStream> stream)
@@ -62,8 +64,8 @@ public:
 private:
   std::shared_ptr<IStream> stream_;
   ConnectionState state_;
-  std::vector<std::byte> readBuffer_;
-  std::vector<std::byte> writeBuffer_;
+  std::vector<unsigned char> readBuffer_;
+  std::vector<unsigned char> writeBuffer_;
   bool handshakeWantsWrite_ = false;
   HttpRequest request_;
 
@@ -79,7 +81,7 @@ private:
       break;
 
     case HandshakeResult::NO_TLS:
-      SPDLOG_INFO("No TLS handshake was supported {}:{}", stream_->getIp(),
+      SPDLOG_INFO("No TLS handshake for {}:{}", stream_->getIp(),
                   stream_->getPort());
       state_ = ConnectionState::READING_HEADERS;
       break;
@@ -100,15 +102,12 @@ private:
   }
 
   void handleReadingHeaders() {
-    std::vector<std::byte> buf(4096);
-    if (!receiveData(buf)) {
+    ReadResult result = drainIntoBuffer();
+
+    if (result != ReadResult::DATA)
       return;
-    }
 
-    readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
-
-    std::string data(reinterpret_cast<char *>(readBuffer_.data()),
-                     readBuffer_.size()); // ✅
+    std::string data(readBuffer_.begin(), readBuffer_.end());
     size_t end = data.find("\r\n\r\n");
 
     if (end == std::string::npos)
@@ -122,43 +121,46 @@ private:
 
     readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 4);
 
-    if (state_ == ConnectionState::READING_HEADERS) {
-      state_ = ConnectionState::READING_BODY;
-      handleReadingBody();
-    }
+    state_ = ConnectionState::READING_BODY;
+    handleReadingBody();
   };
 
   void handleReadingBody() {
-    std::vector<std::byte> buf(4096);
-    receiveData(buf);
 
-    readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
+    int contentLength = request_.getContentLength();
+    bool bodyComplete =
+        (contentLength == -1) || ((int)readBuffer_.size() >= contentLength);
 
-    if (readBuffer_.size() >= request_.getContentLength() ||
-        request_.getContentLength() == -1) {
-      state_ = ConnectionState::WRITING_RESPONSE;
-
-      std::string response = "HTTP/1.1 200 OK\r\n"
-                             "Content-Type: application/json\r\n"
-                             "Content-Length: " +
-                             std::to_string(request_.getContentLength() == -1
-                                                ? 0
-                                                : request_.getContentLength()) +
-                             "\r\n"
-                             "Connection: close\r\n"
-                             "\r\n";
-      std::vector<std::byte> response_bytes(
-          reinterpret_cast<const std::byte *>(response.data()),
-          reinterpret_cast<const std::byte *>(response.data() +
-                                              response.size()));
-      response_bytes.insert(response_bytes.end(), readBuffer_.begin(),
-                            readBuffer_.end());
-
-      writeBuffer_.insert(writeBuffer_.end(), response_bytes.begin(),
-                          response_bytes.end());
-      SPDLOG_DEBUG("writeBuffer_.size() = {}", writeBuffer_.size());
-      handleWritingResponse();
+    if (!bodyComplete) {
+      ReadResult result = drainIntoBuffer();
+      if (result == ReadResult::CLOSED) {
+        return;
+      }
+      bodyComplete =
+          (contentLength == -1) || ((int)readBuffer_.size() >= contentLength);
     }
+
+    if (!bodyComplete)
+      return;
+
+    state_ = ConnectionState::WRITING_RESPONSE;
+    size_t bodySize = (contentLength == -1) ? 0 : (size_t)contentLength;
+
+    std::string response = "HTTP/1.1 200 OK\r\n"
+                           "Content-Type: application/json\r\n"
+                           "Content-Length: " +
+                           std::to_string(bodySize) +
+                           "\r\n"
+                           "Connection: close\r\n"
+                           "\r\n";
+
+    writeBuffer_.clear();
+    writeBuffer_.insert(writeBuffer_.end(), response.begin(), response.end());
+    writeBuffer_.insert(writeBuffer_.end(), readBuffer_.begin(),
+                        readBuffer_.begin() + bodySize);
+    readBuffer_.clear();
+
+    handleWritingResponse();
   };
 
   void handleWritingResponse() {
@@ -169,39 +171,44 @@ private:
     }
   }
 
-  bool receiveData(std::vector<std::byte> &buf) {
-    ssize_t n = stream_->receive(buf);
+  ReadResult drainIntoBuffer() {
+    bool gotData = false;
+    for (;;) {
+      std::vector<unsigned char> buf(4096);
+      ssize_t n = stream_->receive(buf);
 
-    if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-      buf.resize(0);
-      return false;
+      if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
+        }
+        SPDLOG_ERROR("Receive error for {}:{} : {}", stream_->getIp(),
+                     stream_->getPort(), strerror(errno));
+        state_ = ConnectionState::CLOSING;
+        return ReadResult::CLOSED;
+      }
+
+      if (n == 0) {
+        SPDLOG_INFO("Connection closed by peer, {}:{}", stream_->getIp(),
+                    stream_->getPort());
+        state_ = ConnectionState::CLOSING;
+        return ReadResult::CLOSED;
+      }
+
+      buf.resize(n);
+      readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
+      gotData = true;
     }
-
-    if (n <= 0) {
-      SPDLOG_INFO("Connection {}:{} closed", stream_->getIp(),
-                  stream_->getPort());
-      state_ = ConnectionState::CLOSING;
-      return false;
-    }
-
-    buf.resize(n);
-    return true;
   }
 
   void flushWriteBuffer() {
     if (writeBuffer_.empty())
       return;
 
-    SPDLOG_DEBUG("writing {} bytes", writeBuffer_.size());
-    std::string writeBuffer(reinterpret_cast<const char *>(writeBuffer_.data()),
-                            writeBuffer_.size());
-    SPDLOG_DEBUG("writeBuffer = {}", writeBuffer);
-
-    ssize_t n = stream_->send(std::span<const std::byte>(writeBuffer_));
+    ssize_t n = stream_->send(writeBuffer_);
 
     if (n < 0) {
-      SPDLOG_ERROR("Send error for {}:{}", stream_->getIp(),
-                   stream_->getPort());
+      SPDLOG_ERROR("Send error for {}:{}, {}", stream_->getIp(),
+                   stream_->getPort(), strerror(errno));
       state_ = ConnectionState::CLOSING;
       return;
     }

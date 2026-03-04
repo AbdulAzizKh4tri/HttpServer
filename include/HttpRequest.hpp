@@ -14,6 +14,9 @@ inline std::vector<std::string> split(std::string_view s,
 }
 
 class HttpRequest {
+
+  static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
+
 public:
   std::string method, path, version;
   std::unordered_map<std::string, std::string> headers;
@@ -46,8 +49,10 @@ public:
       if (!line.empty() && line.back() == '\r')
         line.pop_back();
 
-      auto header = split(line, ": ");
-      headers[header[0]] = header[1];
+      auto pos = line.find(": ");
+      if (pos == std::string::npos)
+        continue;
+      headers[line.substr(0, pos)] = line.substr(pos + 2);
     }
     return true;
   }
@@ -56,6 +61,9 @@ public:
     auto it = headers.find("Content-Length");
     if (it == headers.end())
       return -1;
-    return std::stoi(it->second);
+    int len = std::stoi(it->second);
+    if (len < 0 || (size_t)len > MAX_CONTENT_LENGTH)
+      return -1;
+    return len;
   }
 };

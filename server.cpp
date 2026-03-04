@@ -13,7 +13,7 @@
 
 #include "EpollInstance.hpp"
 #include "HttpConnection.hpp"
-#include "TcpListenerSocket.hpp"
+#include "ListenerSocket.hpp"
 #include "TlsStream.hpp"
 
 void configureLog() {
@@ -43,12 +43,17 @@ int main() {
     throw std::runtime_error("Failed to load private key");
 
   // --- Listener setup ---
-  TcpListenerSocket listener("localhost", "8443");
-  listener.setSocketNonBlocking();
-  listener.listen(10);
+  ListenerSocket TlsListener("localhost", "8443");
+  TlsListener.setSocketNonBlocking();
+  TlsListener.listen(10);
+
+  ListenerSocket TcpListener("localhost", "8080");
+  TcpListener.setSocketNonBlocking();
+  TcpListener.listen(10);
 
   EpollInstance epoll;
-  epoll.add(listener.getFd(), EPOLLIN, listener.getFd());
+  epoll.add(TlsListener.getFd(), EPOLLIN, TlsListener.getFd());
+  epoll.add(TcpListener.getFd(), EPOLLIN, TcpListener.getFd());
 
   std::unordered_map<int, std::shared_ptr<HttpConnection>> connections;
 
@@ -57,11 +62,11 @@ int main() {
 
     for (auto &event : events) {
 
-      if (event.data.fd == listener.getFd()) {
+      if (event.data.fd == TlsListener.getFd()) {
         // New incoming connection. acceptTls() just wraps the fd + SSL_CTX,
         // no handshake yet — that happens non-blocking via HttpConnection.
         auto stream =
-            std::make_shared<TlsStream>(listener.acceptTls(ctx.get()));
+            std::make_shared<TlsStream>(TlsListener.acceptTls(ctx.get()));
         stream->setSocketNonBlocking();
 
         int fd = stream->getFd();
@@ -72,15 +77,21 @@ int main() {
         // The handshake reads first, so EPOLLIN is the right starting event.
         epoll.add(fd, EPOLLIN | EPOLLET, fd);
 
+      } else if (event.data.fd == TcpListener.getFd()) {
+        auto stream = std::make_shared<TcpStream>(TcpListener.accept());
+        stream->setSocketNonBlocking();
+
+        int fd = stream->getFd();
+        auto conn = std::make_shared<HttpConnection>(std::move(stream));
+        connections[fd] = conn;
+
+        epoll.add(fd, EPOLLIN | EPOLLET, fd);
       } else {
         auto it = connections.find(event.data.fd);
         if (it == connections.end())
           continue;
 
         auto &conn = it->second;
-
-        SPDLOG_DEBUG("fd: {}, events: {}", (int)event.data.fd,
-                     (int)event.events & EPOLLIN ? "EPOLLIN" : "EPOLLOUT");
 
         if (event.events & EPOLLIN)
           conn->onReadable();

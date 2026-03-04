@@ -13,21 +13,21 @@
 
 class TcpStream : public IStream {
 public:
-  TcpStream(int fd) : socket_(fd) {
-    auto [ip, port] = resolvePeerAddress(socket_.getFd());
+  TcpStream(int fd, sockaddr_storage addr, socklen_t len) : socket_(fd) {
+    auto [ip, port] = resolvePeerAddress(addr, len);
     ip_ = ip;
     port_ = port;
     SPDLOG_INFO("Connected to {}:{}", ip_, port_);
   }
 
-  ssize_t send(const std::span<const std::byte> &data) const override {
+  ssize_t send(const std::span<const unsigned char> &data) const override {
     ssize_t n = ::send(socket_.getFd(), data.data(), data.size(), 0);
     if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
       return 0;
     return n;
   }
 
-  ssize_t receive(std::vector<std::byte> &data) const override {
+  ssize_t receive(std::vector<unsigned char> &data) const override {
     return ::recv(socket_.getFd(), data.data(), data.size(), 0);
   }
 

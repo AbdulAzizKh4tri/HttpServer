@@ -9,9 +9,9 @@
 #include "TcpStream.hpp"
 #include "TlsStream.hpp"
 
-class TcpListenerSocket {
+class ListenerSocket {
 public:
-  TcpListenerSocket(std::string const &host, std::string port) {
+  ListenerSocket(std::string const &host, std::string port) {
     host_ = host;
     port_ = port;
 
@@ -49,21 +49,25 @@ public:
   }
 
   TlsStream acceptTls(SSL_CTX *ctx) {
-    int newSocket_fd = ::accept(socket_.getFd(), nullptr, nullptr);
+    sockaddr_storage addr{};
+    socklen_t len = sizeof(addr);
+    int newSocket_fd = ::accept(socket_.getFd(), (sockaddr *)&addr, &len);
     if (newSocket_fd < 0) {
       SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
       throw std::runtime_error("Failed to accept connection");
     }
-    return TlsStream(newSocket_fd, ctx);
+    return TlsStream(newSocket_fd, ctx, addr, len);
   }
 
   TcpStream accept() {
-    int newSocket_fd = ::accept(socket_.getFd(), nullptr, nullptr);
+    sockaddr_storage addr{};
+    socklen_t len = sizeof(addr);
+    int newSocket_fd = ::accept(socket_.getFd(), (sockaddr *)&addr, &len);
     if (newSocket_fd < 0) {
       SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
       throw std::runtime_error("Failed to accept connection");
     }
-    return TcpStream(newSocket_fd);
+    return TcpStream(newSocket_fd, addr, len);
   }
 
   int setSocketNonBlocking() { return socket_.setNonBlocking(); }
