@@ -4,7 +4,6 @@
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #endif
 
-#include <memory>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <spdlog/spdlog.h>

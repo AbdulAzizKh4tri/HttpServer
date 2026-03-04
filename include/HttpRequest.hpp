@@ -17,6 +17,8 @@ class HttpRequest {
 
 public:
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
+  static const int NO_CONTENT_LENGTH_HEADER = -1;
+  static const int CONTENT_LENGTH_TOO_LARGE = -2;
 
   std::string method, path, version, body, ip;
   uint16_t port;
@@ -75,10 +77,10 @@ public:
   int getContentLength() const {
     auto it = headers.find("Content-Length");
     if (it == headers.end())
-      return -1;
+      return NO_CONTENT_LENGTH_HEADER;
     int len = std::stoi(it->second);
     if (len < 0 || (size_t)len > MAX_CONTENT_LENGTH)
-      return -1;
+      return CONTENT_LENGTH_TOO_LARGE;
     return len;
   }
 };

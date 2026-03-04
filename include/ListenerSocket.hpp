@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <netdb.h>
 #include <netinet/in.h> // sockaddr_in, INET_ADDRSTRLEN, htons
 #include <spdlog/spdlog.h>
@@ -82,8 +83,14 @@ private:
     if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEADDR, &reuse,
                    sizeof(int)) < 0) {
       SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
-      throw std::runtime_error("Failed to set socket options");
+      throw std::runtime_error("Failed to set reuse address");
     }
+
+    // if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEPORT, &reuse,
+    //                sizeof(int)) < 0) {
+    //   SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
+    //   throw std::runtime_error("Failed to set reuse port");
+    // }
 
     if (bind(socket_.getFd(), res->ai_addr, res->ai_addrlen) < 0) {
       SPDLOG_ERROR("ERROR on binding {}", strerror(errno));
