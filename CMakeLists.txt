@@ -12,6 +12,7 @@ set(FETCHCONTENT_BASE_DIR "/home/pair/cmake-source-cache" CACHE PATH "Global Fet
 
 add_executable(server server.cpp)
 target_include_directories(server PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(server PRIVATE ${PROJECT_SOURCE_DIR}/external)
 
 # fmt
 FetchContent_Declare(

@@ -23,7 +23,10 @@ class HttpConnection {
 public:
   HttpConnection(std::shared_ptr<IStream> stream, Router &router)
       : stream_(std::move(stream)), router_(router),
-        state_(ConnectionState::HANDSHAKING), request_(HttpRequest()) {}
+        state_(ConnectionState::HANDSHAKING), request_(HttpRequest()) {
+    request_.ip = stream_->getIp();
+    request_.port = stream_->getPort();
+  }
 
   void onReadable() {
     switch (state_) {
@@ -183,8 +186,8 @@ private:
       }
 
       if (n == 0) {
-        SPDLOG_INFO("Connection closed by peer, {}:{}", stream_->getIp(),
-                    stream_->getPort());
+        SPDLOG_DEBUG("Connection closed by peer, {}:{}", stream_->getIp(),
+                     stream_->getPort());
         state_ = ConnectionState::CLOSING;
         return ReadResult::CLOSED;
       }

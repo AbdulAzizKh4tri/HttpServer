@@ -17,7 +17,6 @@ public:
     auto [ip, port] = resolvePeerAddress(addr, len);
     ip_ = ip;
     port_ = port;
-    SPDLOG_INFO("Connected to {}:{}", ip_, port_);
   }
 
   ssize_t send(const std::span<const unsigned char> &data) const override {

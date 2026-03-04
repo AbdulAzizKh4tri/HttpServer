@@ -11,19 +11,15 @@
 #include <sys/epoll.h>
 #include <unordered_map>
 
+#include <nlohmann/json.hpp>
+
 #include "EpollInstance.hpp"
 #include "HttpConnection.hpp"
 #include "ListenerSocket.hpp"
 #include "TlsStream.hpp"
+#include "logUtils.hpp"
 
-void configureLog() {
-#ifdef NDEBUG
-  spdlog::set_level(spdlog::level::info);
-#else
-  spdlog::set_level(spdlog::level::debug);
-#endif
-  spdlog::set_pattern("[%Y-%m-%d %H:%M] [%^%l%$] [thread %t] %v");
-}
+using json = nlohmann::json;
 
 int main() {
   configureLog();
@@ -45,11 +41,18 @@ int main() {
   Router router;
 
   router.get("/", [](const HttpRequest &request) {
-    return HttpResponse(200, "Hello world!");
+    auto nameIt = request.params.find("name");
+    if (nameIt == request.params.end())
+      return HttpResponse(404);
+
+    auto name = std::string(nameIt->second);
+
+    return HttpResponse(200, "Hello " + name + "!");
   });
 
   router.post("/", [](const HttpRequest &request) {
-    return HttpResponse(200, request.body);
+    json data = json::parse(request.body);
+    return HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
   });
 
   // --- Listener setup ---
@@ -110,8 +113,6 @@ int main() {
           conn->onWriteable();
 
         if (conn->isClosing()) {
-          SPDLOG_INFO("Removing connection {}:{}", conn->getIp(),
-                      conn->getPort());
           epoll.remove(event.data.fd);
           connections.erase(it);
           continue;

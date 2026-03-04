@@ -18,8 +18,9 @@ class HttpRequest {
 public:
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
 
-  std::string method, path, version, body;
-  std::unordered_map<std::string, std::string> headers;
+  std::string method, path, version, body, ip;
+  uint16_t port;
+  std::unordered_map<std::string, std::string> headers, params;
 
   HttpRequest() {}
 
@@ -40,7 +41,23 @@ public:
       return false;
 
     method = tokens[0];
-    path = tokens[1];
+
+    std::string rawPath = tokens[1];
+    auto qpos = rawPath.find('?');
+    if (qpos == std::string::npos) {
+      path = rawPath;
+    } else {
+      path = rawPath.substr(0, qpos);
+      std::string queryString = rawPath.substr(qpos + 1);
+
+      for (auto &&pair : split(queryString, "&")) {
+        auto eqpos = pair.find('=');
+        if (eqpos == std::string::npos)
+          continue;
+        params[pair.substr(0, eqpos)] = pair.substr(eqpos + 1);
+      }
+    }
+
     version = tokens[2];
 
     while (std::getline(iss, line)) {

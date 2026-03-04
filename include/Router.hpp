@@ -4,6 +4,7 @@
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
+#include "logUtils.hpp"
 
 using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
@@ -21,8 +22,7 @@ public:
     HttpResponse response;
     handle(request, response);
 
-    SPDLOG_INFO("{} {} {}", response.getStatusCode(), request.method,
-                request.path);
+    logRequest(request, response);
 
     return response;
   }
@@ -33,14 +33,17 @@ private:
   }
 
   void handle(const HttpRequest &request, HttpResponse &response) {
-
     auto it = routes_.find(request.method);
-    if (it == routes_.end())
+    if (it == routes_.end()) {
       response = HttpResponse(404);
+      return;
+    }
 
     auto it2 = it->second.find(request.path);
-    if (it2 != it->second.end())
+    if (it2 == it->second.end()) {
       response = HttpResponse(404);
+      return;
+    }
 
     response = it2->second(request);
   }
