@@ -38,6 +38,7 @@ public:
         std::format("{} {} {}\r\n", version_, statusCode_, reason);
 
     headers_["Content-Length"] = std::to_string(body_.size());
+    headers_["Connection"] = "close";
     for (auto &header : headers_) {
       response += std::format("{}: {}\r\n", header.first, header.second);
     }

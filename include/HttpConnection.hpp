@@ -73,7 +73,7 @@ private:
   std::vector<unsigned char> writeBuffer_;
   bool handshakeWantsWrite_ = false;
   HttpRequest request_;
-  Router router_;
+  Router &router_;
 
   void handleHandshake() {
     handshakeWantsWrite_ = false;
@@ -162,9 +162,8 @@ private:
   };
 
   void handleWritingResponse() {
-    if (wantsWrite()) {
-      flushWriteBuffer();
-    } else {
+    flushWriteBuffer();
+    if (!wantsWrite()) {
       state_ = ConnectionState::CLOSING;
     }
   }
@@ -199,19 +198,17 @@ private:
   }
 
   void flushWriteBuffer() {
-    if (writeBuffer_.empty())
-      return;
-
-    ssize_t n = stream_->send(writeBuffer_);
-
-    if (n < 0) {
-      SPDLOG_ERROR("Send error for {}:{}, {}", stream_->getIp(),
-                   stream_->getPort(), strerror(errno));
-      state_ = ConnectionState::CLOSING;
-      return;
-    }
-
-    if (n > 0)
+    while (!writeBuffer_.empty()) {
+      ssize_t n = stream_->send(writeBuffer_);
+      if (n < 0) {
+        SPDLOG_ERROR("Send error for {}:{}, {}", stream_->getIp(),
+                     stream_->getPort(), strerror(errno));
+        state_ = ConnectionState::CLOSING;
+        return;
+      }
+      if (n == 0)
+        return;
       writeBuffer_.erase(writeBuffer_.begin(), writeBuffer_.begin() + n);
+    }
   }
 };
