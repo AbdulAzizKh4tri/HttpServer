@@ -23,6 +23,8 @@ int main() {
 
   Router router;
 
+  router.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
+
   router.get("/", [](const HttpRequest &request) {
     auto nameIt = request.params.find("name");
     std::string name;
@@ -36,8 +38,12 @@ int main() {
 
   router.post("/", [](const HttpRequest &request) {
     json data = json::parse(request.body);
-    return HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
+    auto res = HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
+    res.addHeader("Content-Type", "text/plain");
+    return res;
   });
+
+  router.put("/", [](const HttpRequest &request) { return HttpResponse(200); });
 
   HttpServer server;
   server.setTlsContext("cert.pem", "key.pem");

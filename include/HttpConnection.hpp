@@ -188,11 +188,13 @@ private:
 
     std::string headerString = data.substr(0, end);
     if (!request_.parseHeader(headerString)) {
+      SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
       sendErrorResponse(400); // malformed header
       return;
     }
 
     if (request_.headers.find("Host") == request_.headers.end()) {
+      SPDLOG_DEBUG("HOST ERROR... {}", headerString);
       sendErrorResponse(400); // no Host header
       return;
     }
@@ -209,6 +211,7 @@ private:
 
     if (hasContentLengthHeader &&
         transferEncodingHeader != request_.headers.end()) {
+      SPDLOG_ERROR("Content-Length and Transfer-Encoding headers both found");
       sendErrorResponse(400);
       return;
     }

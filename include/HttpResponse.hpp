@@ -9,6 +9,7 @@ class HttpResponse {
 public:
   inline static const std::unordered_map<int, std::string> statusStrings = {
       {200, "OK"},
+      {204, "No Content"},
       {400, "Bad Request"},
       {413, "Content Too Large"},
       {431, "Header Fields Too Large"},

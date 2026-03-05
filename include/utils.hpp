@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <sys/socket.h>
+#include <vector>
 
 struct PeerAddress {
   std::string ip;
@@ -26,6 +27,18 @@ inline PeerAddress resolvePeerAddress(sockaddr_storage addr, socklen_t len) {
     result.port = ntohs(((sockaddr_in6 *)&addr)->sin6_port);
   } else {
     throw std::runtime_error("Unknown address family");
+  }
+  return result;
+}
+
+inline std::string getCommaSeparatedString(std::vector<std::string> strings) {
+  std::string result;
+  for (auto &&s : strings) {
+    result += s + ", ";
+  }
+  if (!strings.empty()) {
+    result.pop_back();
+    result.pop_back();
   }
   return result;
 }

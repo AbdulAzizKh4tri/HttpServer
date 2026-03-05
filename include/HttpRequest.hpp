@@ -76,6 +76,13 @@ public:
     return true;
   }
 
+  std::string getHeader(const std::string &key) const {
+    auto it = headers.find(key);
+    if (it == headers.end())
+      return "";
+    return it->second;
+  }
+
   int getContentLength() const {
     auto it = headers.find("Content-Length");
     if (it == headers.end())
