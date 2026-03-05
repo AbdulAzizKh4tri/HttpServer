@@ -60,6 +60,16 @@ private:
     auto &definedMethods = pathIt->second;
     std::string origin = request.getHeader("Origin");
 
+    auto requestedMethodIt = definedMethods.find(request.method);
+    if (requestedMethodIt != definedMethods.end()) {
+      response = requestedMethodIt->second(request);
+
+      if (origin != "" && isOriginAllowed(origin)) {
+        response.addHeader("Access-Control-Allow-Origin", origin);
+      }
+      return;
+    }
+
     if (request.method == "OPTIONS") {
       response = HttpResponse(204);
 
@@ -85,19 +95,21 @@ private:
       return;
     }
 
-    auto requestedMethodIt = definedMethods.find(request.method);
-    if (requestedMethodIt == definedMethods.end()) {
-      std::string allowedMethods = getAllowedMethodsString(definedMethods);
-      response = HttpResponse(405);
-      response.addHeader("Allow", allowedMethods);
-      return;
+    if (request.method == "HEAD") {
+      auto getHandlerIt = definedMethods.find("GET");
+      if (getHandlerIt != definedMethods.end()) {
+        response = getHandlerIt->second(request);
+        auto contentLength = response.getBodySize();
+        response.setBody("");
+        response.addHeader("Content-Length", std::to_string(contentLength));
+        return;
+      }
     }
 
-    response = requestedMethodIt->second(request);
-
-    if (origin != "" && isOriginAllowed(origin)) {
-      response.addHeader("Access-Control-Allow-Origin", origin);
-    }
+    std::string allowedMethods = getAllowedMethodsString(definedMethods);
+    response = HttpResponse(405);
+    response.addHeader("Allow", allowedMethods);
+    return;
   }
 
   std::string getAllowedMethodsString(
@@ -105,6 +117,8 @@ private:
     std::string result;
     for (const auto &[method, _] : methods) {
       result += method + ", ";
+      if (method == "GET")
+        result += "HEAD, ";
     }
     if (!result.empty()) {
       result.erase(result.length() - 2);

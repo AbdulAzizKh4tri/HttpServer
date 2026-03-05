@@ -41,7 +41,9 @@ public:
     std::string response =
         std::format("{} {} {}\r\n", version_, statusCode_, reason);
 
-    headers_["Content-Length"] = std::to_string(body_.size());
+    if (headers_.find("Content-Length") == headers_.end()) {
+      headers_["Content-Length"] = std::to_string(body_.size());
+    }
     for (auto &header : headers_) {
       response += std::format("{}: {}\r\n", header.first, header.second);
     }
@@ -60,6 +62,8 @@ public:
   void setStatusCode(int statusCode) { statusCode_ = statusCode; }
 
   std::string getBody() const { return body_; }
+  size_t getBodySize() const { return body_.size(); }
+
   std::string getVersion() const { return version_; }
   int getStatusCode() const { return statusCode_; }
 
