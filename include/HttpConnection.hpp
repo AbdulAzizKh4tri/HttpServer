@@ -9,6 +9,7 @@
 #include "HttpResponse.hpp"
 #include "IStream.hpp"
 #include "Router.hpp"
+#include "logUtils.hpp"
 
 enum class ConnectionState {
   HANDSHAKING,
@@ -181,8 +182,8 @@ private:
     if (end == std::string::npos) {
       if (readBuffer_.size() > HttpRequest::MAX_HEADER_SIZE) {
         sendErrorResponse(431); // 431 = Request Header Fields Too Large
-        return;
       }
+      return;
     }
 
     std::string headerString = data.substr(0, end);
@@ -350,6 +351,8 @@ private:
     writeBuffer_.clear();
     writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
                         serialized.end());
+
+    logRequest(request_, response);
 
     // store decision for after flush
     keepAlive_ = keepAlive;

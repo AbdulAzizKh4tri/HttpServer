@@ -13,6 +13,7 @@ public:
       {413, "Content Too Large"},
       {431, "Header Fields Too Large"},
       {404, "Not Found"},
+      {405, "Method Not Allowed"},
       {500, "Internal Server Error"}};
 
   HttpResponse() {}
