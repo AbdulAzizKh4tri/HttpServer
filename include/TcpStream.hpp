@@ -26,8 +26,15 @@ public:
     return n;
   }
 
-  ssize_t receive(std::vector<unsigned char> &data) const override {
-    return ::recv(socket_.getFd(), data.data(), data.size(), 0);
+  ReceiveResult receive(std::vector<unsigned char> &data) const override {
+    ssize_t n = ::recv(socket_.getFd(), data.data(), data.size(), 0);
+    if (n > 0)
+      return ReceiveResult::data(n);
+    if (n == 0)
+      return ReceiveResult::closed();
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return ReceiveResult::wouldBlock();
+    return ReceiveResult::error();
   }
 
   HandshakeResult handshake() const override { return HandshakeResult::NO_TLS; }

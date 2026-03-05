@@ -422,24 +422,27 @@ private:
     bool gotData = false;
     for (;;) {
       std::vector<unsigned char> buf(4096);
-      ssize_t n = stream_->receive(buf);
-      if (n < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-          return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
-        SPDLOG_ERROR("Receive error for {}:{} : {}", stream_->getIp(),
-                     stream_->getPort(), strerror(errno));
-        state_ = ConnectionState::CLOSING;
-        return ReadResult::CLOSED;
-      }
-      if (n == 0) {
+      auto result = stream_->receive(buf);
+
+      switch (result.status) {
+      case ReceiveResult::Status::DATA:
+        buf.resize(result.bytes);
+        readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
+        gotData = true;
+        break;
+      case ReceiveResult::Status::WOULD_BLOCK:
+        return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
+      case ReceiveResult::Status::CLOSED:
         SPDLOG_DEBUG("Connection closed by peer, {}:{}", stream_->getIp(),
                      stream_->getPort());
         state_ = ConnectionState::CLOSING;
         return ReadResult::CLOSED;
+      case ReceiveResult::Status::ERROR:
+        SPDLOG_ERROR("Receive error for {}:{}", stream_->getIp(),
+                     stream_->getPort());
+        state_ = ConnectionState::CLOSING;
+        return ReadResult::CLOSED;
       }
-      buf.resize(n);
-      readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
-      gotData = true;
     }
   }
 

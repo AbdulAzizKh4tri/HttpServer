@@ -73,8 +73,22 @@ public:
     }
   }
 
-  ssize_t receive(std::vector<unsigned char> &buf) const override {
-    return SSL_read(ssl_, buf.data(), buf.size());
+  ReceiveResult receive(std::vector<unsigned char> &buf) const override {
+    int n = SSL_read(ssl_, buf.data(), buf.size());
+    if (n > 0)
+      return ReceiveResult::data(n);
+
+    int err = SSL_get_error(ssl_, n);
+    switch (err) {
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+      return ReceiveResult::wouldBlock();
+    case SSL_ERROR_ZERO_RETURN: // clean TLS shutdown
+      return ReceiveResult::closed();
+    default:
+      SPDLOG_ERROR("SSL_read error for {}:{} — SSL error {}", ip_, port_, err);
+      return ReceiveResult::error();
+    }
   }
 
   ssize_t send(const std::span<const unsigned char> &data) const override {
