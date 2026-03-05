@@ -136,9 +136,9 @@ private:
   void resetTimer() { armTimer(); }
 
   bool shouldKeepAlive() const {
-    auto it = request_.headers.find("Connection");
-    if (it != request_.headers.end())
-      return it->second != "close";
+    auto connection = request_.getHeader("Connection");
+    if (connection == "close")
+      return false;
     return true; // HTTP/1.1 default
   }
 
@@ -201,7 +201,7 @@ private:
       return;
     }
 
-    if (request_.headers.find("Host") == request_.headers.end()) {
+    if (request_.getHeader("Host") == "") {
       SPDLOG_DEBUG("HOST ERROR... {}", headerString);
       sendErrorResponseAndClose(400); // no Host header
       return;
@@ -248,22 +248,18 @@ private:
   }
 
   void handleReadingBody() {
-    bool hasContentLengthHeader =
-        request_.headers.find("Content-Length") != request_.headers.end();
-    auto transferEncodingHeader = request_.headers.find("Transfer-Encoding");
+    bool hasContentLengthHeader = request_.getHeader("Content-Length") != "";
+    auto transferEncodingHeader = request_.getHeader("Transfer-Encoding");
 
-    if (hasContentLengthHeader &&
-        transferEncodingHeader != request_.headers.end()) {
+    if (hasContentLengthHeader && transferEncodingHeader != "") {
       SPDLOG_ERROR("Content-Length and Transfer-Encoding headers both found");
       sendErrorResponseAndClose(400);
       return;
     }
 
-    if (transferEncodingHeader != request_.headers.end()) {
-      if (transferEncodingHeader->second == "chunked") {
-        handleReadingBodyChunked();
-        return;
-      }
+    if (transferEncodingHeader == "chunked") {
+      handleReadingBodyChunked();
+      return;
     }
 
     handleReadingBodyContentLength();
@@ -335,14 +331,21 @@ private:
   bool readTrailingCrlf() {
     if (readBuffer_.size() < 2)
       return false;
-
-    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
+    if (readBuffer_[0] == '\r' && readBuffer_[1] == '\n')
+      readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
+    else
+      sendErrorResponseAndClose(400);
     chunkState_ = ChunkState::READING_SIZE;
     return true;
   }
 
   void handleReadingBodyContentLength() {
     int contentLength = request_.getContentLength();
+
+    if (contentLength == HttpRequest::INVALID_CONTENT_LENGTH) {
+      sendErrorResponseAndClose(400);
+      return;
+    }
 
     if (contentLength == HttpRequest::CONTENT_LENGTH_TOO_LARGE) {
       sendErrorResponseAndClose(413);
@@ -391,7 +394,7 @@ private:
       response = HttpResponse(500);
       keepAlive = false;
     }
-    response.addHeader("Connection", keepAlive ? "keep-alive" : "close");
+    response.setHeader("Connection", keepAlive ? "keep-alive" : "close");
 
     std::vector<unsigned char> serialized = response.serialize();
     writeBuffer_.clear();
@@ -459,7 +462,7 @@ private:
     state_ = ConnectionState::WRITING_RESPONSE;
     HttpResponse response(statusCode);
     keepAlive_ = false;
-    response.addHeader("Connection", "close");
+    response.setHeader("Connection", "close");
     std::vector<unsigned char> serialized = response.serialize();
     writeBuffer_.clear();
     writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
@@ -471,7 +474,7 @@ private:
   void sendErrorResponse(int statusCode) {
     state_ = ConnectionState::WRITING_RESPONSE;
     HttpResponse response(statusCode);
-    response.addHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
 
     std::vector<unsigned char> serialized = response.serialize();
     writeBuffer_.clear();

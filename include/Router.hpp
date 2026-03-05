@@ -88,7 +88,7 @@ private:
       response = requestedMethodIt->second(request);
 
       if (origin != "" && isOriginAllowed(origin)) {
-        response.addHeader("Access-Control-Allow-Origin", origin);
+        response.setHeader("Access-Control-Allow-Origin", origin);
       }
       return;
     }
@@ -99,7 +99,7 @@ private:
       std::string allowedMethods = getAllowedMethodsString(definedMethods);
 
       if (origin == "") {
-        response.addHeader("Allow", allowedMethods);
+        response.setHeader("Allow", allowedMethods);
         return;
       }
 
@@ -110,10 +110,10 @@ private:
       std::string allowedHeaders =
           getCommaSeparatedString(corsConfig_.allowedHeaders);
 
-      response.addHeader("Access-Control-Allow-Origin", origin);
-      response.addHeader("Access-Control-Allow-Headers", allowedHeaders);
-      response.addHeader("Access-Control-Allow-Methods", allowedMethods);
-      response.addHeader("Access-Control-Max-Age",
+      response.setHeader("Access-Control-Allow-Origin", origin);
+      response.setHeader("Access-Control-Allow-Headers", allowedHeaders);
+      response.setHeader("Access-Control-Allow-Methods", allowedMethods);
+      response.setHeader("Access-Control-Max-Age",
                          std::to_string(corsConfig_.maxAge));
       return;
     }
@@ -124,16 +124,16 @@ private:
         response = getHandlerIt->second(request);
         auto contentLength = response.getBodySize();
         response.setBody("");
-        response.addHeader("Content-Length", std::to_string(contentLength));
+        response.setHeader("Content-Length", std::to_string(contentLength));
         if (origin != "" && isOriginAllowed(origin))
-          response.addHeader("Access-Control-Allow-Origin", origin);
+          response.setHeader("Access-Control-Allow-Origin", origin);
         return;
       }
     }
 
     std::string allowedMethods = getAllowedMethodsString(definedMethods);
     response = HttpResponse(405);
-    response.addHeader("Allow", allowedMethods);
+    response.setHeader("Allow", allowedMethods);
     return;
   }
 

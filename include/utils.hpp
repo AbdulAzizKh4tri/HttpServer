@@ -1,6 +1,8 @@
 #pragma once
+#include <algorithm>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <sys/socket.h>
@@ -41,4 +43,20 @@ inline std::string getCommaSeparatedString(std::vector<std::string> strings) {
     result.pop_back();
   }
   return result;
+}
+
+inline std::string toLowerCase(std::string s) {
+  std::ranges::transform(s, s.begin(),
+                         [](unsigned char c) { return std::tolower(c); });
+  return s;
+}
+
+inline std::vector<std::string> split(std::string_view s,
+                                      std::string_view delim = " ") {
+  auto parts =
+      s | std::views::split(delim) | std::views::transform([](auto &&r) {
+        return std::string(r.begin(), r.end());
+      });
+
+  return {parts.begin(), parts.end()};
 }

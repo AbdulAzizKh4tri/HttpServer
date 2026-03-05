@@ -39,7 +39,7 @@ int main() {
   router.post("/", [](const HttpRequest &request) {
     json data = json::parse(request.body);
     auto res = HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
-    res.addHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Type", "text/plain");
     return res;
   });
 

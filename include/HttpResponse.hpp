@@ -19,13 +19,13 @@ public:
       {405, "Method Not Allowed"},
       {500, "Internal Server Error"}};
 
-  HttpResponse() {}
+  HttpResponse() : statusCode_(500) {}
 
   HttpResponse(int statusCode) : statusCode_(statusCode) {}
 
   HttpResponse(int statusCode, std::string body)
       : statusCode_(statusCode), body_(body) {
-    headers_["Content-Length"] = std::to_string(body_.size());
+    setHeader("Content-Length", std::to_string(body_.size()));
   }
 
   HttpResponse(int statusCode,
@@ -43,8 +43,8 @@ public:
     std::string response =
         std::format("{} {} {}\r\n", version_, statusCode_, reason);
 
-    if (headers_.find("Content-Length") == headers_.end()) {
-      headers_["Content-Length"] = std::to_string(body_.size());
+    if (getHeader("Content-Length") == "") {
+      setHeader("Content-Length", std::to_string(body_.size()));
     }
     for (auto &header : headers_) {
       response += std::format("{}: {}\r\n", header.first, header.second);
@@ -55,7 +55,7 @@ public:
     return std::vector<unsigned char>(response.begin(), response.end());
   }
 
-  void addHeader(const std::string &name, const std::string &value) {
+  void setHeader(const std::string &name, const std::string &value) {
     headers_[name] = value;
   }
 
@@ -69,6 +69,12 @@ public:
   std::string getVersion() const { return version_; }
   int getStatusCode() const { return statusCode_; }
 
+  std::string getHeader(const std::string &name) const {
+    auto it = headers_.find(name);
+    if (it == headers_.end())
+      return "";
+    return it->second;
+  }
   std::unordered_map<std::string, std::string> getHeaders() const {
     return headers_;
   }

@@ -1,17 +1,7 @@
 #pragma once
-#include <ranges>
+#include "utils.hpp"
 #include <spdlog/spdlog.h>
 #include <sstream>
-
-inline std::vector<std::string> split(std::string_view s,
-                                      std::string_view delim = " ") {
-  auto parts =
-      s | std::views::split(delim) | std::views::transform([](auto &&r) {
-        return std::string(r.begin(), r.end());
-      });
-
-  return {parts.begin(), parts.end()};
-}
 
 class HttpRequest {
 
@@ -19,6 +9,7 @@ public:
   static constexpr size_t MAX_HEADER_SIZE = 8 * 1024;
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
   static const int NO_CONTENT_LENGTH_HEADER = -1;
+  static const int INVALID_CONTENT_LENGTH = -3;
   static const int CONTENT_LENGTH_TOO_LARGE = -2;
 
   std::string method, path, version, body, ip;
@@ -71,27 +62,31 @@ public:
       auto pos = line.find(": ");
       if (pos == std::string::npos)
         continue;
-      headers[line.substr(0, pos)] = line.substr(pos + 2);
+      setHeader(line.substr(0, pos), line.substr(pos + 2));
     }
     return true;
   }
 
+  void setHeader(const std::string &key, const std::string &value) {
+    headers[toLowerCase(key)] = value;
+  }
+
   std::string getHeader(const std::string &key) const {
-    auto it = headers.find(key);
+    auto it = headers.find(toLowerCase(key));
     if (it == headers.end())
       return "";
     return it->second;
   }
 
   int getContentLength() const {
-    auto it = headers.find("Content-Length");
-    if (it == headers.end())
+    auto lenStr = getHeader("Content-Length");
+    if (lenStr == "")
       return NO_CONTENT_LENGTH_HEADER;
     int len;
     try {
-      len = std::stoi(it->second);
+      len = std::stoi(lenStr);
     } catch (...) {
-      return NO_CONTENT_LENGTH_HEADER;
+      return INVALID_CONTENT_LENGTH;
     }
     if (len < 0 || (size_t)len > MAX_CONTENT_LENGTH)
       return CONTENT_LENGTH_TOO_LARGE;

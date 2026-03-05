@@ -48,6 +48,8 @@ public:
   void setRouter(Router &router) { router_ = &router; };
 
   void run() {
+    if (!router_)
+      throw std::runtime_error("No router set");
 
     // Go through every TCP listener and set up the socket, then add to epoll
     for (auto &listener : tcpListeners_) {
