@@ -14,6 +14,7 @@
 enum class ConnectionState {
   HANDSHAKING,
   READING_HEADERS,
+  SENDING_CONTINUE,
   READING_BODY,
   WRITING_RESPONSE,
   CLOSING
@@ -60,11 +61,12 @@ public:
     case ConnectionState::READING_HEADERS:
       handleReadingHeaders();
       break;
+    case ConnectionState::SENDING_CONTINUE:
+      break;
     case ConnectionState::READING_BODY:
       handleReadingBody();
       break;
     case ConnectionState::WRITING_RESPONSE:
-      handleWritingResponse();
       break;
     case ConnectionState::CLOSING:
       break;
@@ -77,6 +79,12 @@ public:
       handleHandshake();
       return;
     }
+
+    if (state_ == ConnectionState::SENDING_CONTINUE) {
+      handleSendingContinue();
+      return;
+    }
+
     handleWritingResponse();
   }
 
@@ -181,7 +189,7 @@ private:
     size_t end = data.find("\r\n\r\n");
     if (end == std::string::npos) {
       if (readBuffer_.size() > HttpRequest::MAX_HEADER_SIZE) {
-        sendErrorResponse(431); // 431 = Request Header Fields Too Large
+        sendErrorResponseAndClose(431); // 431 = Request Header Fields Too Large
       }
       return;
     }
@@ -189,19 +197,54 @@ private:
     std::string headerString = data.substr(0, end);
     if (!request_.parseHeader(headerString)) {
       SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
-      sendErrorResponse(400); // malformed header
+      sendErrorResponseAndClose(400); // malformed header
       return;
     }
 
     if (request_.headers.find("Host") == request_.headers.end()) {
       SPDLOG_DEBUG("HOST ERROR... {}", headerString);
-      sendErrorResponse(400); // no Host header
+      sendErrorResponseAndClose(400); // no Host header
       return;
     }
 
     readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 4);
+
+    auto expect = request_.getHeader("Expect");
+    if (expect == "100-continue") {
+      std::string contentLength = request_.getHeader("Content-Length");
+      int code =
+          router_.validate(request_.path, request_.method, contentLength);
+
+      if (code != 100) {
+        sendErrorResponse(code);
+        return;
+      }
+
+      state_ = ConnectionState::SENDING_CONTINUE;
+      std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
+      auto responseBytes =
+          std::vector<unsigned char>(response.begin(), response.end());
+      writeBuffer_.insert(writeBuffer_.end(), responseBytes.begin(),
+                          responseBytes.end());
+      handleSendingContinue();
+      return;
+    }
+    if (expect != "") {
+      SPDLOG_ERROR("Expect header not supported: {}", expect);
+      sendErrorResponseAndClose(417);
+      return;
+    }
+
     state_ = ConnectionState::READING_BODY;
     handleReadingBody();
+  }
+
+  void handleSendingContinue() {
+    flushWriteBuffer();
+    if (!wantsWrite()) {
+      state_ = ConnectionState::READING_BODY;
+      handleReadingBody();
+    }
   }
 
   void handleReadingBody() {
@@ -212,7 +255,7 @@ private:
     if (hasContentLengthHeader &&
         transferEncodingHeader != request_.headers.end()) {
       SPDLOG_ERROR("Content-Length and Transfer-Encoding headers both found");
-      sendErrorResponse(400);
+      sendErrorResponseAndClose(400);
       return;
     }
 
@@ -275,7 +318,7 @@ private:
 
     currentChunkBytesRead_ += currentChunkSize_;
     if (currentChunkBytesRead_ > HttpRequest::MAX_CONTENT_LENGTH) {
-      sendErrorResponse(413);
+      sendErrorResponseAndClose(413);
       return false;
     }
 
@@ -302,7 +345,7 @@ private:
     int contentLength = request_.getContentLength();
 
     if (contentLength == HttpRequest::CONTENT_LENGTH_TOO_LARGE) {
-      sendErrorResponse(413);
+      sendErrorResponseAndClose(413);
       return;
     }
 
@@ -412,11 +455,24 @@ private:
     }
   }
 
-  void sendErrorResponse(int statusCode) {
-    keepAlive_ = false;
+  void sendErrorResponseAndClose(int statusCode) {
     state_ = ConnectionState::WRITING_RESPONSE;
     HttpResponse response(statusCode);
+    keepAlive_ = false;
     response.addHeader("Connection", "close");
+    std::vector<unsigned char> serialized = response.serialize();
+    writeBuffer_.clear();
+    writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
+                        serialized.end());
+    logRequest(request_, response);
+    handleWritingResponse();
+  }
+
+  void sendErrorResponse(int statusCode) {
+    state_ = ConnectionState::WRITING_RESPONSE;
+    HttpResponse response(statusCode);
+    response.addHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+
     std::vector<unsigned char> serialized = response.serialize();
     writeBuffer_.clear();
     writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),

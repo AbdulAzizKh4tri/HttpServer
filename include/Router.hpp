@@ -44,8 +44,31 @@ public:
 
   void setCorsMaxAge(int maxAge) { corsConfig_.maxAge = maxAge; }
 
+  int validate(std::string &path, std::string &method,
+               std::string &contentLength) {
+
+    int len;
+    try {
+      len = std::stoi(contentLength);
+    } catch (...) {
+      return 400;
+    }
+
+    if (len > HttpRequest::MAX_CONTENT_LENGTH)
+      return 413;
+
+    auto pathIt = routes_.find(path);
+    if (pathIt == routes_.end())
+      return 404;
+    if (pathIt->second.find(method) == pathIt->second.end())
+      return 405;
+
+    return 100;
+  }
+
 private:
-  void addRoute(std::string path, std::string method, Handler handler) {
+  void addRoute(const std::string &path, const std::string &method,
+                const Handler &handler) {
     routes_[path][method] = handler;
   }
 
@@ -102,6 +125,8 @@ private:
         auto contentLength = response.getBodySize();
         response.setBody("");
         response.addHeader("Content-Length", std::to_string(contentLength));
+        if (origin != "" && isOriginAllowed(origin))
+          response.addHeader("Access-Control-Allow-Origin", origin);
         return;
       }
     }

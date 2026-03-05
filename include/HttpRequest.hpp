@@ -87,7 +87,12 @@ public:
     auto it = headers.find("Content-Length");
     if (it == headers.end())
       return NO_CONTENT_LENGTH_HEADER;
-    int len = std::stoi(it->second);
+    int len;
+    try {
+      len = std::stoi(it->second);
+    } catch (...) {
+      return NO_CONTENT_LENGTH_HEADER;
+    }
     if (len < 0 || (size_t)len > MAX_CONTENT_LENGTH)
       return CONTENT_LENGTH_TOO_LARGE;
     return len;
