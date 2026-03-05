@@ -122,9 +122,8 @@ private:
       auto getHandlerIt = definedMethods.find("GET");
       if (getHandlerIt != definedMethods.end()) {
         response = getHandlerIt->second(request);
-        auto contentLength = response.getBodySize();
+        response.setContentLengthOverride(response.getBodySize());
         response.setBody("");
-        response.setHeader("Content-Length", std::to_string(contentLength));
         if (origin != "" && isOriginAllowed(origin))
           response.setHeader("Access-Control-Allow-Origin", origin);
         return;

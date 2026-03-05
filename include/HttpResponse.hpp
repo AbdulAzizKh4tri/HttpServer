@@ -24,9 +24,7 @@ public:
   HttpResponse(int statusCode) : statusCode_(statusCode) {}
 
   HttpResponse(int statusCode, std::string body)
-      : statusCode_(statusCode), body_(body) {
-    setHeader("Content-Length", std::to_string(body_.size()));
-  }
+      : statusCode_(statusCode), body_(body) {}
 
   HttpResponse(int statusCode,
                const std::unordered_map<std::string, std::string> &headers,
@@ -36,16 +34,15 @@ public:
     headers_ = headers;
   }
 
-  std::vector<unsigned char> serialize() {
+  std::vector<unsigned char> serialize() const {
     auto it = statusStrings.find(statusCode_);
     std::string reason = (it != statusStrings.end()) ? it->second : "Unknown";
 
     std::string response =
         std::format("{} {} {}\r\n", version_, statusCode_, reason);
 
-    if (getHeader("Content-Length") == "") {
-      setHeader("Content-Length", std::to_string(body_.size()));
-    }
+    size_t contentLength = contentLengthOverride_.value_or(body_.size());
+    response += std::format("Content-Length: {}\r\n", contentLength);
     for (auto &header : headers_) {
       response += std::format("{}: {}\r\n", header.first, header.second);
     }
@@ -54,6 +51,8 @@ public:
     response += body_;
     return std::vector<unsigned char>(response.begin(), response.end());
   }
+
+  void setContentLengthOverride(size_t n) { contentLengthOverride_ = n; }
 
   void setHeader(const std::string &name, const std::string &value) {
     headers_[name] = value;
@@ -83,4 +82,5 @@ private:
   std::string body_, version_ = "HTTP/1.1";
   int statusCode_;
   std::unordered_map<std::string, std::string> headers_;
+  std::optional<size_t> contentLengthOverride_;
 };
