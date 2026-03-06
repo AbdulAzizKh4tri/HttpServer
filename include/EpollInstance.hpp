@@ -49,16 +49,24 @@ public:
     epoll_event event = {};
     event.events = events;
     event.data.fd = data;
-
     int ret = ::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event);
     if (ret == -1) {
-      if (errno == EEXIST) {
-        return modify(fd, events, data);
-      }
       SPDLOG_ERROR("ERROR (fd: {}): {}", fd, strerror(errno));
       throw std::runtime_error("Failed to add fd " + std::to_string(fd) +
                                " to epoll");
     }
+    return ret;
+  }
+
+  int addOrModify(int fd, uint32_t events, int data) {
+    epoll_event event = {};
+    event.events = events;
+    event.data.fd = data;
+    int ret = ::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event);
+    if (ret == -1 && errno == EEXIST)
+      return modify(fd, events, data);
+    if (ret == -1)
+      throw std::runtime_error("Failed to add/modify fd " + std::to_string(fd));
     return ret;
   }
 

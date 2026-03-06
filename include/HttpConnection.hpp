@@ -331,10 +331,11 @@ private:
   bool readTrailingCrlf() {
     if (readBuffer_.size() < 2)
       return false;
-    if (readBuffer_[0] == '\r' && readBuffer_[1] == '\n')
-      readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
-    else
+    if (readBuffer_[0] != '\r' || readBuffer_[1] != '\n') {
       sendErrorResponseAndClose(400);
+      return false;
+    }
+    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
     chunkState_ = ChunkState::READING_SIZE;
     return true;
   }
