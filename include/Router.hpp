@@ -122,8 +122,7 @@ private:
       auto getHandlerIt = definedMethods.find("GET");
       if (getHandlerIt != definedMethods.end()) {
         response = getHandlerIt->second(request);
-        response.setContentLengthOverride(response.getBodySize());
-        response.setBody("");
+        response.setBodyRaw("");
         if (origin != "" && isOriginAllowed(origin))
           response.setHeader("Access-Control-Allow-Origin", origin);
         return;
