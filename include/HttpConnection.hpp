@@ -194,6 +194,11 @@ private:
       return;
     }
 
+    if (end > HttpRequest::MAX_HEADER_SIZE) {
+      sendErrorResponseAndClose(431);
+      return;
+    }
+
     std::string headerString = data.substr(0, end);
     if (!request_.parseHeader(headerString)) {
       SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
