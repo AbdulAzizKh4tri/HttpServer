@@ -5,6 +5,7 @@
 #include <openssl/ssl.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "EpollInstance.hpp"
@@ -49,105 +50,42 @@ public:
 
   void run() {
     if (!router_)
-      throw std::runtime_error("No router set");
+      throw std::runtime_error("Call setRouter() before run()");
 
-    // Go through every TCP listener and set up the socket, then add to epoll
     for (auto &listener : tcpListeners_) {
       listener->listen(BACKLOG);
-      epoll_.add(listener->getFd(), EPOLLIN, listener->getFd());
+      int fd = listener->getFd();
+      epoll_.add(fd, EPOLLIN, fd);
+      tcpListenerFds_.insert(fd);
     }
 
-    // TLS listeners added without tls context = bad
-    if (!tlsListeners_.empty() && !tlsContext_) {
-      throw std::runtime_error("TLS context not set");
-    }
+    if (!tlsListeners_.empty() && !tlsContext_)
+      throw std::runtime_error("TLS listeners added but no TLS context set");
 
-    // Same thing as above for Tls listeners
     for (auto &listener : tlsListeners_) {
       listener->listen(BACKLOG);
-      epoll_.add(listener->getFd(), EPOLLIN, listener->getFd());
+      int fd = listener->getFd();
+      epoll_.add(fd, EPOLLIN, fd);
+      tlsListenerFds_.insert(fd);
     }
 
     for (;;) {
-      // event queue
-      std::vector<epoll_event> events = epoll_.wait(64);
+      for (auto &event : epoll_.wait(64)) {
+        int fd = event.data.fd;
 
-      for (auto &event : events) {
-
-        // Timer Event, close connection
-        auto timerIt = timerConnections_.find(event.data.fd);
-        if (timerIt != timerConnections_.end()) {
-          uint64_t val;
-          // must read because timer is level triggered
-          // would fire every iteration otherwise
-          ::read(event.data.fd, &val, sizeof(val));
-          timerIt->second->onTimeout();
-          closeConnection(timerIt->second->getFd());
+        if (timerConnections_.contains(fd)) {
+          handleTimerEvent(fd);
           continue;
         }
-
-        // Check whether event is a TCP or TLS listener,
-        // if neither, it's a connection event
-        auto tcpIt = std::find_if(
-            tcpListeners_.begin(), tcpListeners_.end(),
-            [&](auto &listener) { return listener->getFd() == event.data.fd; });
-
-        if (tcpIt != tcpListeners_.end()) {
-          auto stream = std::make_shared<TcpStream>((*tcpIt)->accept());
-          stream->setSocketNonBlocking();
-          int fd = stream->getFd();
-          auto conn =
-              std::make_shared<HttpConnection>(std::move(stream), *router_);
-          connections_[fd] = conn;
-          timerConnections_[conn->getTimerFd()] = conn;
-
-          epoll_.add(fd, EPOLLIN | EPOLLET, fd);
-          epoll_.add(conn->getTimerFd(), EPOLLIN, conn->getTimerFd());
+        if (tcpListenerFds_.contains(fd)) {
+          handleNewTcpConnection(fd);
           continue;
         }
-
-        auto tlsIt = std::find_if(
-            tlsListeners_.begin(), tlsListeners_.end(),
-            [&](auto &listener) { return listener->getFd() == event.data.fd; });
-
-        if (tlsIt != tlsListeners_.end()) {
-          auto stream = std::make_shared<TlsStream>(
-              (*tlsIt)->acceptTls(tlsContext_.get()));
-          stream->setSocketNonBlocking();
-          int fd = stream->getFd();
-          auto conn =
-              std::make_shared<HttpConnection>(std::move(stream), *router_);
-          connections_[fd] = conn;
-          timerConnections_[conn->getTimerFd()] = conn;
-
-          epoll_.add(fd, EPOLLIN | EPOLLET, fd);
-          epoll_.add(conn->getTimerFd(), EPOLLIN, conn->getTimerFd());
+        if (tlsListenerFds_.contains(fd)) {
+          handleNewTlsConnection(fd);
           continue;
         }
-
-        // Connection event
-        auto it = connections_.find(event.data.fd);
-        if (it == connections_.end())
-          continue;
-
-        auto &conn = it->second;
-
-        if (event.events & EPOLLIN)
-          conn->onReadable();
-
-        if (event.events & EPOLLOUT)
-          conn->onWriteable();
-
-        if (conn->isClosing()) {
-          closeConnection(conn->getFd());
-          continue;
-        }
-
-        uint32_t newEvents = EPOLLIN | EPOLLET;
-        // if there's data left to write, add EPOLLOUT
-        if (conn->wantsWrite())
-          newEvents |= EPOLLOUT;
-        epoll_.modify(event.data.fd, newEvents, event.data.fd);
+        handleConnectionEvent(event);
       }
     }
   }
@@ -156,8 +94,9 @@ private:
   static constexpr int BACKLOG = 20;
 
   std::shared_ptr<SSL_CTX> tlsContext_ = nullptr;
-  std::vector<std::unique_ptr<ListenerSocket>> tcpListeners_;
-  std::vector<std::unique_ptr<ListenerSocket>> tlsListeners_;
+  std::vector<std::unique_ptr<ListenerSocket>> tcpListeners_, tlsListeners_;
+
+  std::unordered_set<int> tcpListenerFds_, tlsListenerFds_;
 
   std::unordered_map<int, std::shared_ptr<HttpConnection>> connections_;
   std::unordered_map<int, std::shared_ptr<HttpConnection>> timerConnections_;
@@ -174,5 +113,62 @@ private:
     epoll_.remove(tfd);
     timerConnections_.erase(tfd);
     connections_.erase(it);
+  }
+
+  void registerConnection(std::shared_ptr<HttpConnection> conn) {
+    int fd = conn->getFd();
+    connections_[fd] = conn;
+    timerConnections_[conn->getTimerFd()] = conn;
+    epoll_.add(fd, EPOLLIN | EPOLLET, fd);
+    epoll_.add(conn->getTimerFd(), EPOLLIN, conn->getTimerFd());
+  }
+
+  void handleTimerEvent(int timerFd) {
+    uint64_t val;
+    ::read(timerFd, &val, sizeof(val)); // must drain — level triggered
+    auto &conn = timerConnections_.at(timerFd);
+    conn->onTimeout();
+    closeConnection(conn->getFd());
+  }
+
+  void handleNewTcpConnection(int listenerFd) {
+    auto it = std::find_if(tcpListeners_.begin(), tcpListeners_.end(),
+                           [&](auto &l) { return l->getFd() == listenerFd; });
+    auto stream = std::make_shared<TcpStream>((*it)->accept());
+    stream->setSocketNonBlocking();
+    registerConnection(
+        std::make_shared<HttpConnection>(std::move(stream), *router_));
+  }
+
+  void handleNewTlsConnection(int listenerFd) {
+    auto it = std::find_if(tlsListeners_.begin(), tlsListeners_.end(),
+                           [&](auto &l) { return l->getFd() == listenerFd; });
+    auto stream =
+        std::make_shared<TlsStream>((*it)->acceptTls(tlsContext_.get()));
+    stream->setSocketNonBlocking();
+    registerConnection(
+        std::make_shared<HttpConnection>(std::move(stream), *router_));
+  }
+
+  void handleConnectionEvent(const epoll_event &event) {
+    auto it = connections_.find(event.data.fd);
+    if (it == connections_.end())
+      return;
+
+    auto &conn = it->second;
+    if (event.events & EPOLLIN)
+      conn->onReadable();
+    if (event.events & EPOLLOUT)
+      conn->onWriteable();
+
+    if (conn->isClosing()) {
+      closeConnection(conn->getFd());
+      return;
+    }
+
+    uint32_t newEvents = EPOLLIN | EPOLLET;
+    if (conn->wantsWrite())
+      newEvents |= EPOLLOUT;
+    epoll_.modify(event.data.fd, newEvents, event.data.fd);
   }
 };
