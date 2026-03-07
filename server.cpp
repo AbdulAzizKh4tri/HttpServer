@@ -8,7 +8,6 @@
 #include <openssl/ssl.h>
 #include <spdlog/spdlog.h>
 #include <sys/epoll.h>
-#include <unordered_map>
 
 #include <nlohmann/json.hpp>
 
@@ -26,13 +25,13 @@ int main() {
   router.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
 
   router.get("/", [](const HttpRequest &request) {
-    auto name = getOrDefault(request.params, "name", "World!");
+    auto name = request.getParam("name");
 
     return HttpResponse(200, "Hello " + name + "!");
   });
 
   router.post("/", [](const HttpRequest &request) {
-    json data = json::parse(request.body);
+    json data = json::parse(request.getBody());
     auto res = HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
     res.setHeader("Content-Type", "text/plain");
     return res;

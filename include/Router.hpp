@@ -41,14 +41,14 @@ public:
   }
 
   std::expected<HttpResponse, RouteError> dispatch(const HttpRequest &request) {
-    auto pathIt = routes_.find(request.path);
+    auto pathIt = routes_.find(request.getPath());
     if (pathIt == routes_.end())
       return std::unexpected(RouteError::NOT_FOUND);
 
     auto &definedMethods = pathIt->second;
     std::string origin = request.getHeader("Origin");
 
-    if (auto methodIt = definedMethods.find(request.method);
+    if (auto methodIt = definedMethods.find(request.getMethod());
         methodIt != definedMethods.end()) {
       HttpResponse response = methodIt->second(request);
       if (origin != "" && isOriginAllowed(origin))
@@ -56,7 +56,7 @@ public:
       return response;
     }
 
-    if (request.method == "OPTIONS") {
+    if (request.getMethod() == "OPTIONS") {
       HttpResponse response(204);
       std::string allowedMethods = getAllowedMethodsString(definedMethods);
       if (origin == "") {
@@ -87,8 +87,7 @@ public:
 
   void setCorsMaxAge(int maxAge) { corsConfig_.maxAge = maxAge; }
 
-  RouterResponse validate(std::string &path, std::string &method,
-                          std::string &contentLength) {
+  RouterResponse validate(const std::string &path, const std::string &method) {
 
     auto pathIt = routes_.find(path);
     if (pathIt == routes_.end())

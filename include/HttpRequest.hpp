@@ -1,25 +1,32 @@
 #pragma once
 #include "utils.hpp"
+#include <expected>
 #include <spdlog/spdlog.h>
 #include <sstream>
+
+enum class ContentLengthError {
+  NO_CONTENT_LENGTH_HEADER,
+  INVALID_CONTENT_LENGTH,
+  CONTENT_LENGTH_TOO_LARGE,
+};
 
 class HttpRequest {
 
 public:
   static constexpr size_t MAX_HEADER_SIZE = 8 * 1024;
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
-  static const int NO_CONTENT_LENGTH_HEADER = -1;
-  static const int INVALID_CONTENT_LENGTH = -3;
-  static const int CONTENT_LENGTH_TOO_LARGE = -2;
-
-  std::string method, path, version, body, ip;
-  uint16_t port;
-  std::unordered_map<std::string, std::string> headers, params;
 
   HttpRequest() {}
 
-  bool parseHeader(const std::string &headerSection) {
+  bool parseRequestHeader(const std::string &headerSection) {
     std::istringstream iss(headerSection);
+    if (!parseRequestLine(iss))
+      return false;
+    parseRequestHeaders(iss);
+    return true;
+  }
+
+  bool parseRequestLine(std::istringstream &iss) {
     std::string line;
 
     std::getline(iss, line);
@@ -34,27 +41,18 @@ public:
     if (tokens.size() != 3)
       return false;
 
-    method = tokens[0];
+    method_ = tokens[0];
 
     // Extract query parameters
     std::string rawPath = tokens[1];
-    auto qpos = rawPath.find('?');
-    if (qpos == std::string::npos) {
-      path = rawPath;
-    } else {
-      path = rawPath.substr(0, qpos);
-      std::string queryString = rawPath.substr(qpos + 1);
+    parseRequestParams(rawPath);
 
-      for (auto &&pair : split(queryString, "&")) {
-        auto eqpos = pair.find('=');
-        if (eqpos == std::string::npos)
-          continue;
-        params[pair.substr(0, eqpos)] = pair.substr(eqpos + 1);
-      }
-    }
+    version_ = tokens[2];
+    return true;
+  }
 
-    version = tokens[2];
-
+  void parseRequestHeaders(std::istringstream &iss) {
+    std::string line;
     while (std::getline(iss, line)) {
       if (!line.empty() && line.back() == '\r')
         line.pop_back();
@@ -64,29 +62,73 @@ public:
         continue;
       setHeader(line.substr(0, pos), trim(line.substr(pos + 1)));
     }
-    return true;
   }
 
-  void setHeader(const std::string &key, const std::string &value) {
-    headers[toLowerCase(key)] = value;
+  void parseRequestParams(const std::string &rawPath) {
+    auto qpos = rawPath.find('?');
+    if (qpos == std::string::npos) {
+      path_ = rawPath;
+    } else {
+      path_ = rawPath.substr(0, qpos);
+      std::string queryString = rawPath.substr(qpos + 1);
+
+      for (auto &&pair : split(queryString, "&")) {
+        auto eqpos = pair.find('=');
+        if (eqpos == std::string::npos)
+          continue;
+        params_[pair.substr(0, eqpos)] = pair.substr(eqpos + 1);
+      }
+    }
   }
 
-  std::string getHeader(const std::string &key) const {
-    return getOrDefault(headers, toLowerCase(key), "");
-  }
-
-  int getContentLength() const {
+  std::expected<int, ContentLengthError> getContentLength() const {
     auto lenStr = getHeader("Content-Length");
     if (lenStr == "")
-      return NO_CONTENT_LENGTH_HEADER;
+      return std::unexpected(ContentLengthError::NO_CONTENT_LENGTH_HEADER);
     int len;
     try {
       len = std::stoi(lenStr);
     } catch (...) {
-      return INVALID_CONTENT_LENGTH;
+      return std::unexpected(ContentLengthError::INVALID_CONTENT_LENGTH);
     }
     if (len < 0 || (size_t)len > MAX_CONTENT_LENGTH)
-      return CONTENT_LENGTH_TOO_LARGE;
+      return std::unexpected(ContentLengthError::CONTENT_LENGTH_TOO_LARGE);
     return len;
   }
+
+  void setHeader(const std::string &key, const std::string &value) {
+    headers_[toLowerCase(key)] = value;
+  }
+
+  std::string getHeader(const std::string &key) const {
+    return getOrDefault(headers_, toLowerCase(key), "");
+  }
+
+  std::string getParam(const std::string &key) const {
+    return getOrDefault(params_, key, "");
+  }
+
+  std::unordered_map<std::string, std::string> getAllParams() const {
+    return params_;
+  }
+
+  std::string getPath() const { return path_; }
+  std::string getVersion() const { return version_; }
+
+  std::string getMethod() const { return method_; }
+  void setMethod(const std::string &method) { method_ = method; }
+
+  std::string getBody() const { return body_; }
+  void setBody(const std::string &body) { body_ = body; }
+
+  std::string getIp() const { return ip_; }
+  uint16_t getPort() const { return port_; }
+
+  void setIp(const std::string &ip) { ip_ = ip; }
+  void setPort(uint16_t port) { port_ = port; }
+
+private:
+  std::unordered_map<std::string, std::string> headers_, params_;
+  std::string method_, path_, version_, body_, ip_;
+  uint16_t port_;
 };

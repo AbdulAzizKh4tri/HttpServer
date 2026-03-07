@@ -35,8 +35,8 @@ public:
                  ErrorFactory &errorFactory)
       : stream_(std::move(stream)), router_(router),
         state_(ConnectionState::HANDSHAKING), errorFactory_(errorFactory) {
-    request_.ip = stream_->getIp();
-    request_.port = stream_->getPort();
+    request_.setIp(stream_->getIp());
+    request_.setPort(stream_->getPort());
 
     // create timer for Connection: keep alive
     timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -149,8 +149,8 @@ private:
 
   void resetForNextRequest() {
     request_ = HttpRequest();
-    request_.ip = stream_->getIp();
-    request_.port = stream_->getPort();
+    request_.setIp(stream_->getIp());
+    request_.setPort(stream_->getPort());
     state_ = ConnectionState::READING_HEADERS;
     chunkState_ = ChunkState::READING_SIZE;
     currentChunkSize_ = 0;
@@ -205,7 +205,7 @@ private:
     }
 
     std::string headerString = data.substr(0, end);
-    if (!request_.parseHeader(headerString)) {
+    if (!request_.parseRequestHeader(headerString)) {
       SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
       sendErrorResponseAndClose(400, "Malformed Header"); // malformed header
       return;
@@ -234,7 +234,7 @@ private:
     if (expect == "100-continue") {
       std::string contentLength = request_.getHeader("Content-Length");
       RouterResponse result =
-          router_.validate(request_.path, request_.method, contentLength);
+          router_.validate(request_.getPath(), request_.getMethod());
       switch (result) {
       case RouterResponse::NOT_FOUND:
         sendErrorResponseAndClose(404);
@@ -285,7 +285,12 @@ private:
       return;
     }
 
-    handleReadingBodyContentLength();
+    if (hasContentLengthHeader) {
+      handleReadingBodyContentLength();
+      return;
+    }
+
+    sendResponse();
   }
 
   void handleReadingBodyChunked() {
@@ -322,7 +327,7 @@ private:
     readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 2);
 
     if (currentChunkSize_ == 0) {
-      request_.body = assembledBody_;
+      request_.setBody(assembledBody_);
       sendResponse();
       return false; // done, stop looping
     }
@@ -364,39 +369,39 @@ private:
   }
 
   void handleReadingBodyContentLength() {
-    int contentLength = request_.getContentLength();
+    auto contentLengthResult = request_.getContentLength();
 
-    if (contentLength == HttpRequest::INVALID_CONTENT_LENGTH) {
-      sendErrorResponseAndClose(400, "Invalid Content Length header");
-      return;
+    if (!contentLengthResult) {
+      switch (contentLengthResult.error()) {
+      case ContentLengthError::NO_CONTENT_LENGTH_HEADER:
+        sendErrorResponseAndClose(400, "No Content-Length header");
+        return;
+      case ContentLengthError::INVALID_CONTENT_LENGTH:
+        sendErrorResponseAndClose(400, "Invalid Content-Length header");
+        return;
+      case ContentLengthError::CONTENT_LENGTH_TOO_LARGE:
+        sendErrorResponseAndClose(413);
+        return;
+      }
     }
 
-    if (contentLength == HttpRequest::CONTENT_LENGTH_TOO_LARGE) {
-      sendErrorResponseAndClose(413);
-      return;
-    }
-
-    bool bodyComplete =
-        (contentLength == HttpRequest::NO_CONTENT_LENGTH_HEADER) ||
-        ((int)readBuffer_.size() >= contentLength);
+    int contentLength = contentLengthResult.value();
+    bool bodyComplete = (int)readBuffer_.size() >= contentLength;
 
     if (!bodyComplete) {
       ReadResult result = drainIntoBuffer();
       if (result == ReadResult::CLOSED)
         return;
-      bodyComplete = (contentLength == HttpRequest::NO_CONTENT_LENGTH_HEADER) ||
-                     ((int)readBuffer_.size() >= contentLength);
+      bodyComplete = (int)readBuffer_.size() >= contentLength;
     }
 
     if (!bodyComplete)
       return;
 
-    size_t bodySize = (contentLength == HttpRequest::NO_CONTENT_LENGTH_HEADER)
-                          ? 0
-                          : (size_t)contentLength;
+    size_t bodySize = (size_t)contentLength;
 
-    request_.body =
-        std::string(readBuffer_.begin(), readBuffer_.begin() + bodySize);
+    request_.setBody(
+        std::string(readBuffer_.begin(), readBuffer_.begin() + bodySize));
     readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + bodySize);
 
     sendResponse();
@@ -423,8 +428,8 @@ private:
 
     HttpRequest dispatchRequest = request_;
 
-    if (request_.method == "HEAD")
-      dispatchRequest.method = "GET";
+    if (request_.getMethod() == "HEAD")
+      dispatchRequest.setMethod("GET");
 
     try {
       auto result = router_.dispatch(dispatchRequest);
@@ -451,7 +456,7 @@ private:
     keepAlive_ = shouldKeepAlive();
     response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
 
-    if (request_.method == "HEAD")
+    if (request_.getMethod() == "HEAD")
       response.setBodyRaw("");
 
     serializeAndSendResponse(response);
@@ -514,11 +519,11 @@ private:
                                       const std::string &message = "") {
     HttpResponse response =
         errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
-    if (request_.method == "HEAD")
+    if (request_.getMethod() == "HEAD")
       response.setBodyRaw("");
     if (statusCode == 405) {
       response.setHeader("Allow",
-                         router_.getAllowedMethodsString(request_.path));
+                         router_.getAllowedMethodsString(request_.getPath()));
     }
     if (close) {
       keepAlive_ = false;
