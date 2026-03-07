@@ -24,6 +24,6 @@ public:
   virtual std::string getIp() const = 0;
   virtual uint16_t getPort() const = 0;
   virtual int getFd() const = 0;
-  virtual HandshakeResult handshake() const = 0;
+  virtual HandshakeResult handshake() = 0;
   virtual ~IStream() = default;
 };

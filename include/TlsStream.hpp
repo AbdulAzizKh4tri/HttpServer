@@ -55,7 +55,7 @@ public:
     }
   }
 
-  HandshakeResult handshake() const override {
+  HandshakeResult handshake() override {
     int ret = SSL_accept(ssl_);
     if (ret == 1)
       return HandshakeResult::DONE;

@@ -5,6 +5,8 @@
 #include <sys/timerfd.h>
 #include <sys/types.h>
 
+#include "ChunkedBodyParser.hpp"
+#include "ConnectionIO.hpp"
 #include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
@@ -21,23 +23,15 @@ enum class ConnectionState {
   CLOSING
 };
 
-enum class ChunkState {
-  READING_SIZE,
-  READING_DATA,
-  READING_TRAILING_CRLF,
-};
-
-enum class ReadResult { DATA, CLOSED, WOULD_BLOCK, ERROR };
-
 class HttpConnection {
 public:
   HttpConnection(std::shared_ptr<IStream> stream, Router &router,
                  ErrorFactory &errorFactory)
-      : stream_(std::move(stream)), router_(router),
+      : connIO_(std::move(stream)), router_(router),
         state_(ConnectionState::HANDSHAKING), errorFactory_(errorFactory) {
-    request_.setIp(stream_->getIp());
-    request_.setPort(stream_->getPort());
 
+    request_.setIp(connIO_.getIp());
+    request_.setPort(connIO_.getPort());
     // create timer for Connection: keep alive
     timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timerFd_ == -1)
@@ -89,40 +83,35 @@ public:
   }
 
   void onTimeout() {
-    SPDLOG_DEBUG("Connection timed out {}:{}", stream_->getIp(),
-                 stream_->getPort());
-    state_ = ConnectionState::CLOSING;
+    SPDLOG_DEBUG("Connection timed out {}:{}", connIO_.getIp(),
+                 connIO_.getPort());
+    setState(ConnectionState::CLOSING);
   }
 
   bool wantsWrite() const {
-    return !writeBuffer_.empty() || handshakeWantsWrite_;
+    return connIO_.hasPendingWrites() || handshakeWantsWrite_;
   }
   bool isClosing() const { return state_ == ConnectionState::CLOSING; }
 
-  int getFd() const { return stream_->getFd(); }
+  int getFd() const { return connIO_.getFd(); }
   int getTimerFd() const { return timerFd_; }
-  std::string getIp() const { return stream_->getIp(); }
-  uint16_t getPort() const { return stream_->getPort(); }
+  std::string getIp() const { return connIO_.getIp(); }
+  uint16_t getPort() const { return connIO_.getPort(); }
 
 private:
   static constexpr int IDLE_TIMEOUT_SECS = 30;
 
-  std::shared_ptr<IStream> stream_;
   int timerFd_ = -1;
 
   ConnectionState state_;
-  std::vector<unsigned char> readBuffer_;
-  std::vector<unsigned char> writeBuffer_;
   bool handshakeWantsWrite_ = false, keepAlive_ = false;
+
+  ConnectionIO connIO_;
+  ChunkedBodyParser chunkParser_;
 
   HttpRequest request_;
   Router &router_;
   ErrorFactory &errorFactory_;
-
-  ChunkState chunkState_ = ChunkState::READING_SIZE;
-  size_t currentChunkSize_ = 0;
-  size_t currentChunkBytesRead_ = 0;
-  std::string assembledBody_;
 
   void armTimer() {
     itimerspec spec = {};
@@ -145,25 +134,24 @@ private:
     return true; // HTTP/1.1 default
   }
 
+  void setState(ConnectionState newState) { state_ = newState; }
+
   void resetForNextRequest() {
     request_ = HttpRequest();
-    request_.setIp(stream_->getIp());
-    request_.setPort(stream_->getPort());
-    state_ = ConnectionState::READING_HEADERS;
-    chunkState_ = ChunkState::READING_SIZE;
-    currentChunkSize_ = 0;
-    currentChunkBytesRead_ = 0;
-    assembledBody_.clear();
+    request_.setIp(connIO_.getIp());
+    request_.setPort(connIO_.getPort());
+    setState(ConnectionState::READING_HEADERS);
+    chunkParser_.reset();
     resetTimer();
   }
 
   void handleHandshake() {
     handshakeWantsWrite_ = false;
-    HandshakeResult result = stream_->handshake();
+    HandshakeResult result = connIO_.handshake();
     switch (result) {
     case HandshakeResult::DONE:
     case HandshakeResult::NO_TLS:
-      state_ = ConnectionState::READING_HEADERS;
+      setState(ConnectionState::READING_HEADERS);
       break;
     case HandshakeResult::WANT_READ:
       break;
@@ -171,71 +159,64 @@ private:
       handshakeWantsWrite_ = true;
       break;
     case HandshakeResult::ERROR:
-      SPDLOG_ERROR("TLS handshake failed for {}:{}", stream_->getIp(),
-                   stream_->getPort());
-      state_ = ConnectionState::CLOSING;
+      SPDLOG_ERROR("TLS handshake failed for {}:{}", connIO_.getIp(),
+                   connIO_.getPort());
+      setState(ConnectionState::CLOSING);
       break;
     }
   }
 
   void handleReadingHeaders() {
-    ReadResult result = drainIntoBuffer();
+    ReadResult result = connIO_.drainIntoReadBuffer();
     if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
-      state_ = ConnectionState::CLOSING;
+      setState(ConnectionState::CLOSING);
+      return;
+    }
+    if (result == ReadResult::WOULD_BLOCK && connIO_.readBuffer().empty()) {
       return;
     }
 
-    if (result == ReadResult::WOULD_BLOCK)
-      return;
-
-    while (readBuffer_.size() >= 2 && readBuffer_[0] == '\r' &&
-           readBuffer_[1] == '\n') {
-      readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
+    while (connIO_.getReadBufferSize() >= 2 &&
+           connIO_.readBuffer()[0] == '\r' && connIO_.readBuffer()[1] == '\n') {
+      connIO_.eraseFromReadBuffer(2);
     }
 
-    std::string data(readBuffer_.begin(), readBuffer_.end());
-    size_t end = data.find("\r\n\r\n");
+    auto data = connIO_.getReadBufferString();
+    size_t end = data.find("\r\n\r\n"); // Looking for end of header.
     if (end == std::string::npos) {
-      if (readBuffer_.size() > HttpRequest::MAX_HEADER_SIZE) {
+      if (connIO_.getReadBufferSize() > HttpRequest::MAX_HEADER_SIZE) {
         sendErrorResponseAndClose(431); // 431 = Request Header Fields Too Large
       }
-      return;
-    }
-
-    if (end > HttpRequest::MAX_HEADER_SIZE) {
-      sendErrorResponseAndClose(431);
       return;
     }
 
     std::string headerString = data.substr(0, end);
     if (!request_.parseRequestHeader(headerString)) {
       SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
-      sendErrorResponseAndClose(400, "Malformed Header"); // malformed header
+      sendErrorResponseAndClose(400, "Malformed Header");
       return;
     }
 
     if (request_.getHeader("Host") == "") {
       SPDLOG_DEBUG("HOST ERROR... {}", headerString);
-      sendErrorResponseAndClose(400,
-                                "No Host Header Provided"); // no Host header
+      sendErrorResponseAndClose(400, "No Host Header Provided");
       return;
     }
 
-    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 4);
+    connIO_.eraseFromReadBuffer(end + 4);
 
     if (request_.getHeader("Expect") != "") {
       handleExpectHeader();
       return;
     }
 
-    state_ = ConnectionState::READING_BODY;
+    setState(ConnectionState::READING_BODY);
     handleReadingBody();
   }
 
   void handleExpectHeader() {
     auto expect = request_.getHeader("Expect");
     if (expect == "100-continue") {
-      std::string contentLength = request_.getHeader("Content-Length");
       RouterResponse result =
           router_.validate(request_.getPath(), request_.getMethod());
       switch (result) {
@@ -246,12 +227,11 @@ private:
         sendErrorResponse(405);
         return;
       case RouterResponse::OK:
-        state_ = ConnectionState::SENDING_CONTINUE;
+        setState(ConnectionState::SENDING_CONTINUE);
         std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
         auto responseBytes =
             std::vector<unsigned char>(response.begin(), response.end());
-        writeBuffer_.insert(writeBuffer_.end(), responseBytes.begin(),
-                            responseBytes.end());
+        connIO_.enqueue(responseBytes);
         handleSendingContinue();
         return;
       }
@@ -264,9 +244,12 @@ private:
   }
 
   void handleSendingContinue() {
-    flushWriteBuffer();
+    if (!connIO_.flushFromWriteBuffer()) {
+      setState(ConnectionState::CLOSING);
+      return;
+    }
     if (!wantsWrite()) {
-      state_ = ConnectionState::READING_BODY;
+      setState(ConnectionState::READING_BODY);
       handleReadingBody();
     }
   }
@@ -297,80 +280,28 @@ private:
   }
 
   void handleReadingBodyChunked() {
-    ReadResult result = drainIntoBuffer();
-    if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
-      state_ = ConnectionState::CLOSING;
+    ReadResult readResult = connIO_.drainIntoReadBuffer();
+    if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
+      setState(ConnectionState::CLOSING);
       return;
     }
 
-    while (true) {
-      switch (chunkState_) {
-      case ChunkState::READING_SIZE:
-        if (!readChunkSize()) // returns false if needs more data
-          return;
-        break;
-      case ChunkState::READING_DATA:
-        if (!readChunkData())
-          return;
-        break;
-      case ChunkState::READING_TRAILING_CRLF:
-        if (!readTrailingCrlf())
-          return;
-        break;
+    auto result = chunkParser_.feed(connIO_.readBuffer());
+    if (!result)
+      switch (result.error()) {
+      case ChunkError::TOO_LARGE:
+        sendErrorResponseAndClose(413);
+        return;
+      case ChunkError::MALFORMED:
+        sendErrorResponseAndClose(400);
+        return;
       }
-    }
-  }
-
-  bool readChunkSize() {
-    std::string data(readBuffer_.begin(), readBuffer_.end());
-    size_t end = data.find("\r\n");
-    if (end == std::string::npos)
-      return false; // need more data
-
-    std::stringstream ss(data.substr(0, end));
-    ss >> std::hex >> currentChunkSize_;
-    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 2);
-
-    if (currentChunkSize_ == 0) {
-      request_.setBody(assembledBody_);
+    auto res = result.value();
+    if (res.has_value()) {
+      request_.setBody(*res);
       sendResponse();
-      return false; // done, stop looping
+      return;
     }
-
-    chunkState_ = ChunkState::READING_DATA;
-    return true;
-  }
-
-  bool readChunkData() {
-    if (readBuffer_.size() < currentChunkSize_)
-      return false;
-
-    currentChunkBytesRead_ += currentChunkSize_;
-    if (currentChunkBytesRead_ > HttpRequest::MAX_CONTENT_LENGTH) {
-      sendErrorResponseAndClose(413);
-      return false;
-    }
-
-    assembledBody_.append(readBuffer_.begin(),
-                          readBuffer_.begin() + currentChunkSize_);
-    readBuffer_.erase(readBuffer_.begin(),
-                      readBuffer_.begin() + currentChunkSize_);
-
-    currentChunkSize_ = 0;
-    chunkState_ = ChunkState::READING_TRAILING_CRLF;
-    return true;
-  }
-
-  bool readTrailingCrlf() {
-    if (readBuffer_.size() < 2)
-      return false;
-    if (readBuffer_[0] != '\r' || readBuffer_[1] != '\n') {
-      sendErrorResponseAndClose(400);
-      return false;
-    }
-    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + 2);
-    chunkState_ = ChunkState::READING_SIZE;
-    return true;
   }
 
   void handleReadingBodyContentLength() {
@@ -379,8 +310,7 @@ private:
     if (!contentLengthResult) {
       switch (contentLengthResult.error()) {
       case ContentLengthError::NO_CONTENT_LENGTH_HEADER:
-        sendErrorResponseAndClose(400, "No Content-Length header");
-        return;
+        std::unreachable();
       case ContentLengthError::INVALID_CONTENT_LENGTH:
         sendErrorResponseAndClose(400, "Invalid Content-Length header");
         return;
@@ -390,26 +320,23 @@ private:
       }
     }
 
-    int contentLength = contentLengthResult.value();
-    bool bodyComplete = (int)readBuffer_.size() >= contentLength;
+    size_t contentLength = contentLengthResult.value();
+    bool bodyComplete = connIO_.getReadBufferSize() >= contentLength;
 
-    if (!bodyComplete) {
-      ReadResult result = drainIntoBuffer();
+    if (!bodyComplete) { // read more data if body is incomplete
+      ReadResult result = connIO_.drainIntoReadBuffer();
       if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
-        state_ = ConnectionState::CLOSING;
+        setState(ConnectionState::CLOSING);
         return;
       }
-      bodyComplete = (int)readBuffer_.size() >= contentLength;
+      bodyComplete = connIO_.getReadBufferSize() >= contentLength;
     }
 
-    if (!bodyComplete)
+    if (!bodyComplete) // if still incomplete, try again later
       return;
 
-    size_t bodySize = (size_t)contentLength;
-
-    request_.setBody(
-        std::string(readBuffer_.begin(), readBuffer_.begin() + bodySize));
-    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + bodySize);
+    request_.setBody(connIO_.getReadBufferString(contentLength));
+    connIO_.eraseFromReadBuffer(contentLength);
 
     sendResponse();
   }
@@ -469,93 +396,53 @@ private:
     serializeAndSendResponse(response);
   }
 
-  void handleWritingResponse() {
-    flushWriteBuffer();
-    if (!wantsWrite()) {
-      if (keepAlive_)
-        resetForNextRequest();
-      else
-        state_ = ConnectionState::CLOSING;
-    }
+  void serializeAndSendResponse(const HttpResponse &response) {
+
+    setState(ConnectionState::WRITING_RESPONSE);
+    std::vector<unsigned char> serialized = response.serialize();
+    connIO_.enqueue(serialized);
+    logRequest(request_, response);
+    handleWritingResponse();
   }
 
-  ReadResult drainIntoBuffer() {
-    bool gotData = false;
-    for (;;) {
-      std::vector<unsigned char> buf(4096);
-      auto result = stream_->receive(buf);
-
-      switch (result.status) {
-      case ReceiveResult::Status::DATA:
-        buf.resize(result.bytes);
-        readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
-        gotData = true;
-        break;
-      case ReceiveResult::Status::WOULD_BLOCK:
-        return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
-      case ReceiveResult::Status::CLOSED:
-        SPDLOG_DEBUG("Connection closed by peer, {}:{}", stream_->getIp(),
-                     stream_->getPort());
-        return ReadResult::CLOSED;
-      case ReceiveResult::Status::ERROR:
-        SPDLOG_ERROR("Receive error for {}:{}", stream_->getIp(),
-                     stream_->getPort());
-        return ReadResult::ERROR;
-      }
-    }
-  }
-
-  void flushWriteBuffer() {
-    while (!writeBuffer_.empty()) {
-      ssize_t n = stream_->send(writeBuffer_);
-      if (n < 0) {
-        SPDLOG_ERROR("Send error for {}:{}, {}", stream_->getIp(),
-                     stream_->getPort(), strerror(errno));
-        state_ = ConnectionState::CLOSING;
-        return;
-      }
-      if (n == 0)
-        return;
-      writeBuffer_.erase(writeBuffer_.begin(), writeBuffer_.begin() + n);
-    }
+  void buildErrorResponse(HttpResponse &response, int statusCode,
+                          const std::string &message) {
+    response =
+        errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
+    if (request_.getMethod() == "HEAD")
+      response.stripBodyForHeadRequest();
+    if (statusCode == 405)
+      response.setHeader("Allow",
+                         router_.getAllowedMethodsString(request_.getPath()));
   }
 
   void sendErrorResponseAndClose(int statusCode,
                                  const std::string &message = "") {
-    HttpResponse response =
-        errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
-    if (request_.getMethod() == "HEAD")
-      response.stripBodyForHeadRequest();
-    if (statusCode == 405) {
-      response.setHeader("Allow",
-                         router_.getAllowedMethodsString(request_.getPath()));
-    }
+    HttpResponse response;
+    buildErrorResponse(response, statusCode, message);
     keepAlive_ = false;
     response.setHeader("Connection", "close");
     serializeAndSendResponse(response);
   }
 
   void sendErrorResponse(int statusCode, const std::string &message = "") {
-
-    HttpResponse response =
-        errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
-    if (request_.getMethod() == "HEAD")
-      response.stripBodyForHeadRequest();
-    if (statusCode == 405) {
-      response.setHeader("Allow",
-                         router_.getAllowedMethodsString(request_.getPath()));
-    }
+    HttpResponse response;
+    buildErrorResponse(response, statusCode, message);
     serializeAndSendResponse(response);
   }
 
-  void serializeAndSendResponse(const HttpResponse &response) {
-
-    state_ = ConnectionState::WRITING_RESPONSE;
-    std::vector<unsigned char> serialized = response.serialize();
-    writeBuffer_.clear();
-    writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
-                        serialized.end());
-    logRequest(request_, response);
-    handleWritingResponse();
+  void handleWritingResponse() {
+    if (!connIO_.flushFromWriteBuffer()) {
+      setState(ConnectionState::CLOSING);
+      return;
+    }
+    if (!wantsWrite()) {
+      if (keepAlive_) {
+        resetForNextRequest();
+        if (!connIO_.readBuffer().empty())
+          handleReadingHeaders();
+      } else
+        setState(ConnectionState::CLOSING);
+    }
   }
 };

@@ -37,7 +37,7 @@ public:
     return ReceiveResult::error();
   }
 
-  HandshakeResult handshake() const override { return HandshakeResult::NO_TLS; }
+  HandshakeResult handshake() override { return HandshakeResult::NO_TLS; }
 
   int setSocketNonBlocking() { return socket_.setNonBlocking(); }
 

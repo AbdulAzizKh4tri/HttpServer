@@ -81,17 +81,18 @@ public:
     }
   }
 
-  std::expected<int, ContentLengthError> getContentLength() const {
+  std::expected<size_t, ContentLengthError> getContentLength() const {
     auto lenStr = getHeader("Content-Length");
     if (lenStr == "")
       return std::unexpected(ContentLengthError::NO_CONTENT_LENGTH_HEADER);
-    int len;
-    try {
-      len = std::stoi(lenStr);
-    } catch (...) {
+    size_t len;
+
+    auto [ptr, ec] =
+        std::from_chars(lenStr.data(), lenStr.data() + lenStr.size(), len);
+    if (ec != std::errc{})
       return std::unexpected(ContentLengthError::INVALID_CONTENT_LENGTH);
-    }
-    if (len < 0 || (size_t)len > MAX_CONTENT_LENGTH)
+
+    if (len > MAX_CONTENT_LENGTH)
       return std::unexpected(ContentLengthError::CONTENT_LENGTH_TOO_LARGE);
     return len;
   }
@@ -130,5 +131,5 @@ public:
 private:
   std::unordered_map<std::string, std::string> headers_, params_;
   std::string method_, path_, version_, body_, ip_;
-  uint16_t port_;
+  uint16_t port_ = 0;
 };
