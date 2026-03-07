@@ -20,12 +20,20 @@ public:
     addRoute(path, "GET", handler);
   }
 
+  void post(std::string path, Handler handler) {
+    addRoute(path, "POST", handler);
+  }
+
   void put(std::string path, Handler handler) {
     addRoute(path, "PUT", handler);
   }
 
-  void post(std::string path, Handler handler) {
-    addRoute(path, "POST", handler);
+  void patch(std::string path, Handler handler) {
+    addRoute(path, "PATCH", handler);
+  }
+
+  void delete_(std::string path, Handler handler) {
+    addRoute(path, "DELETE", handler);
   }
 
   HttpResponse dispatch(HttpRequest &request) {
@@ -83,8 +91,9 @@ private:
     auto &definedMethods = pathIt->second;
     std::string origin = request.getHeader("Origin");
 
-    auto requestedMethodIt = definedMethods.find(request.method);
-    if (requestedMethodIt != definedMethods.end()) {
+    if (auto requestedMethodIt = definedMethods.find(request.method);
+        requestedMethodIt != definedMethods.end()) {
+
       response = requestedMethodIt->second(request);
 
       if (origin != "" && isOriginAllowed(origin)) {
@@ -119,8 +128,8 @@ private:
     }
 
     if (request.method == "HEAD") {
-      auto getHandlerIt = definedMethods.find("GET");
-      if (getHandlerIt != definedMethods.end()) {
+      if (auto getHandlerIt = definedMethods.find("GET");
+          getHandlerIt != definedMethods.end()) {
         response = getHandlerIt->second(request);
         response.setBodyRaw("");
         if (origin != "" && isOriginAllowed(origin))

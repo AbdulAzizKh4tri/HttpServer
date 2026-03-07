@@ -60,3 +60,27 @@ inline std::vector<std::string> split(std::string_view s,
 
   return {parts.begin(), parts.end()};
 }
+
+inline std::string trim(std::string s) {
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          }));
+
+  s.erase(std::find_if(s.rbegin(), s.rend(),
+                       [](unsigned char ch) { return !std::isspace(ch); })
+              .base(),
+          s.end());
+
+  return s;
+}
+
+template <typename Map>
+inline auto getOrDefault(const Map &map, const typename Map::key_type &key,
+                         typename Map::mapped_type defaultValue) ->
+    typename Map::mapped_type {
+
+  if (const auto it = map.find(key); it != map.end()) {
+    return it->second;
+  }
+  return defaultValue;
+}

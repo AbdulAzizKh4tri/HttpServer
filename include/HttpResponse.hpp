@@ -5,19 +5,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "utils.hpp"
+
 class HttpResponse {
 public:
-  inline static const std::unordered_map<int, std::string> statusStrings = {
-      {100, "Continue"},
-      {200, "OK"},
-      {204, "No Content"},
-      {400, "Bad Request"},
-      {413, "Content Too Large"},
-      {417, "Expectation Failed"},
-      {431, "Header Fields Too Large"},
-      {404, "Not Found"},
-      {405, "Method Not Allowed"},
-      {500, "Internal Server Error"}};
+  static std::string statusText(int statusCode) {
+    return getOrDefault(statusStrings_, statusCode, "Unknown");
+  };
 
   HttpResponse() : statusCode_(500) {}
 
@@ -31,8 +25,7 @@ public:
   }
 
   std::vector<unsigned char> serialize() const {
-    auto it = statusStrings.find(statusCode_);
-    std::string reason = (it != statusStrings.end()) ? it->second : "Unknown";
+    std::string reason = HttpResponse::statusText(statusCode_);
 
     std::string response =
         std::format("{} {} {}\r\n", version_, statusCode_, reason);
@@ -47,7 +40,7 @@ public:
   }
 
   void setHeader(const std::string &name, const std::string &value) {
-    headers_[name] = value;
+    headers_[toLowerCase(name)] = value;
   }
 
   void setBody(const std::string &body) {
@@ -67,10 +60,7 @@ public:
   int getStatusCode() const { return statusCode_; }
 
   std::string getHeader(const std::string &name) const {
-    auto it = headers_.find(name);
-    if (it == headers_.end())
-      return "";
-    return it->second;
+    return getOrDefault(headers_, toLowerCase(name), "");
   }
   std::unordered_map<std::string, std::string> getHeaders() const {
     return headers_;
@@ -80,4 +70,16 @@ private:
   std::string body_, version_ = "HTTP/1.1";
   int statusCode_;
   std::unordered_map<std::string, std::string> headers_;
+
+  inline static const std::unordered_map<int, std::string> statusStrings_ = {
+      {100, "Continue"},
+      {200, "OK"},
+      {204, "No Content"},
+      {400, "Bad Request"},
+      {413, "Content Too Large"},
+      {417, "Expectation Failed"},
+      {431, "Header Fields Too Large"},
+      {404, "Not Found"},
+      {405, "Method Not Allowed"},
+      {500, "Internal Server Error"}};
 };

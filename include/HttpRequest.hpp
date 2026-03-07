@@ -59,10 +59,10 @@ public:
       if (!line.empty() && line.back() == '\r')
         line.pop_back();
 
-      auto pos = line.find(": ");
+      auto pos = line.find(":");
       if (pos == std::string::npos)
         continue;
-      setHeader(line.substr(0, pos), line.substr(pos + 2));
+      setHeader(line.substr(0, pos), trim(line.substr(pos + 1)));
     }
     return true;
   }
@@ -72,10 +72,7 @@ public:
   }
 
   std::string getHeader(const std::string &key) const {
-    auto it = headers.find(toLowerCase(key));
-    if (it == headers.end())
-      return "";
-    return it->second;
+    return getOrDefault(headers, toLowerCase(key), "");
   }
 
   int getContentLength() const {
