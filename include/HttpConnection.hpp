@@ -27,7 +27,7 @@ enum class ChunkState {
   READING_TRAILING_CRLF,
 };
 
-enum class ReadResult { DATA, CLOSED, WOULD_BLOCK };
+enum class ReadResult { DATA, CLOSED, WOULD_BLOCK, ERROR };
 
 class HttpConnection {
 public:
@@ -63,13 +63,11 @@ public:
     case ConnectionState::READING_HEADERS:
       handleReadingHeaders();
       break;
-    case ConnectionState::SENDING_CONTINUE:
-      break;
     case ConnectionState::READING_BODY:
       handleReadingBody();
       break;
+    case ConnectionState::SENDING_CONTINUE:
     case ConnectionState::WRITING_RESPONSE:
-      break;
     case ConnectionState::CLOSING:
       break;
     }
@@ -182,7 +180,12 @@ private:
 
   void handleReadingHeaders() {
     ReadResult result = drainIntoBuffer();
-    if (result != ReadResult::DATA)
+    if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
+      state_ = ConnectionState::CLOSING;
+      return;
+    }
+
+    if (result == ReadResult::WOULD_BLOCK)
       return;
 
     while (readBuffer_.size() >= 2 && readBuffer_[0] == '\r' &&
@@ -237,10 +240,10 @@ private:
           router_.validate(request_.getPath(), request_.getMethod());
       switch (result) {
       case RouterResponse::NOT_FOUND:
-        sendErrorResponseAndClose(404);
+        sendErrorResponse(404);
         return;
       case RouterResponse::METHOD_NOT_ALLOWED:
-        sendErrorResponseAndClose(405);
+        sendErrorResponse(405);
         return;
       case RouterResponse::OK:
         state_ = ConnectionState::SENDING_CONTINUE;
@@ -295,8 +298,10 @@ private:
 
   void handleReadingBodyChunked() {
     ReadResult result = drainIntoBuffer();
-    if (result == ReadResult::CLOSED)
+    if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
+      state_ = ConnectionState::CLOSING;
       return;
+    }
 
     while (true) {
       switch (chunkState_) {
@@ -390,8 +395,10 @@ private:
 
     if (!bodyComplete) {
       ReadResult result = drainIntoBuffer();
-      if (result == ReadResult::CLOSED)
+      if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
+        state_ = ConnectionState::CLOSING;
         return;
+      }
       bodyComplete = (int)readBuffer_.size() >= contentLength;
     }
 
@@ -436,20 +443,20 @@ private:
       if (!result) {
         switch (result.error()) {
         case RouteError::NOT_FOUND:
-          sendErrorResponseAndClose(404);
+          sendErrorResponse(404);
           return;
         case RouteError::METHOD_NOT_ALLOWED:
-          sendErrorResponseAndClose(405);
+          sendErrorResponse(405);
           return;
         }
       }
       response = result.value();
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Handler threw exception: {}", e.what());
-      sendErrorResponseAndClose(500, e.what());
+      sendErrorResponse(500, e.what());
       return;
     } catch (...) {
-      sendErrorResponseAndClose(500);
+      sendErrorResponse(500);
       return;
     }
 
@@ -457,7 +464,7 @@ private:
     response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
 
     if (request_.getMethod() == "HEAD")
-      response.setBodyRaw("");
+      response.stripBodyForHeadRequest();
 
     serializeAndSendResponse(response);
   }
@@ -489,13 +496,11 @@ private:
       case ReceiveResult::Status::CLOSED:
         SPDLOG_DEBUG("Connection closed by peer, {}:{}", stream_->getIp(),
                      stream_->getPort());
-        state_ = ConnectionState::CLOSING;
         return ReadResult::CLOSED;
       case ReceiveResult::Status::ERROR:
         SPDLOG_ERROR("Receive error for {}:{}", stream_->getIp(),
                      stream_->getPort());
-        state_ = ConnectionState::CLOSING;
-        return ReadResult::CLOSED;
+        return ReadResult::ERROR;
       }
     }
   }
@@ -515,31 +520,31 @@ private:
     }
   }
 
-  HttpResponse constructErrorResponse(bool close, int statusCode,
-                                      const std::string &message = "") {
+  void sendErrorResponseAndClose(int statusCode,
+                                 const std::string &message = "") {
     HttpResponse response =
         errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
     if (request_.getMethod() == "HEAD")
-      response.setBodyRaw("");
+      response.stripBodyForHeadRequest();
     if (statusCode == 405) {
       response.setHeader("Allow",
                          router_.getAllowedMethodsString(request_.getPath()));
     }
-    if (close) {
-      keepAlive_ = false;
-      response.setHeader("Connection", "close");
-    }
-    return response;
-  }
-
-  void sendErrorResponseAndClose(int statusCode,
-                                 const std::string &message = "") {
-    auto response = constructErrorResponse(true, statusCode, message);
+    keepAlive_ = false;
+    response.setHeader("Connection", "close");
     serializeAndSendResponse(response);
   }
 
   void sendErrorResponse(int statusCode, const std::string &message = "") {
-    auto response = constructErrorResponse(false, statusCode, message);
+
+    HttpResponse response =
+        errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
+    if (request_.getMethod() == "HEAD")
+      response.stripBodyForHeadRequest();
+    if (statusCode == 405) {
+      response.setHeader("Allow",
+                         router_.getAllowedMethodsString(request_.getPath()));
+    }
     serializeAndSendResponse(response);
   }
 
