@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <string>
 
 #include "HttpRequest.hpp"
@@ -13,6 +14,9 @@ struct CorsConfig {
   std::vector<std::string> allowedHeaders = {"Authorization", "Content-Type"};
   int maxAge = 10;
 };
+
+enum class RouteError { NOT_FOUND, METHOD_NOT_ALLOWED };
+enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
 
 class Router {
 public:
@@ -36,10 +40,41 @@ public:
     addRoute(path, "DELETE", handler);
   }
 
-  HttpResponse dispatch(HttpRequest &request) {
-    HttpResponse response;
-    handle(request, response);
-    return response;
+  std::expected<HttpResponse, RouteError> dispatch(const HttpRequest &request) {
+    auto pathIt = routes_.find(request.path);
+    if (pathIt == routes_.end())
+      return std::unexpected(RouteError::NOT_FOUND);
+
+    auto &definedMethods = pathIt->second;
+    std::string origin = request.getHeader("Origin");
+
+    if (auto methodIt = definedMethods.find(request.method);
+        methodIt != definedMethods.end()) {
+      HttpResponse response = methodIt->second(request);
+      if (origin != "" && isOriginAllowed(origin))
+        response.setHeader("Access-Control-Allow-Origin", origin);
+      return response;
+    }
+
+    if (request.method == "OPTIONS") {
+      HttpResponse response(204);
+      std::string allowedMethods = getAllowedMethodsString(definedMethods);
+      if (origin == "") {
+        response.setHeader("Allow", allowedMethods);
+        return response;
+      }
+      if (!isOriginAllowed(origin))
+        return response;
+      response.setHeader("Access-Control-Allow-Origin", origin);
+      response.setHeader("Access-Control-Allow-Methods", allowedMethods);
+      response.setHeader("Access-Control-Allow-Headers",
+                         getCommaSeparatedString(corsConfig_.allowedHeaders));
+      response.setHeader("Access-Control-Max-Age",
+                         std::to_string(corsConfig_.maxAge));
+      return response;
+    }
+
+    return std::unexpected(RouteError::METHOD_NOT_ALLOWED);
   }
 
   void setCorsOrigins(const std::vector<std::string> &origins) {
@@ -52,96 +87,41 @@ public:
 
   void setCorsMaxAge(int maxAge) { corsConfig_.maxAge = maxAge; }
 
-  int validate(std::string &path, std::string &method,
-               std::string &contentLength) {
-
-    int len;
-    try {
-      len = std::stoi(contentLength);
-    } catch (...) {
-      return 400;
-    }
-
-    if (len > HttpRequest::MAX_CONTENT_LENGTH)
-      return 413;
+  RouterResponse validate(std::string &path, std::string &method,
+                          std::string &contentLength) {
 
     auto pathIt = routes_.find(path);
     if (pathIt == routes_.end())
-      return 404;
+      return RouterResponse::NOT_FOUND;
     if (pathIt->second.find(method) == pathIt->second.end())
-      return 405;
+      return RouterResponse::METHOD_NOT_ALLOWED;
 
-    return 100;
+    return RouterResponse::OK;
+  }
+
+  std::string getAllowedMethodsString(const std::string &path) {
+
+    auto pathIt = routes_.find(path);
+    if (pathIt == routes_.end())
+      return "";
+    auto methods = pathIt->second;
+
+    std::string result;
+    for (const auto &[method, _] : methods) {
+      result += method + ", ";
+      if (method == "GET")
+        result += "HEAD, ";
+    }
+    if (!result.empty()) {
+      result.erase(result.length() - 2);
+    }
+    return result;
   }
 
 private:
   void addRoute(const std::string &path, const std::string &method,
                 const Handler &handler) {
     routes_[path][method] = handler;
-  }
-
-  void handle(const HttpRequest &request, HttpResponse &response) {
-    auto pathIt = routes_.find(request.path);
-
-    if (pathIt == routes_.end()) {
-      response = HttpResponse(404);
-      return;
-    }
-
-    auto &definedMethods = pathIt->second;
-    std::string origin = request.getHeader("Origin");
-
-    if (auto requestedMethodIt = definedMethods.find(request.method);
-        requestedMethodIt != definedMethods.end()) {
-
-      response = requestedMethodIt->second(request);
-
-      if (origin != "" && isOriginAllowed(origin)) {
-        response.setHeader("Access-Control-Allow-Origin", origin);
-      }
-      return;
-    }
-
-    if (request.method == "OPTIONS") {
-      response = HttpResponse(204);
-
-      std::string allowedMethods = getAllowedMethodsString(definedMethods);
-
-      if (origin == "") {
-        response.setHeader("Allow", allowedMethods);
-        return;
-      }
-
-      if (!isOriginAllowed(origin)) {
-        return;
-      }
-
-      std::string allowedHeaders =
-          getCommaSeparatedString(corsConfig_.allowedHeaders);
-
-      response.setHeader("Access-Control-Allow-Origin", origin);
-      response.setHeader("Access-Control-Allow-Headers", allowedHeaders);
-      response.setHeader("Access-Control-Allow-Methods", allowedMethods);
-      response.setHeader("Access-Control-Max-Age",
-                         std::to_string(corsConfig_.maxAge));
-      return;
-    }
-
-    if (request.method == "HEAD") {
-      if (auto getHandlerIt = definedMethods.find("GET");
-          getHandlerIt != definedMethods.end()) {
-        response = getHandlerIt->second(request);
-        response.setBodyRaw("");
-        if (origin != "" && isOriginAllowed(origin))
-          response.setHeader("Access-Control-Allow-Origin", origin);
-        return;
-      }
-    }
-
-    std::string allowedMethods = getAllowedMethodsString(definedMethods);
-    response = HttpResponse(405);
-    response.setHeader("Allow", allowedMethods);
-    return;
   }
 
   std::string getAllowedMethodsString(

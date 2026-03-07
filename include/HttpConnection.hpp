@@ -5,6 +5,7 @@
 #include <sys/timerfd.h>
 #include <sys/types.h>
 
+#include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "IStream.hpp"
@@ -30,9 +31,10 @@ enum class ReadResult { DATA, CLOSED, WOULD_BLOCK };
 
 class HttpConnection {
 public:
-  HttpConnection(std::shared_ptr<IStream> stream, Router &router)
+  HttpConnection(std::shared_ptr<IStream> stream, Router &router,
+                 ErrorFactory &errorFactory)
       : stream_(std::move(stream)), router_(router),
-        state_(ConnectionState::HANDSHAKING) {
+        state_(ConnectionState::HANDSHAKING), errorFactory_(errorFactory) {
     request_.ip = stream_->getIp();
     request_.port = stream_->getPort();
 
@@ -108,13 +110,16 @@ private:
   static constexpr int IDLE_TIMEOUT_SECS = 30;
 
   std::shared_ptr<IStream> stream_;
+  int timerFd_ = -1;
+
   ConnectionState state_;
   std::vector<unsigned char> readBuffer_;
   std::vector<unsigned char> writeBuffer_;
   bool handshakeWantsWrite_ = false, keepAlive_ = false;
+
   HttpRequest request_;
   Router &router_;
-  int timerFd_ = -1;
+  ErrorFactory &errorFactory_;
 
   ChunkState chunkState_ = ChunkState::READING_SIZE;
   size_t currentChunkSize_ = 0;
@@ -202,46 +207,57 @@ private:
     std::string headerString = data.substr(0, end);
     if (!request_.parseHeader(headerString)) {
       SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
-      sendErrorResponseAndClose(400); // malformed header
+      sendErrorResponseAndClose(400, "Malformed Header"); // malformed header
       return;
     }
 
     if (request_.getHeader("Host") == "") {
       SPDLOG_DEBUG("HOST ERROR... {}", headerString);
-      sendErrorResponseAndClose(400); // no Host header
+      sendErrorResponseAndClose(400,
+                                "No Host Header Provided"); // no Host header
       return;
     }
 
     readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + end + 4);
 
-    auto expect = request_.getHeader("Expect");
-    if (expect == "100-continue") {
-      std::string contentLength = request_.getHeader("Content-Length");
-      int code =
-          router_.validate(request_.path, request_.method, contentLength);
-
-      if (code != 100) {
-        sendErrorResponse(code);
-        return;
-      }
-
-      state_ = ConnectionState::SENDING_CONTINUE;
-      std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
-      auto responseBytes =
-          std::vector<unsigned char>(response.begin(), response.end());
-      writeBuffer_.insert(writeBuffer_.end(), responseBytes.begin(),
-                          responseBytes.end());
-      handleSendingContinue();
-      return;
-    }
-    if (expect != "") {
-      SPDLOG_ERROR("Expect header not supported: {}", expect);
-      sendErrorResponseAndClose(417);
+    if (request_.getHeader("Expect") != "") {
+      handleExpectHeader();
       return;
     }
 
     state_ = ConnectionState::READING_BODY;
     handleReadingBody();
+  }
+
+  void handleExpectHeader() {
+    auto expect = request_.getHeader("Expect");
+    if (expect == "100-continue") {
+      std::string contentLength = request_.getHeader("Content-Length");
+      RouterResponse result =
+          router_.validate(request_.path, request_.method, contentLength);
+      switch (result) {
+      case RouterResponse::NOT_FOUND:
+        sendErrorResponseAndClose(404);
+        return;
+      case RouterResponse::METHOD_NOT_ALLOWED:
+        sendErrorResponseAndClose(405);
+        return;
+      case RouterResponse::OK:
+        state_ = ConnectionState::SENDING_CONTINUE;
+        std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
+        auto responseBytes =
+            std::vector<unsigned char>(response.begin(), response.end());
+        writeBuffer_.insert(writeBuffer_.end(), responseBytes.begin(),
+                            responseBytes.end());
+        handleSendingContinue();
+        return;
+      }
+    }
+    if (expect != "") {
+      SPDLOG_ERROR("Expect value not supported: {}", expect);
+      sendErrorResponseAndClose(417);
+      return;
+    }
   }
 
   void handleSendingContinue() {
@@ -258,7 +274,9 @@ private:
 
     if (hasContentLengthHeader && transferEncodingHeader != "") {
       SPDLOG_ERROR("Content-Length and Transfer-Encoding headers both found");
-      sendErrorResponseAndClose(400);
+      sendErrorResponseAndClose(400,
+                                "Request cannot contain both Content-Length "
+                                "and Transfer-Encoding headers");
       return;
     }
 
@@ -349,7 +367,7 @@ private:
     int contentLength = request_.getContentLength();
 
     if (contentLength == HttpRequest::INVALID_CONTENT_LENGTH) {
-      sendErrorResponseAndClose(400);
+      sendErrorResponseAndClose(400, "Invalid Content Length header");
       return;
     }
 
@@ -385,33 +403,58 @@ private:
   }
 
   void sendResponse() {
-    bool keepAlive = shouldKeepAlive();
-
-    state_ = ConnectionState::WRITING_RESPONSE;
     HttpResponse response;
+
+    // if (request_.method == "OPTIONS") {
+    //   auto allowedMethods = router_.getAllowedMethodsString(request_.path);
+    //   if (allowedMethods == "") {
+    //     sendErrorResponseAndClose(404);
+    //     return;
+    //   }
+    //   HttpResponse response(204);
+    //   response.setHeader("Allow", allowedMethods);
+    //
+    //   keepAlive_ = shouldKeepAlive();
+    //   response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+    //
+    //   serializeAndSendResponse(response);
+    //   return;
+    // }
+
+    HttpRequest dispatchRequest = request_;
+
+    if (request_.method == "HEAD")
+      dispatchRequest.method = "GET";
+
     try {
-      response = router_.dispatch(request_);
+      auto result = router_.dispatch(dispatchRequest);
+      if (!result) {
+        switch (result.error()) {
+        case RouteError::NOT_FOUND:
+          sendErrorResponseAndClose(404);
+          return;
+        case RouteError::METHOD_NOT_ALLOWED:
+          sendErrorResponseAndClose(405);
+          return;
+        }
+      }
+      response = result.value();
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Handler threw exception: {}", e.what());
-      response = HttpResponse(500);
-      keepAlive = false;
+      sendErrorResponseAndClose(500, e.what());
+      return;
     } catch (...) {
-      SPDLOG_ERROR("Handler threw unknown exception");
-      response = HttpResponse(500);
-      keepAlive = false;
+      sendErrorResponseAndClose(500);
+      return;
     }
-    response.setHeader("Connection", keepAlive ? "keep-alive" : "close");
 
-    std::vector<unsigned char> serialized = response.serialize();
-    writeBuffer_.clear();
-    writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
-                        serialized.end());
+    keepAlive_ = shouldKeepAlive();
+    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
 
-    logRequest(request_, response);
+    if (request_.method == "HEAD")
+      response.setBodyRaw("");
 
-    // store decision for after flush
-    keepAlive_ = keepAlive;
-    handleWritingResponse();
+    serializeAndSendResponse(response);
   }
 
   void handleWritingResponse() {
@@ -467,24 +510,37 @@ private:
     }
   }
 
-  void sendErrorResponseAndClose(int statusCode) {
-    state_ = ConnectionState::WRITING_RESPONSE;
-    HttpResponse response(statusCode);
-    keepAlive_ = false;
-    response.setHeader("Connection", "close");
-    std::vector<unsigned char> serialized = response.serialize();
-    writeBuffer_.clear();
-    writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),
-                        serialized.end());
-    logRequest(request_, response);
-    handleWritingResponse();
+  HttpResponse constructErrorResponse(bool close, int statusCode,
+                                      const std::string &message = "") {
+    HttpResponse response =
+        errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
+    if (request_.method == "HEAD")
+      response.setBodyRaw("");
+    if (statusCode == 405) {
+      response.setHeader("Allow",
+                         router_.getAllowedMethodsString(request_.path));
+    }
+    if (close) {
+      keepAlive_ = false;
+      response.setHeader("Connection", "close");
+    }
+    return response;
   }
 
-  void sendErrorResponse(int statusCode) {
-    state_ = ConnectionState::WRITING_RESPONSE;
-    HttpResponse response(statusCode);
-    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+  void sendErrorResponseAndClose(int statusCode,
+                                 const std::string &message = "") {
+    auto response = constructErrorResponse(true, statusCode, message);
+    serializeAndSendResponse(response);
+  }
 
+  void sendErrorResponse(int statusCode, const std::string &message = "") {
+    auto response = constructErrorResponse(false, statusCode, message);
+    serializeAndSendResponse(response);
+  }
+
+  void serializeAndSendResponse(const HttpResponse &response) {
+
+    state_ = ConnectionState::WRITING_RESPONSE;
     std::vector<unsigned char> serialized = response.serialize();
     writeBuffer_.clear();
     writeBuffer_.insert(writeBuffer_.end(), serialized.begin(),

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "EpollInstance.hpp"
+#include "ErrorFactory.hpp"
 #include "HttpConnection.hpp"
 #include "ListenerSocket.hpp"
 #include "Router.hpp"
@@ -90,6 +91,8 @@ public:
     }
   }
 
+  ErrorFactory &getErrorFactory() { return errorFactory_; }
+
 private:
   static constexpr int BACKLOG = 20;
 
@@ -103,6 +106,7 @@ private:
 
   EpollInstance epoll_;
   Router *router_ = nullptr;
+  ErrorFactory errorFactory_;
 
   void closeConnection(int connFd) {
     auto it = connections_.find(connFd);
@@ -136,8 +140,8 @@ private:
                            [&](auto &l) { return l->getFd() == listenerFd; });
     auto stream = std::make_shared<TcpStream>((*it)->accept());
     stream->setSocketNonBlocking();
-    registerConnection(
-        std::make_shared<HttpConnection>(std::move(stream), *router_));
+    registerConnection(std::make_shared<HttpConnection>(
+        std::move(stream), *router_, errorFactory_));
   }
 
   void handleNewTlsConnection(int listenerFd) {
@@ -146,8 +150,8 @@ private:
     auto stream =
         std::make_shared<TlsStream>((*it)->acceptTls(tlsContext_.get()));
     stream->setSocketNonBlocking();
-    registerConnection(
-        std::make_shared<HttpConnection>(std::move(stream), *router_));
+    registerConnection(std::make_shared<HttpConnection>(
+        std::move(stream), *router_, errorFactory_));
   }
 
   void handleConnectionEvent(const epoll_event &event) {
