@@ -58,7 +58,7 @@ public:
 
     if (request.getMethod() == "OPTIONS") {
       HttpResponse response(204);
-      std::string allowedMethods = getAllowedMethodsString(definedMethods);
+      std::string allowedMethods = getAllowedMethodsString(request.getPath());
       if (origin == "") {
         response.setHeader("Allow", allowedMethods);
         return response;
@@ -121,20 +121,6 @@ private:
   void addRoute(const std::string &path, const std::string &method,
                 const Handler &handler) {
     routes_[path][method] = handler;
-  }
-
-  std::string getAllowedMethodsString(
-      const std::unordered_map<std::string, Handler> &methods) {
-    std::string result;
-    for (const auto &[method, _] : methods) {
-      result += method + ", ";
-      if (method == "GET")
-        result += "HEAD, ";
-    }
-    if (!result.empty()) {
-      result.erase(result.length() - 2);
-    }
-    return result;
   }
 
   bool isOriginAllowed(const std::string &origin) {
