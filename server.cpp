@@ -26,12 +26,7 @@ int main() {
   router.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
 
   router.get("/", [](const HttpRequest &request) {
-    auto nameIt = request.params.find("name");
-    std::string name;
-    if (nameIt == request.params.end())
-      name = "World!";
-    else
-      name = std::string(nameIt->second);
+    auto name = getOrDefault(request.params, "name", "World!");
 
     return HttpResponse(200, "Hello " + name + "!");
   });
