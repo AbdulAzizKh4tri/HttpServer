@@ -221,12 +221,12 @@ private:
           router_.validate(request_.getPath(), request_.getMethod());
       switch (result) {
       case RouterResponse::NOT_FOUND:
-        sendErrorResponse(404);
+        sendErrorResponseAndClose(404);
         return;
       case RouterResponse::METHOD_NOT_ALLOWED:
-        sendErrorResponse(405);
+        sendErrorResponseAndClose(405);
         return;
-      case RouterResponse::OK:
+      case RouterResponse::OK: {
         setState(ConnectionState::SENDING_CONTINUE);
         std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
         auto responseBytes =
@@ -234,6 +234,7 @@ private:
         connIO_.enqueue(responseBytes);
         handleSendingContinue();
         return;
+      }
       }
     }
     if (expect != "") {
@@ -266,7 +267,7 @@ private:
       return;
     }
 
-    if (transferEncodingHeader == "chunked") {
+    if (transferEncodingHeader.find("chunked") != std::string::npos) {
       handleReadingBodyChunked();
       return;
     }
@@ -276,7 +277,7 @@ private:
       return;
     }
 
-    sendResponse();
+    serializeAndSendResponse(generateResponse());
   }
 
   void handleReadingBodyChunked() {
@@ -299,7 +300,7 @@ private:
     auto res = result.value();
     if (res.has_value()) {
       request_.setBody(*res);
-      sendResponse();
+      serializeAndSendResponse(generateResponse());
       return;
     }
   }
@@ -338,12 +339,11 @@ private:
     request_.setBody(connIO_.getReadBufferString(contentLength));
     connIO_.eraseFromReadBuffer(contentLength);
 
-    sendResponse();
+    serializeAndSendResponse(generateResponse());
   }
 
-  void sendResponse() {
+  HttpResponse generateResponse() {
     HttpResponse response;
-
     HttpRequest dispatchRequest = request_;
 
     if (request_.getMethod() == "HEAD")
@@ -351,37 +351,35 @@ private:
 
     try {
       auto result = router_.dispatch(dispatchRequest);
-      if (!result) {
+      if (result) {
+        response = result.value();
+      } else {
         switch (result.error()) {
         case RouteError::NOT_FOUND:
-          sendErrorResponse(404);
-          return;
+          response = buildErrorResponse(404);
+          break;
         case RouteError::METHOD_NOT_ALLOWED:
-          sendErrorResponse(405);
-          return;
+          response = buildErrorResponse(405);
+          break;
         }
       }
-      response = result.value();
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Handler threw exception: {}", e.what());
-      sendErrorResponse(500, e.what());
-      return;
+      response = buildErrorResponse(500, e.what());
     } catch (...) {
-      sendErrorResponse(500);
-      return;
+      response = buildErrorResponse(500);
     }
-
-    keepAlive_ = shouldKeepAlive();
-    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
 
     if (request_.getMethod() == "HEAD")
       response.stripBodyForHeadRequest();
 
-    serializeAndSendResponse(response);
+    keepAlive_ = shouldKeepAlive();
+    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+
+    return response;
   }
 
-  void serializeAndSendResponse(const HttpResponse &response) {
-
+  void serializeAndSendResponse(HttpResponse response) {
     setState(ConnectionState::WRITING_RESPONSE);
     std::vector<unsigned char> serialized = response.serialize();
     connIO_.enqueue(serialized);
@@ -389,29 +387,30 @@ private:
     handleWritingResponse();
   }
 
-  void buildErrorResponse(HttpResponse &response, int statusCode,
-                          const std::string &message) {
-    response =
+  HttpResponse buildErrorResponse(int statusCode,
+                                  const std::string &message = "") {
+    HttpResponse response =
         errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
     if (request_.getMethod() == "HEAD")
       response.stripBodyForHeadRequest();
     if (statusCode == 405)
       response.setHeader("Allow",
                          router_.getAllowedMethodsString(request_.getPath()));
+    return response;
   }
 
   void sendErrorResponseAndClose(int statusCode,
                                  const std::string &message = "") {
-    HttpResponse response;
-    buildErrorResponse(response, statusCode, message);
+    HttpResponse response = buildErrorResponse(statusCode, message);
     keepAlive_ = false;
     response.setHeader("Connection", "close");
     serializeAndSendResponse(response);
   }
 
   void sendErrorResponse(int statusCode, const std::string &message = "") {
-    HttpResponse response;
-    buildErrorResponse(response, statusCode, message);
+    HttpResponse response = buildErrorResponse(statusCode, message);
+    keepAlive_ = shouldKeepAlive();
+    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
     serializeAndSendResponse(response);
   }
 
