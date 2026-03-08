@@ -86,3 +86,17 @@ inline auto getOrDefault(const Map &map, const typename Map::key_type &key,
   }
   return defaultValue;
 }
+
+inline std::string normalizePath(const std::string &path) {
+  std::string result;
+  for (char c : path) {
+    if (c == '/' && !result.empty() && result.back() == '/')
+      continue;
+    result += c;
+  }
+  if (!result.empty() && result.front() == '/')
+    result.erase(0, 1);
+  if (!result.empty() && result.back() == '/')
+    result.pop_back();
+  return result;
+}

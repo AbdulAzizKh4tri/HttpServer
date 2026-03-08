@@ -80,7 +80,7 @@ public:
         auto eqpos = pair.find('=');
         if (eqpos == std::string::npos)
           continue;
-        params_[pair.substr(0, eqpos)] = pair.substr(eqpos + 1);
+        queryParams_[pair.substr(0, eqpos)] = pair.substr(eqpos + 1);
       }
     }
   }
@@ -121,12 +121,25 @@ public:
     return getOrDefault(attributes_, key, "");
   }
 
-  std::string getParam(const std::string &key) const {
-    return getOrDefault(params_, key, "");
+  std::string getQueryParam(const std::string &key) const {
+    return getOrDefault(queryParams_, key, "");
   }
 
-  std::unordered_map<std::string, std::string> getAllParams() const {
-    return params_;
+  std::unordered_map<std::string, std::string> getAllQueryParams() const {
+    return queryParams_;
+  }
+
+  std::string getPathParam(const std::string &key) const {
+    return getOrDefault(pathParams_, key, "");
+  }
+
+  void setPathParams(
+      const std::unordered_map<std::string, std::string> &pathParams) {
+    pathParams_ = pathParams;
+  }
+
+  std::unordered_map<std::string, std::string> getAllPathParams() const {
+    return pathParams_;
   }
 
   std::string getPath() const { return path_; }
@@ -145,7 +158,8 @@ public:
   void setPort(uint16_t port) { port_ = port; }
 
 private:
-  std::unordered_map<std::string, std::string> headers_, params_, attributes_;
+  std::unordered_map<std::string, std::string> headers_, queryParams_,
+      attributes_, pathParams_;
   std::string method_, path_, version_, body_, ip_;
   uint16_t port_ = 0;
 };

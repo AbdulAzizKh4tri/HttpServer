@@ -3,16 +3,22 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "Middleware.hpp"
+#include "utils.hpp"
 
 using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
+struct RouteEntry {
+  std::string pattern;
+  std::unordered_map<std::string, Handler> requestHandlers;
+};
 
 class Router {
 public:
@@ -41,41 +47,44 @@ public:
   void use(Middleware middleware) { middlewares_.push_back(middleware); }
 
   HttpResponse dispatch(HttpRequest &request) {
-    auto pathIt = routes_.find(request.getPath());
+    auto routeEntry = findMatchingRouteEntry(request.getPath());
 
-    if (pathIt != routes_.end()) {
-      auto &definedMethods = pathIt->second;
-      auto allowedMethods = getAllowedMethodsString(request.getPath());
-      request.setAttribute("allowedMethods", allowedMethods);
+    if (routeEntry == nullptr)
+      return errorFactory_.build(request.getHeader("Accept"), 404);
 
-      Handler terminal = [&](const HttpRequest &req) -> HttpResponse {
-        auto methodIt = definedMethods.find(req.getMethod());
-        if (methodIt != definedMethods.end())
-          return methodIt->second(req);
+    auto &definedMethods = routeEntry->requestHandlers;
+    auto allowedMethods = getAllowedMethodsString(request.getPath());
+    request.setAttribute("allowedMethods", allowedMethods);
 
-        if (req.getMethod() == "OPTIONS" && req.getHeader("Origin") == "") {
-          HttpResponse response(204);
-          response.setHeader("Allow", allowedMethods);
-          return response;
-        }
+    auto pathParams = getPathParams(routeEntry->pattern, request.getPath());
+    request.setPathParams(pathParams);
 
-        HttpResponse response =
-            errorFactory_.build(req.getHeader("Accept"), 405);
+    Handler terminal = [&](const HttpRequest &req) -> HttpResponse {
+      auto methodIt = definedMethods.find(req.getMethod());
+      if (methodIt != definedMethods.end())
+        return methodIt->second(req);
+
+      if (req.getMethod() == "OPTIONS" && req.getHeader("Origin") == "") {
+        HttpResponse response(204);
         response.setHeader("Allow", allowedMethods);
         return response;
-      };
+      }
 
-      return runChain(request, terminal, 0);
-    }
-    return errorFactory_.build(request.getHeader("Accept"), 404);
+      HttpResponse response = errorFactory_.build(req.getHeader("Accept"), 405);
+      response.setHeader("Allow", allowedMethods);
+      return response;
+    };
+
+    return runChain(request, terminal, 0);
   }
 
   RouterResponse validate(const std::string &path, const std::string &method) {
 
-    auto pathIt = routes_.find(path);
-    if (pathIt == routes_.end())
+    auto routeEntry = findMatchingRouteEntry(path);
+    if (routeEntry == nullptr)
       return RouterResponse::NOT_FOUND;
-    if (pathIt->second.find(method) == pathIt->second.end())
+
+    if (!routeEntry->requestHandlers.contains(method))
       return RouterResponse::METHOD_NOT_ALLOWED;
 
     return RouterResponse::OK;
@@ -83,10 +92,11 @@ public:
 
   std::string getAllowedMethodsString(const std::string &path) {
 
-    auto pathIt = routes_.find(path);
-    if (pathIt == routes_.end())
+    auto routeEntry = findMatchingRouteEntry(path);
+    if (routeEntry == nullptr)
       return "";
-    auto methods = pathIt->second;
+
+    auto methods = routeEntry->requestHandlers;
 
     std::string result;
     for (const auto &[method, _] : methods) {
@@ -105,15 +115,9 @@ public:
   }
 
 private:
-  std::unordered_map<std::string, std::unordered_map<std::string, Handler>>
-      routes_;
+  std::vector<RouteEntry> routes_;
   std::vector<Middleware> middlewares_;
   ErrorFactory &errorFactory_;
-
-  void addRoute(const std::string &path, const std::string &method,
-                const Handler &handler) {
-    routes_[path][method] = handler;
-  }
 
   HttpResponse runChain(HttpRequest &request, const Handler &handler,
                         size_t startIndex) {
@@ -124,5 +128,130 @@ private:
     auto next = [&] { return runChain(request, handler, startIndex + 1); };
     auto middleware = middlewares_[startIndex];
     return middleware(request, next);
+  }
+
+  RouteEntry *findMatchingRouteEntry(const std::string &path) {
+    auto it = std::find_if(
+        routes_.begin(), routes_.end(),
+        [&](const RouteEntry &entry) { return matches(entry.pattern, path); });
+
+    return it != routes_.end() ? &(*it) : nullptr;
+  }
+
+  std::unordered_map<std::string, std::string>
+  getPathParams(const std::string &routePattern,
+                const std::string &requestPath) {
+
+    std::unordered_map<std::string, std::string> pathParams;
+
+    auto pattern = normalizePath(routePattern);
+    auto path = normalizePath(requestPath);
+
+    auto patternParts = split(pattern, "/");
+    auto pathParts = split(path, "/");
+
+    for (size_t i = 0; i < patternParts.size(); i++) {
+      if (patternParts[i] == "**") {
+        std::string captured;
+        for (size_t j = i; j < pathParts.size(); j++)
+          captured += pathParts[j] + "/";
+        if (!captured.empty())
+          captured.pop_back();
+        pathParams["**"] = captured;
+        return pathParams;
+      }
+      if (patternParts[i] == "*") {
+        pathParams["*"] = pathParts[i];
+        continue;
+      }
+      if (patternParts[i][0] == '<' && patternParts[i].back() == '>') {
+        pathParams[patternParts[i].substr(1, patternParts[i].size() - 2)] =
+            pathParts[i];
+      }
+    }
+
+    return pathParams;
+  }
+
+  void addRoute(const std::string &pattern, const std::string &method,
+                const Handler &handler) {
+
+    auto ptrn = normalizePath(pattern);
+    validatePattern(ptrn);
+
+    auto it = std::find_if(
+        routes_.begin(), routes_.end(),
+        [&](const RouteEntry &entry) { return entry.pattern == ptrn; });
+
+    if (it != routes_.end()) {
+      it->requestHandlers[method] = handler;
+    } else {
+      RouteEntry entry;
+      entry.pattern = ptrn;
+      entry.requestHandlers[method] = handler;
+      routes_.push_back(entry);
+    }
+  }
+
+  void validatePattern(const std::string &pattern) {
+
+    auto parts = split(pattern, "/");
+    std::unordered_set<std::string> params;
+
+    auto isValidParamChar = [](char c) { return std::isalnum(c) || c == '_'; };
+
+    for (size_t i = 0; i < parts.size(); i++) {
+      if (parts[i].empty())
+        throw std::invalid_argument("Empty segment in pattern: " + pattern);
+
+      bool isLast = (i == parts.size() - 1);
+      if ((parts[i] == "*" || parts[i] == "**") && !isLast)
+        throw std::invalid_argument(
+            "Wildcard '" + parts[i] +
+            "' must be the last segment in pattern: " + pattern);
+
+      if (parts[i][0] == '<' && parts[i].back() == '>') {
+        std::string param = parts[i].substr(1, parts[i].size() - 2);
+
+        if (param.empty())
+          throw std::invalid_argument("Parameter name cannot be empty: " +
+                                      pattern);
+
+        if (!std::ranges::all_of(param, isValidParamChar))
+          throw std::invalid_argument(
+              "Parameter name '" + param +
+              "' contains invalid characters in pattern: " + pattern);
+
+        if (params.contains(param))
+          throw std::invalid_argument("Duplicate parameter '" + param +
+                                      "' in pattern: " + pattern);
+        params.insert(param);
+      }
+    }
+  }
+
+  bool matches(const std::string &routePattern,
+               const std::string &requestPath) {
+    auto pattern = normalizePath(routePattern);
+    auto path = normalizePath(requestPath);
+
+    auto patternParts = split(pattern, "/");
+    auto pathParts = split(path, "/");
+
+    size_t i;
+    for (i = 0; i < patternParts.size(); i++) {
+      if (i >= pathParts.size())
+        return false;
+      if (patternParts[i] == "**")
+        return true;
+      if (patternParts[i] == "*")
+        continue;
+      if (patternParts[i][0] == '<' && patternParts[i].back() == '>')
+        continue;
+      if (patternParts[i] != pathParts[i])
+        return false;
+    }
+
+    return i == pathParts.size();
   }
 };

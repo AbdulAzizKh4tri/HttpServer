@@ -33,7 +33,7 @@ int main() {
   router.use(corsMiddleware);
 
   router.get("/", [](const HttpRequest &request) {
-    auto name = request.getParam("name");
+    auto name = request.getQueryParam("name");
 
     return HttpResponse(200, "Hello " + name + "!");
   });
@@ -62,7 +62,7 @@ int main() {
   // Returns all query-string params as a JSON object.
   // e.g. ?name=Alice&foo=bar  →  {"name":"Alice","foo":"bar"}
   router.get("/tests/echo", [](const HttpRequest &request) {
-    json j(request.getAllParams());
+    json j(request.getAllQueryParams());
     auto res = HttpResponse(200, j.dump());
     res.setHeader("Content-Type", "application/json");
     return res;
@@ -104,6 +104,44 @@ int main() {
   // in HttpConnection::generateResponse() — should produce a 500 JSON response.
   router.get("/tests/error/throw", [](const HttpRequest &) -> HttpResponse {
     throw std::runtime_error("Deliberate test error");
+  });
+
+  // GET /tests/users/<id>
+  router.get("/tests/users/<id>", [](const HttpRequest &request) {
+    json j = {{"userId", request.getPathParam("id")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
+  // GET /tests/users/<userId>/posts/<postId>
+  router.get("/tests/users/<userId>/posts/<postId>",
+             [](const HttpRequest &request) {
+               json j = {{"userId", request.getPathParam("userId")},
+                         {"postId", request.getPathParam("postId")}};
+               auto res = HttpResponse(200, j.dump());
+               res.setHeader("Content-Type", "application/json");
+               return res;
+             });
+
+  // DELETE /tests/items/<id>
+  router.delete_("/tests/items/<id>",
+                 [](const HttpRequest &request) { return HttpResponse(200); });
+
+  // GET /tests/wildcard/* — single segment
+  router.get("/tests/wildcard/*", [](const HttpRequest &request) {
+    json j = {{"path", request.getPathParam("*")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
+  // GET /tests/deepwildcard/** — greedy
+  router.get("/tests/deepwildcard/**", [](const HttpRequest &request) {
+    json j = {{"path", request.getPathParam("**")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
   });
 
   HttpServer server(errorFactory);
