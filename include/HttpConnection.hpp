@@ -167,7 +167,9 @@ private:
   }
 
   void handleReadingHeaders() {
-    ReadResult result = connIO_.drainIntoReadBuffer();
+    ReadResult result =
+        connIO_.drainIntoReadBuffer(HttpRequest::MAX_HEADER_SIZE);
+
     if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
       setState(ConnectionState::CLOSING);
       return;
@@ -184,10 +186,14 @@ private:
     auto data = connIO_.getReadBufferString();
     size_t end = data.find("\r\n\r\n"); // Looking for end of header.
     if (end == std::string::npos) {
-      if (connIO_.getReadBufferSize() > HttpRequest::MAX_HEADER_SIZE) {
-        sendErrorResponseAndClose(431); // 431 = Request Header Fields Too Large
+      if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+        sendErrorResponseAndClose(431);
       }
       return;
+    }
+
+    if (end > HttpRequest::MAX_HEADER_SIZE) {
+      sendErrorResponseAndClose(431);
     }
 
     std::string headerString = data.substr(0, end);
@@ -281,7 +287,13 @@ private:
   }
 
   void handleReadingBodyChunked() {
-    ReadResult readResult = connIO_.drainIntoReadBuffer();
+    ReadResult readResult =
+        connIO_.drainIntoReadBuffer(HttpRequest::MAX_CONTENT_LENGTH);
+
+    if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+      sendErrorResponseAndClose(413);
+      return;
+    }
     if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
       setState(ConnectionState::CLOSING);
       return;
@@ -325,11 +337,18 @@ private:
     bool bodyComplete = connIO_.getReadBufferSize() >= contentLength;
 
     if (!bodyComplete) { // read more data if body is incomplete
-      ReadResult result = connIO_.drainIntoReadBuffer();
+      ReadResult result =
+          connIO_.drainIntoReadBuffer(HttpRequest::MAX_CONTENT_LENGTH);
+
+      if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+        sendErrorResponseAndClose(413);
+        return;
+      }
       if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
         setState(ConnectionState::CLOSING);
         return;
       }
+
       bodyComplete = connIO_.getReadBufferSize() >= contentLength;
     }
 

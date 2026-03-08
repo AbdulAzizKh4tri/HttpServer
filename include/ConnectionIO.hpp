@@ -6,7 +6,13 @@
 #include "HttpRequest.hpp"
 #include "IStream.hpp"
 
-enum class ReadResult { DATA, CLOSED, WOULD_BLOCK, ERROR };
+enum class ReadResult {
+  DATA,
+  CLOSED,
+  WOULD_BLOCK,
+  BUFFER_LIMIT_EXCEEDED,
+  ERROR
+};
 
 class ConnectionIO {
 public:
@@ -17,7 +23,7 @@ public:
     bool gotData = false;
     for (;;) {
       if (readBuffer_.size() >= maxBufferSize)
-        return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
+        return ReadResult::BUFFER_LIMIT_EXCEEDED;
 
       std::vector<unsigned char> buf(4096);
       ReceiveResult result = stream_->receive(buf);
