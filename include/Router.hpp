@@ -5,15 +5,9 @@
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "utils.hpp"
+#include "Middleware.hpp"
 
 using Handler = std::function<HttpResponse(const HttpRequest &)>;
-
-struct CorsConfig {
-  std::vector<std::string> allowedOrigins;
-  std::vector<std::string> allowedHeaders = {"Authorization", "Content-Type"};
-  int maxAge = 10;
-};
 
 enum class RouteError { NOT_FOUND, METHOD_NOT_ALLOWED };
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
@@ -40,52 +34,35 @@ public:
     addRoute(path, "DELETE", handler);
   }
 
-  std::expected<HttpResponse, RouteError> dispatch(const HttpRequest &request) {
+  void use(Middleware middleware) { middlewares_.push_back(middleware); }
+
+  std::expected<HttpResponse, RouteError> dispatch(HttpRequest &request) {
     auto pathIt = routes_.find(request.getPath());
-    if (pathIt == routes_.end())
-      return std::unexpected(RouteError::NOT_FOUND);
 
-    auto &definedMethods = pathIt->second;
-    std::string origin = request.getHeader("Origin");
+    if (pathIt != routes_.end()) {
+      auto &definedMethods = pathIt->second;
+      auto allowedMethods = getAllowedMethodsString(request.getPath());
+      request.setAttribute("allowedMethods", allowedMethods);
 
-    if (auto methodIt = definedMethods.find(request.getMethod());
-        methodIt != definedMethods.end()) {
-      HttpResponse response = methodIt->second(request);
-      if (origin != "" && isOriginAllowed(origin))
-        response.setHeader("Access-Control-Allow-Origin", origin);
-      return response;
+      Handler terminal = [&](const HttpRequest &req) -> HttpResponse {
+        auto methodIt = definedMethods.find(req.getMethod());
+        if (methodIt != definedMethods.end())
+          return methodIt->second(req);
+
+        if (request.getMethod() == "OPTIONS" &&
+            request.getHeader("Origin") == "") {
+          HttpResponse response(204);
+          response.setHeader("Allow", allowedMethods);
+          return response;
+        }
+
+        return HttpResponse(405);
+      };
+
+      return runChain(request, terminal, 0);
     }
-
-    if (request.getMethod() == "OPTIONS") {
-      HttpResponse response(204);
-      std::string allowedMethods = getAllowedMethodsString(request.getPath());
-      if (origin == "") {
-        response.setHeader("Allow", allowedMethods);
-        return response;
-      }
-      if (!isOriginAllowed(origin))
-        return response;
-      response.setHeader("Access-Control-Allow-Origin", origin);
-      response.setHeader("Access-Control-Allow-Methods", allowedMethods);
-      response.setHeader("Access-Control-Allow-Headers",
-                         getCommaSeparatedString(corsConfig_.allowedHeaders));
-      response.setHeader("Access-Control-Max-Age",
-                         std::to_string(corsConfig_.maxAge));
-      return response;
-    }
-
-    return std::unexpected(RouteError::METHOD_NOT_ALLOWED);
+    return std::unexpected(RouteError::NOT_FOUND);
   }
-
-  void setCorsOrigins(const std::vector<std::string> &origins) {
-    corsConfig_.allowedOrigins = origins;
-  }
-
-  void setCorsHeaders(const std::vector<std::string> &headers) {
-    corsConfig_.allowedHeaders = headers;
-  }
-
-  void setCorsMaxAge(int maxAge) { corsConfig_.maxAge = maxAge; }
 
   RouterResponse validate(const std::string &path, const std::string &method) {
 
@@ -118,21 +95,23 @@ public:
   }
 
 private:
+  std::unordered_map<std::string, std::unordered_map<std::string, Handler>>
+      routes_;
+  std::vector<Middleware> middlewares_;
+
   void addRoute(const std::string &path, const std::string &method,
                 const Handler &handler) {
     routes_[path][method] = handler;
   }
 
-  bool isOriginAllowed(const std::string &origin) {
-    for (auto &allowedOrigin : corsConfig_.allowedOrigins) {
-      if (allowedOrigin == origin || allowedOrigin == "*") {
-        return true;
-      }
+  HttpResponse runChain(HttpRequest &request, const Handler &handler,
+                        size_t startIndex) {
+    if (startIndex >= middlewares_.size()) {
+      return handler(request);
     }
-    return false;
-  }
 
-  std::unordered_map<std::string, std::unordered_map<std::string, Handler>>
-      routes_;
-  CorsConfig corsConfig_;
+    auto next = [&] { return runChain(request, handler, startIndex + 1); };
+    auto middleware = middlewares_[startIndex];
+    return middleware(request, next);
+  }
 };

@@ -344,22 +344,6 @@ private:
   void sendResponse() {
     HttpResponse response;
 
-    // if (request_.method == "OPTIONS") {
-    //   auto allowedMethods = router_.getAllowedMethodsString(request_.path);
-    //   if (allowedMethods == "") {
-    //     sendErrorResponseAndClose(404);
-    //     return;
-    //   }
-    //   HttpResponse response(204);
-    //   response.setHeader("Allow", allowedMethods);
-    //
-    //   keepAlive_ = shouldKeepAlive();
-    //   response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
-    //
-    //   serializeAndSendResponse(response);
-    //   return;
-    // }
-
     HttpRequest dispatchRequest = request_;
 
     if (request_.getMethod() == "HEAD")

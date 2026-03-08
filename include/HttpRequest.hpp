@@ -105,6 +105,18 @@ public:
     return getOrDefault(headers_, toLowerCase(key), "");
   }
 
+  std::unordered_map<std::string, std::string> getAllHeaders() const {
+    return headers_;
+  }
+
+  void setAttribute(const std::string &key, const std::string &value) {
+    attributes_[key] = value;
+  }
+
+  std::string getAttribute(const std::string &key) const {
+    return getOrDefault(attributes_, key, "");
+  }
+
   std::string getParam(const std::string &key) const {
     return getOrDefault(params_, key, "");
   }
@@ -129,7 +141,7 @@ public:
   void setPort(uint16_t port) { port_ = port; }
 
 private:
-  std::unordered_map<std::string, std::string> headers_, params_;
+  std::unordered_map<std::string, std::string> headers_, params_, attributes_;
   std::string method_, path_, version_, body_, ip_;
   uint16_t port_ = 0;
 };

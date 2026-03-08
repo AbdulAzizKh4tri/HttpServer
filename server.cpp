@@ -11,6 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "CorsMiddleware.hpp"
 #include "HttpServer.hpp"
 #include "logUtils.hpp"
 
@@ -21,8 +22,12 @@ int main() {
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
   Router router;
+  CorsMiddleware corsMiddleware;
+  corsMiddleware.setCorsOrigins(
+      {"http://localhost:8080", "https://localhost:8443"});
+  corsMiddleware.setCorsMaxAge(10);
 
-  router.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
+  router.use(corsMiddleware);
 
   router.get("/", [](const HttpRequest &request) {
     auto name = request.getParam("name");
@@ -37,7 +42,9 @@ int main() {
     return res;
   });
 
-  router.put("/", [](const HttpRequest &request) { return HttpResponse(200); });
+  router.put("/", [](const HttpRequest &request) {
+    return HttpResponse(200, request.getBody());
+  });
 
   HttpServer server;
   server.setTlsContext("cert.pem", "key.pem");
