@@ -1,10 +1,12 @@
 #pragma once
+
 #include <algorithm>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <ranges>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <vector>
 

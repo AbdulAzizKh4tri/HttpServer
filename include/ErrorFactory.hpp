@@ -1,9 +1,12 @@
 #pragma once
 
 #include <functional>
+#include <unordered_map>
+
 #include <nlohmann/json.hpp>
 
 #include "HttpResponse.hpp"
+#include "utils.hpp"
 
 using Formatter =
     std::function<HttpResponse(int statusCode, const std::string &message)>;

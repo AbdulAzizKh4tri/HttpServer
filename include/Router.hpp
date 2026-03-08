@@ -1,6 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"

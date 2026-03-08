@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h> // sockaddr_in, INET_ADDRSTRLEN, htons
+#include <span>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
 #include <sys/types.h>

@@ -1,5 +1,7 @@
 #pragma once
+
 #include <spdlog/spdlog.h>
+#include <string_view>
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
