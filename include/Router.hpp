@@ -50,15 +50,14 @@ public:
         if (methodIt != definedMethods.end())
           return methodIt->second(req);
 
-        if (request.getMethod() == "OPTIONS" &&
-            request.getHeader("Origin") == "") {
+        if (req.getMethod() == "OPTIONS" && req.getHeader("Origin") == "") {
           HttpResponse response(204);
           response.setHeader("Allow", allowedMethods);
           return response;
         }
 
         HttpResponse response =
-            errorFactory_.build(request.getHeader("Accept"), 405);
+            errorFactory_.build(req.getHeader("Accept"), 405);
         response.setHeader("Allow", allowedMethods);
         return response;
       };
@@ -98,7 +97,7 @@ public:
     return result;
   }
 
-  void setErrorFactory_(ErrorFactory &errorFactory) {
+  void setErrorFactory(ErrorFactory &errorFactory) {
     errorFactory_ = errorFactory;
   }
 

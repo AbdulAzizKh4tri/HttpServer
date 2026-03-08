@@ -194,6 +194,7 @@ private:
 
     if (end > HttpRequest::MAX_HEADER_SIZE) {
       sendErrorResponseAndClose(431);
+      return;
     }
 
     std::string headerString = data.substr(0, end);
@@ -415,6 +416,8 @@ private:
   }
 
   void sendErrorResponse(int statusCode, const std::string &message = "") {
+    // Was useful when you wanted to throw an error without closing the
+    // connection. Keeping it just in case it's needed
     HttpResponse response = buildErrorResponse(statusCode, message);
     keepAlive_ = shouldKeepAlive();
     response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
