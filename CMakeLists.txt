@@ -8,6 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 
 set(FETCHCONTENT_QUIET OFF)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+
 set(FETCHCONTENT_BASE_DIR "/home/pair/cmake-source-cache" CACHE PATH "Global FetchContent cache" FORCE)
 
 add_executable(server server.cpp)
@@ -29,6 +31,8 @@ FetchContent_Declare(
   GIT_TAG v1.13.0
 )
 FetchContent_MakeAvailable(spdlog)
+
+set(SPDLOG_HEADER_ONLY ON)  # skips compiling libspdlog.a
 
 # OpenSSL (system)
 find_package(OpenSSL REQUIRED)
