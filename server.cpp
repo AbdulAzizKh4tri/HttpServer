@@ -46,6 +46,63 @@ int main() {
     return HttpResponse(200, request.getBody());
   });
 
+  // ── Test routes ────────────────────────────────────────────────────────────
+  // All live under /tests/* so they're instantly readable in the server log.
+
+  // GET /tests/ping
+  // Simplest possible liveness check.
+  router.get("/tests/ping", [](const HttpRequest &request) {
+    return HttpResponse(200, "pong");
+  });
+
+  // GET /tests/echo
+  // Returns all query-string params as a JSON object.
+  // e.g. ?name=Alice&foo=bar  →  {"name":"Alice","foo":"bar"}
+  router.get("/tests/echo", [](const HttpRequest &request) {
+    json j(request.getAllParams());
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
+  // POST /tests/echo
+  // Echoes the raw request body back verbatim and mirrors the Content-Type.
+  router.post("/tests/echo", [](const HttpRequest &request) {
+    auto res = HttpResponse(200, request.getBody());
+    auto ct = request.getHeader("Content-Type");
+    if (!ct.empty())
+      res.setHeader("Content-Type", ct);
+    return res;
+  });
+
+  // PUT /tests/echo
+  // Same as POST echo — useful for testing PUT-specific behaviour (405 etc.).
+  router.put("/tests/echo", [](const HttpRequest &request) {
+    auto res = HttpResponse(200, request.getBody());
+    auto ct = request.getHeader("Content-Type");
+    if (!ct.empty())
+      res.setHeader("Content-Type", ct);
+    return res;
+  });
+
+  // GET /tests/headers
+  // Returns every header the server received as a JSON object.
+  // Keys are lowercased (that's how they're stored internally).
+  // Useful for verifying CORS headers, Host, custom headers, etc.
+  router.get("/tests/headers", [](const HttpRequest &request) {
+    json j(request.getAllHeaders());
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
+  // GET /tests/error/throw
+  // Deliberately throws a std::runtime_error to exercise the exception handler
+  // in HttpConnection::generateResponse() — should produce a 500 JSON response.
+  router.get("/tests/error/throw", [](const HttpRequest &) -> HttpResponse {
+    throw std::runtime_error("Deliberate test error");
+  });
+
   HttpServer server;
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);
