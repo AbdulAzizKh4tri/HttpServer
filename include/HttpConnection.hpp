@@ -350,19 +350,7 @@ private:
       dispatchRequest.setMethod("GET");
 
     try {
-      auto result = router_.dispatch(dispatchRequest);
-      if (result) {
-        response = result.value();
-      } else {
-        switch (result.error()) {
-        case RouteError::NOT_FOUND:
-          response = buildErrorResponse(404);
-          break;
-        case RouteError::METHOD_NOT_ALLOWED:
-          response = buildErrorResponse(405);
-          break;
-        }
-      }
+      response = router_.dispatch(dispatchRequest);
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Handler threw exception: {}", e.what());
       response = buildErrorResponse(500, e.what());

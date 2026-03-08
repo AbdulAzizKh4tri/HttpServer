@@ -1,19 +1,20 @@
 #pragma once
 
-#include <expected>
 #include <string>
 
+#include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "Middleware.hpp"
 
 using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
-enum class RouteError { NOT_FOUND, METHOD_NOT_ALLOWED };
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
 
 class Router {
 public:
+  Router(ErrorFactory &errorFactory) : errorFactory_(errorFactory) {}
+
   void get(std::string path, Handler handler) {
     addRoute(path, "GET", handler);
   }
@@ -36,7 +37,7 @@ public:
 
   void use(Middleware middleware) { middlewares_.push_back(middleware); }
 
-  std::expected<HttpResponse, RouteError> dispatch(HttpRequest &request) {
+  HttpResponse dispatch(HttpRequest &request) {
     auto pathIt = routes_.find(request.getPath());
 
     if (pathIt != routes_.end()) {
@@ -56,12 +57,15 @@ public:
           return response;
         }
 
-        return HttpResponse(405);
+        HttpResponse response =
+            errorFactory_.build(request.getHeader("Accept"), 405);
+        response.setHeader("Allow", allowedMethods);
+        return response;
       };
 
       return runChain(request, terminal, 0);
     }
-    return std::unexpected(RouteError::NOT_FOUND);
+    return errorFactory_.build(request.getHeader("Accept"), 404);
   }
 
   RouterResponse validate(const std::string &path, const std::string &method) {
@@ -94,10 +98,15 @@ public:
     return result;
   }
 
+  void setErrorFactory_(ErrorFactory &errorFactory) {
+    errorFactory_ = errorFactory;
+  }
+
 private:
   std::unordered_map<std::string, std::unordered_map<std::string, Handler>>
       routes_;
   std::vector<Middleware> middlewares_;
+  ErrorFactory &errorFactory_;
 
   void addRoute(const std::string &path, const std::string &method,
                 const Handler &handler) {

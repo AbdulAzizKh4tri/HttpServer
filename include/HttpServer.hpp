@@ -16,6 +16,8 @@
 
 class HttpServer {
 public:
+  HttpServer(ErrorFactory &errorFactory) : errorFactory_(errorFactory) {}
+
   void setTlsContext(std::string certPath, std::string keyPath) {
     // takes the cert.pem and key.pem files and sets up the context needed
     // for TLS
@@ -92,6 +94,9 @@ public:
   }
 
   ErrorFactory &getErrorFactory() { return errorFactory_; }
+  void setErrorFactory(ErrorFactory errorFactory) {
+    errorFactory_ = errorFactory;
+  }
 
 private:
   static constexpr int BACKLOG = 20;
@@ -106,7 +111,7 @@ private:
 
   EpollInstance epoll_;
   Router *router_ = nullptr;
-  ErrorFactory errorFactory_;
+  ErrorFactory &errorFactory_;
 
   void closeConnection(int connFd) {
     auto it = connections_.find(connFd);

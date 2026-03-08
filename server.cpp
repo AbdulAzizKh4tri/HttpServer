@@ -1,3 +1,4 @@
+#include "ErrorFactory.hpp"
 #ifdef NDEBUG
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #else
@@ -21,7 +22,9 @@ int main() {
   configureLog();
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
-  Router router;
+  ErrorFactory errorFactory;
+
+  Router router(errorFactory);
   CorsMiddleware corsMiddleware;
   corsMiddleware.setCorsOrigins(
       {"http://localhost:8080", "https://localhost:8443"});
@@ -103,7 +106,7 @@ int main() {
     throw std::runtime_error("Deliberate test error");
   });
 
-  HttpServer server;
+  HttpServer server(errorFactory);
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);
   server.addListener("localhost", "8080");
