@@ -204,6 +204,12 @@ private:
       return;
     }
 
+    if (request_.getVersion() != "HTTP/1.0" &&
+        request_.getVersion() != "HTTP/1.1") {
+      sendErrorResponseAndClose(505);
+      return;
+    }
+
     if (request_.getHeader("Host") == "") {
       SPDLOG_DEBUG("HOST ERROR... {}", headerString);
       sendErrorResponseAndClose(400, "No Host Header Provided");

@@ -49,7 +49,8 @@ public:
 
     // Extract query parameters
     std::string rawPath = tokens[1];
-    parseRequestParams(rawPath);
+    rawPath_ = rawPath;
+    parsePathAndQueryParams(rawPath);
 
     version_ = tokens[2];
     return true;
@@ -68,7 +69,7 @@ public:
     }
   }
 
-  void parseRequestParams(const std::string &rawPath) {
+  void parsePathAndQueryParams(const std::string &rawPath) {
     auto qpos = rawPath.find('?');
     if (qpos == std::string::npos) {
       path_ = rawPath;
@@ -80,7 +81,8 @@ public:
         auto eqpos = pair.find('=');
         if (eqpos == std::string::npos)
           continue;
-        queryParams_[pair.substr(0, eqpos)] = pair.substr(eqpos + 1);
+        queryParams_[percentDecode(pair.substr(0, eqpos))] =
+            percentDecode(pair.substr(eqpos + 1));
       }
     }
   }
@@ -143,6 +145,7 @@ public:
   }
 
   std::string getPath() const { return path_; }
+  std::string getRawPath() const { return rawPath_; }
   std::string getVersion() const { return version_; }
 
   std::string getMethod() const { return method_; }
@@ -160,6 +163,6 @@ public:
 private:
   std::unordered_map<std::string, std::string> headers_, queryParams_,
       attributes_, pathParams_;
-  std::string method_, path_, version_, body_, ip_;
+  std::string method_, rawPath_, path_, version_, body_, ip_;
   uint16_t port_ = 0;
 };

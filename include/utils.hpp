@@ -100,3 +100,37 @@ inline std::string normalizePath(const std::string &path) {
     result.pop_back();
   return result;
 }
+
+inline std::string percentDecode(std::string_view s) {
+  std::string result;
+  result.reserve(s.size());
+
+  auto fromHex = [](char c) -> int {
+    if (c >= '0' && c <= '9')
+      return c - '0';
+    if (c >= 'a' && c <= 'f')
+      return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F')
+      return c - 'A' + 10;
+    return -1;
+  };
+
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '+') {
+      result += ' ';
+    } else if (s[i] == '%' && i + 2 < s.size()) {
+      int hi = fromHex(s[i + 1]);
+      int lo = fromHex(s[i + 2]);
+      if (hi != -1 && lo != -1) {
+        result += static_cast<char>((hi << 4) | lo);
+        i += 2;
+      } else {
+        result += s[i]; // malformed — keep as-is
+      }
+    } else {
+      result += s[i];
+    }
+  }
+
+  return result;
+}

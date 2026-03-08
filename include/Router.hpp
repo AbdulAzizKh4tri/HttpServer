@@ -165,8 +165,8 @@ private:
         continue;
       }
       if (patternParts[i][0] == '<' && patternParts[i].back() == '>') {
-        pathParams[patternParts[i].substr(1, patternParts[i].size() - 2)] =
-            pathParts[i];
+        auto paramKey = patternParts[i].substr(1, patternParts[i].size() - 2);
+        pathParams[percentDecode(paramKey)] = percentDecode(pathParts[i]);
       }
     }
 

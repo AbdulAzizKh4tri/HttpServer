@@ -144,6 +144,45 @@ int main() {
     return res;
   });
 
+  // ── URL decoding test routes ───────────────────────────────────────────────
+
+  // GET /tests/decode/query
+  // Returns all decoded query params as JSON.
+  // Tests: %20, +, encoded keys, malformed sequences kept as-is.
+  // e.g. ?name=John%20Doe  →  {"name":"John Doe"}
+  // e.g. ?key%20hi=val     →  {"key hi":"val"}
+  router.get("/tests/decode/query", [](const HttpRequest &request) {
+    json j(request.getAllQueryParams());
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
+  // GET /tests/decode/path/<name>
+  // Returns the decoded path param.
+  // Tests: %20 in path segments, %2F (slash) decoded inside param value,
+  //        malformed sequences kept as-is.
+  // e.g. /tests/decode/path/John%20Doe  →  {"name":"John Doe"}
+  // e.g. /tests/decode/path/foo%2Fbar   →  {"name":"foo/bar"}
+  router.get("/tests/decode/path/<name>", [](const HttpRequest &request) {
+    json j = {{"name", request.getPathParam("name")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
+  // GET /tests/decode/rawpath
+  // Returns the raw, un-decoded path + query string exactly as the client sent
+  // it. Useful for verifying that getRawPath() is untouched while decoded
+  // getters work. e.g. ?name=John%20Doe  →
+  // {"rawPath":"/tests/decode/rawpath?name=John%20Doe"}
+  router.get("/tests/decode/rawpath", [](const HttpRequest &request) {
+    json j = {{"rawPath", request.getRawPath()}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    return res;
+  });
+
   HttpServer server(errorFactory);
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);
