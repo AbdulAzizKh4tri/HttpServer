@@ -370,22 +370,15 @@ private:
 
   HttpResponse generateResponse() {
     HttpResponse response;
-    HttpRequest dispatchRequest = request_;
-
-    if (request_.getMethod() == "HEAD")
-      dispatchRequest.setMethod("GET");
 
     try {
-      response = router_.dispatch(dispatchRequest);
+      response = router_.dispatch(request_);
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Handler threw exception: {}", e.what());
       response = buildErrorResponse(500, e.what());
     } catch (...) {
       response = buildErrorResponse(500);
     }
-
-    if (request_.getMethod() == "HEAD")
-      response.stripBodyForHeadRequest();
 
     keepAlive_ = shouldKeepAlive();
     response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");

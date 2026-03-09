@@ -13,7 +13,7 @@ public:
     return getOrDefault(statusStrings_, statusCode, "Unknown");
   };
 
-  HttpResponse() {}
+  HttpResponse() : statusCode_(-1) {}
 
   HttpResponse(int statusCode) : statusCode_(statusCode) {
     setHeader("Content-Length", std::to_string(body_.size()));

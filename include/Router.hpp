@@ -60,9 +60,14 @@ public:
     request.setPathParams(pathParams);
 
     Handler terminal = [&](const HttpRequest &req) -> HttpResponse {
-      auto methodIt = definedMethods.find(req.getMethod());
-      if (methodIt != definedMethods.end())
-        return methodIt->second(req);
+      auto lookupMethod = req.getMethod() == "HEAD" ? "GET" : req.getMethod();
+      auto methodIt = definedMethods.find(lookupMethod);
+      if (methodIt != definedMethods.end()) {
+        auto response = methodIt->second(req);
+        if (req.getMethod() == "HEAD")
+          response.stripBodyForHeadRequest();
+        return response;
+      }
 
       if (req.getMethod() == "OPTIONS" && req.getHeader("Origin") == "") {
         HttpResponse response(204);
@@ -79,12 +84,13 @@ public:
   }
 
   RouterResponse validate(const std::string &path, const std::string &method) {
+    auto lookupMethod = (method == "HEAD") ? "GET" : method;
 
     auto routeEntry = findMatchingRouteEntry(path);
     if (routeEntry == nullptr)
       return RouterResponse::NOT_FOUND;
 
-    if (!routeEntry->requestHandlers.contains(method))
+    if (!routeEntry->requestHandlers.contains(lookupMethod))
       return RouterResponse::METHOD_NOT_ALLOWED;
 
     return RouterResponse::OK;
@@ -110,10 +116,6 @@ public:
     return result;
   }
 
-  void setErrorFactory(ErrorFactory &errorFactory) {
-    errorFactory_ = errorFactory;
-  }
-
 private:
   std::vector<RouteEntry> routes_;
   std::vector<Middleware> middlewares_;
@@ -126,7 +128,7 @@ private:
     }
 
     auto next = [&] { return runChain(request, handler, startIndex + 1); };
-    auto middleware = middlewares_[startIndex];
+    const auto &middleware = middlewares_[startIndex];
     return middleware(request, next);
   }
 

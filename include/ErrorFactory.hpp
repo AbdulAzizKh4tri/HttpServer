@@ -38,7 +38,7 @@ public:
     registeredFormatters_[toLowerCase(type)] = formatter;
   }
 
-  HttpResponse build(std::string acceptHeader, int statusCode,
+  HttpResponse build(const std::string &acceptHeader, int statusCode,
                      const std::string &message = "") {
 
     std::string headerString = acceptHeader;

@@ -94,9 +94,6 @@ public:
   }
 
   ErrorFactory &getErrorFactory() { return errorFactory_; }
-  void setErrorFactory(ErrorFactory errorFactory) {
-    errorFactory_ = errorFactory;
-  }
 
 private:
   static constexpr int BACKLOG = 20;
