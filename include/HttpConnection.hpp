@@ -454,7 +454,7 @@ private:
 
       if (chunk.empty()) {
         connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
-
+        logRequest(request_, responseStream_);
         if (keepAlive_) {
           resetForNextRequest();
           if (!connIO_.readBuffer().empty())
@@ -499,15 +499,6 @@ private:
     HttpResponse response = buildErrorResponse(statusCode, message);
     keepAlive_ = false;
     response.setHeader("Connection", "close");
-    serializeAndSendResponse(response);
-  }
-
-  void sendErrorResponse(int statusCode, const std::string &message = "") {
-    // Was useful when you wanted to throw an error without closing the
-    // connection. Keeping it just in case it's needed
-    HttpResponse response = buildErrorResponse(statusCode, message);
-    keepAlive_ = shouldKeepAlive();
-    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
     serializeAndSendResponse(response);
   }
 

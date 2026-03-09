@@ -6,6 +6,7 @@
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
+#include "HttpStreamResponse.hpp"
 
 inline void configureLog(bool file = false) {
 
@@ -48,6 +49,13 @@ inline std::string_view statusColor(int statusCode) {
 }
 
 inline void logRequest(const HttpRequest &req, const HttpResponse &res) {
+  int status = res.getStatusCode();
+  SPDLOG_INFO("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status), status,
+              Color::Reset, req.getMethod(), req.getPath(), req.getIp(),
+              req.getPort());
+}
+
+inline void logRequest(const HttpRequest &req, const HttpStreamResponse &res) {
   int status = res.getStatusCode();
   SPDLOG_INFO("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status), status,
               Color::Reset, req.getMethod(), req.getPath(), req.getIp(),

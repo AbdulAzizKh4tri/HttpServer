@@ -129,7 +129,7 @@ public:
         result += "HEAD, ";
     }
     if (!result.empty()) {
-      result.erase(result.length() - 2);
+      result += "OPTIONS";
     }
     return result;
   }
