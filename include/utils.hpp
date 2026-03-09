@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <arpa/inet.h>
+#include <chrono>
+#include <ctime>
 #include <netinet/in.h>
 #include <ranges>
 #include <stdexcept>
@@ -13,6 +15,10 @@
 struct PeerAddress {
   std::string ip;
   uint16_t port;
+};
+
+template <class... Ts> struct overloaded : Ts... {
+  using Ts::operator()...;
 };
 
 inline PeerAddress resolvePeerAddress(sockaddr_storage addr, socklen_t len) {
@@ -133,4 +139,14 @@ inline std::string percentDecode(std::string_view s) {
   }
 
   return result;
+}
+
+inline std::string getCurrentHttpDate() {
+  auto time =
+      std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  std::tm tm{};
+  gmtime_r(&time, &tm);
+  char buf[32];
+  strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+  return buf;
 }

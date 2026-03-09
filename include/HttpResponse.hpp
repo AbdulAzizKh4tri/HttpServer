@@ -25,10 +25,8 @@ public:
   }
 
   std::vector<unsigned char> serialize() const {
-    std::string reason = HttpResponse::statusText(statusCode_);
-
-    std::string response =
-        std::format("{} {} {}\r\n", version_, statusCode_, reason);
+    std::string response = std::format("{} {} {}\r\n", version_, statusCode_,
+                                       HttpResponse::statusText(statusCode_));
 
     for (auto &header : headers_) {
       response += std::format("{}: {}\r\n", header.first, header.second);
@@ -62,7 +60,7 @@ public:
   std::string getHeader(const std::string &name) const {
     return getOrDefault(headers_, toLowerCase(name), "");
   }
-  std::unordered_map<std::string, std::string> getHeaders() const {
+  std::unordered_map<std::string, std::string> getAllHeaders() const {
     return headers_;
   }
 

@@ -9,10 +9,9 @@
 #include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "Middleware.hpp"
+#include "HttpStreamResponse.hpp"
+#include "HttpTypes.hpp"
 #include "utils.hpp"
-
-using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
 struct RouteEntry {
@@ -46,11 +45,15 @@ public:
 
   void use(Middleware middleware) { middlewares_.push_back(middleware); }
 
-  HttpResponse dispatch(HttpRequest &request) {
+  Response dispatch(HttpRequest &request) {
     auto routeEntry = findMatchingRouteEntry(request.getPath());
 
-    if (routeEntry == nullptr)
-      return errorFactory_.build(request.getHeader("Accept"), 404);
+    if (routeEntry == nullptr) {
+      auto response = errorFactory_.build(request.getHeader("Accept"), 404);
+      if (request.getMethod() == "HEAD")
+        response.stripBodyForHeadRequest();
+      return response;
+    }
 
     auto &definedMethods = routeEntry->requestHandlers;
     auto allowedMethods = getAllowedMethodsString(request.getPath());
@@ -59,13 +62,26 @@ public:
     auto pathParams = getPathParams(routeEntry->pattern, request.getPath());
     request.setPathParams(pathParams);
 
-    Handler terminal = [&](const HttpRequest &req) -> HttpResponse {
+    Handler terminal = [&](const HttpRequest &req) -> Response {
       auto lookupMethod = req.getMethod() == "HEAD" ? "GET" : req.getMethod();
       auto methodIt = definedMethods.find(lookupMethod);
       if (methodIt != definedMethods.end()) {
         auto response = methodIt->second(req);
-        if (req.getMethod() == "HEAD")
-          response.stripBodyForHeadRequest();
+        std::visit(overloaded{[&req, &response](HttpResponse &res) {
+                                if (req.getMethod() == "HEAD")
+                                  res.stripBodyForHeadRequest();
+                              },
+                              [&req, &response](HttpStreamResponse &stream) {
+                                if (req.getMethod() == "HEAD") {
+                                  HttpResponse res(stream.getStatusCode());
+                                  for (auto &[k, v] : stream.getAllHeaders()) {
+                                    res.setHeader(k, v);
+                                  }
+                                  res.stripBodyForHeadRequest();
+                                  response = res;
+                                }
+                              }},
+                   response);
         return response;
       }
 
@@ -76,6 +92,8 @@ public:
       }
 
       HttpResponse response = errorFactory_.build(req.getHeader("Accept"), 405);
+      if (request.getMethod() == "HEAD")
+        response.stripBodyForHeadRequest();
       response.setHeader("Allow", allowedMethods);
       return response;
     };
@@ -121,8 +139,8 @@ private:
   std::vector<Middleware> middlewares_;
   ErrorFactory &errorFactory_;
 
-  HttpResponse runChain(HttpRequest &request, const Handler &handler,
-                        size_t startIndex) {
+  Response runChain(HttpRequest &request, const Handler &handler,
+                    size_t startIndex) {
     if (startIndex >= middlewares_.size()) {
       return handler(request);
     }
@@ -186,6 +204,8 @@ private:
         [&](const RouteEntry &entry) { return entry.pattern == ptrn; });
 
     if (it != routes_.end()) {
+      if (it->requestHandlers.contains(method))
+        throw std::invalid_argument("Duplicate route: " + ptrn);
       it->requestHandlers[method] = handler;
     } else {
       RouteEntry entry;

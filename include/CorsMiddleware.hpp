@@ -5,7 +5,7 @@
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "Middleware.hpp"
+#include "HttpTypes.hpp"
 #include "utils.hpp"
 
 struct CorsConfig {
@@ -19,7 +19,7 @@ public:
   CorsMiddleware() {}
   CorsMiddleware(CorsConfig corsConfig) : corsConfig_(corsConfig) {}
 
-  HttpResponse operator()(const HttpRequest &request, Next next) {
+  Response operator()(const HttpRequest &request, Next next) {
     std::string origin = request.getHeader("Origin");
 
     if (request.getMethod() == "OPTIONS" && origin != "") {
@@ -38,10 +38,13 @@ public:
       return response;
     }
 
-    HttpResponse response = next();
+    Response response = next();
 
-    if (origin != "" && isOriginAllowed(origin))
-      response.setHeader("Access-Control-Allow-Origin", origin);
+    std::visit(overloaded{[&origin, this](auto &res) {
+                 if (origin != "" && isOriginAllowed(origin))
+                   res.setHeader("Access-Control-Allow-Origin", origin);
+               }},
+               response);
 
     return response;
   }

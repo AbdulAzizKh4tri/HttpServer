@@ -10,9 +10,12 @@
 #include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
+#include "HttpStreamResponse.hpp"
+#include "HttpTypes.hpp"
 #include "IStream.hpp"
 #include "Router.hpp"
 #include "logUtils.hpp"
+#include "utils.hpp"
 
 enum class ConnectionState {
   HANDSHAKING,
@@ -20,6 +23,7 @@ enum class ConnectionState {
   SENDING_CONTINUE,
   READING_BODY,
   WRITING_RESPONSE,
+  STREAMING_RESPONSE,
   CLOSING
 };
 
@@ -61,6 +65,7 @@ public:
       handleReadingBody();
       break;
     case ConnectionState::SENDING_CONTINUE:
+    case ConnectionState::STREAMING_RESPONSE:
     case ConnectionState::WRITING_RESPONSE:
     case ConnectionState::CLOSING:
       break;
@@ -79,6 +84,11 @@ public:
       return;
     }
 
+    if (state_ == ConnectionState::STREAMING_RESPONSE) {
+      handleStreamingResponse();
+      return;
+    }
+
     handleWritingResponse();
   }
 
@@ -89,8 +99,11 @@ public:
   }
 
   bool wantsWrite() const {
-    return connIO_.hasPendingWrites() || handshakeWantsWrite_;
+    return connIO_.hasPendingWrites() || handshakeWantsWrite_ ||
+           state_ == ConnectionState::STREAMING_RESPONSE;
+    ;
   }
+
   bool isClosing() const { return state_ == ConnectionState::CLOSING; }
 
   int getFd() const { return connIO_.getFd(); }
@@ -113,6 +126,8 @@ private:
   Router &router_;
   ErrorFactory &errorFactory_;
 
+  HttpStreamResponse responseStream_;
+
   void armTimer() {
     itimerspec spec = {};
     spec.it_value.tv_sec = IDLE_TIMEOUT_SECS;
@@ -129,9 +144,9 @@ private:
 
   bool shouldKeepAlive() const {
     auto connection = request_.getHeader("Connection");
-    if (connection == "close")
-      return false;
-    return true; // HTTP/1.1 default
+    if (request_.getVersion() == "HTTP/1.0")
+      return connection == "keep-alive";
+    return connection != "close";
   }
 
   void setState(ConnectionState newState) { state_ = newState; }
@@ -140,6 +155,7 @@ private:
     request_ = HttpRequest();
     request_.setIp(connIO_.getIp());
     request_.setPort(connIO_.getPort());
+    responseStream_ = HttpStreamResponse();
     setState(ConnectionState::READING_HEADERS);
     chunkParser_.reset();
     resetTimer();
@@ -290,7 +306,7 @@ private:
       return;
     }
 
-    serializeAndSendResponse(generateResponse());
+    generateAndHandleResponse();
   }
 
   void handleReadingBodyChunked() {
@@ -316,11 +332,10 @@ private:
         sendErrorResponseAndClose(400);
         return;
       }
-    auto res = result.value();
-    if (res.has_value()) {
-      request_.setBody(*res);
-      serializeAndSendResponse(generateResponse());
-      return;
+    auto resultVal = result.value();
+    if (resultVal.has_value()) {
+      request_.setBody(*resultVal);
+      generateAndHandleResponse();
     }
   }
 
@@ -365,11 +380,11 @@ private:
     request_.setBody(connIO_.getReadBufferString(contentLength));
     connIO_.eraseFromReadBuffer(contentLength);
 
-    serializeAndSendResponse(generateResponse());
+    generateAndHandleResponse();
   }
 
-  HttpResponse generateResponse() {
-    HttpResponse response;
+  Response generateResponse() {
+    Response response;
 
     try {
       response = router_.dispatch(request_);
@@ -380,10 +395,83 @@ private:
       response = buildErrorResponse(500);
     }
 
-    keepAlive_ = shouldKeepAlive();
-    response.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+    std::visit(overloaded{[this](auto &res) {
+                 keepAlive_ = shouldKeepAlive();
+                 res.setHeader("Connection",
+                               keepAlive_ ? "keep-alive" : "close");
+                 res.setHeader("Date", getCurrentHttpDate());
+               }},
+               response);
 
     return response;
+  }
+
+  void generateAndHandleResponse() {
+    auto response = generateResponse();
+    std::visit(overloaded{[this](const HttpResponse &res) {
+                            serializeAndSendResponse(res);
+                          },
+                          [this](const HttpStreamResponse &res) {
+                            startStreamResponse(res);
+                          }},
+               response);
+  }
+
+  void startStreamResponse(HttpStreamResponse response) {
+    setState(ConnectionState::STREAMING_RESPONSE);
+    responseStream_ = std::move(response);
+
+    std::vector<unsigned char> serializedHeader =
+        responseStream_.getSerializedHeader();
+    connIO_.enqueue(serializedHeader);
+    handleStreamingResponse();
+  }
+
+  void handleStreamingResponse() {
+    if (!connIO_.hasPendingWrites()) {
+      std::optional<std::string> chunkOpt;
+      try {
+        chunkOpt = responseStream_.getNextChunk();
+      } catch (const std::exception &e) {
+        SPDLOG_ERROR("Stream handler threw exception: {}", e.what());
+        connIO_.enqueue(HttpStreamResponse::serializeChunk(
+            "Internal Server Error: " + std::string(e.what())));
+        connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
+        keepAlive_ = false;
+        setState(ConnectionState::WRITING_RESPONSE);
+        return;
+      } catch (...) {
+        SPDLOG_ERROR("Stream handler threw unknown exception");
+        connIO_.enqueue(
+            HttpStreamResponse::serializeChunk("Internal Server Error"));
+        connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
+        keepAlive_ = false;
+        setState(ConnectionState::WRITING_RESPONSE);
+        return;
+      }
+
+      std::string chunk = chunkOpt.value_or("");
+
+      if (chunk.empty()) {
+        connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
+
+        if (keepAlive_) {
+          resetForNextRequest();
+          if (!connIO_.readBuffer().empty())
+            handleReadingHeaders();
+        } else {
+          setState(ConnectionState::WRITING_RESPONSE);
+        }
+        return;
+      }
+
+      connIO_.enqueue(HttpStreamResponse::serializeChunk(chunk));
+    }
+
+    if (connIO_.hasPendingWrites() && !connIO_.flushFromWriteBuffer()) {
+      setState(ConnectionState::CLOSING);
+      return;
+    }
   }
 
   void serializeAndSendResponse(HttpResponse response) {

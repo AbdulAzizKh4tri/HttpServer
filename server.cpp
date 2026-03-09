@@ -183,6 +183,98 @@ int main() {
     return res;
   });
 
+  // ── Chunked / streaming response test routes ──────────────────────────────
+  // All live under /tests/stream/*
+
+  // GET /tests/stream/basic
+  // A handful of small named chunks. Assembled body: "Hello, World!"
+  // The canonical "does streaming work at all" check.
+  router.get("/tests/stream/basic", [](const HttpRequest &) {
+    std::vector<std::string> chunks = {"Hello", ", ", "World", "!"};
+    return HttpStreamResponse(
+        200, [chunks, i = 0]() mutable -> std::optional<std::string> {
+          if (i == (int)chunks.size())
+            return std::nullopt;
+          return chunks[i++];
+        });
+  });
+
+  // GET /tests/stream/single
+  // Exactly one chunk, then done. Assembled body: "hello"
+  router.get("/tests/stream/single", [](const HttpRequest &) {
+    return HttpStreamResponse(
+        200, [done = false]() mutable -> std::optional<std::string> {
+          if (done)
+            return std::nullopt;
+          done = true;
+          return "hello";
+        });
+  });
+
+  // GET /tests/stream/empty
+  // Returns nullopt on the very first call — terminal chunk immediately.
+  // Assembled body is empty, status still 200.
+  router.get("/tests/stream/empty", [](const HttpRequest &) {
+    return HttpStreamResponse(
+        200, []() -> std::optional<std::string> { return std::nullopt; });
+  });
+
+  // GET /tests/stream/count/<n>
+  // Streams exactly n chunks: "chunk-1", "chunk-2", …, "chunk-n".
+  // n=0  → empty body (same as /empty)
+  // n<0  → clamped to 0
+  // non-numeric n → std::stoi throws before the HttpStreamResponse is
+  //   constructed, generateResponse() catches it → plain 500 JSON response.
+  //   This is intentional; the caller is responsible for valid input.
+  router.get("/tests/stream/count/<n>", [](const HttpRequest &request) {
+    int n = std::stoi(request.getPathParam("n")); // throws on bad input → 500
+    if (n < 0)
+      n = 0;
+    return HttpStreamResponse(
+        200, [n, i = 0]() mutable -> std::optional<std::string> {
+          if (i >= n)
+            return std::nullopt;
+          return "chunk-" + std::to_string(++i);
+        });
+  });
+
+  // GET /tests/stream/throw
+  // Emits two chunks successfully, then the lambda throws.
+  // After the fix: the error is caught, "Internal Server Error" is sent as
+  // a final chunk, the stream is properly terminated, and the connection
+  // closes cleanly. Status is still 200 (headers already sent).
+  // Assembled body: "chunk-1chunk-2Internal Server Error"
+  router.get("/tests/stream/throw", [](const HttpRequest &) {
+    return HttpStreamResponse(
+        200, [i = 0]() mutable -> std::optional<std::string> {
+          if (i++ < 2)
+            return "chunk-" + std::to_string(i);
+          throw std::runtime_error("Deliberate stream error");
+        });
+  });
+
+  // POST /tests/stream/echo
+  // Reads the request body and streams it back in 4-byte chunks.
+  // Empty body → empty stream (terminal chunk only).
+  // Mirrors Content-Type if provided.
+  router.post("/tests/stream/echo", [](const HttpRequest &request) {
+    std::string body = request.getBody();
+    std::string ctype = request.getHeader("Content-Type");
+    auto res = HttpStreamResponse(
+        200,
+        [body, offset = size_t(0)]() mutable -> std::optional<std::string> {
+          if (offset >= body.size())
+            return std::nullopt;
+          auto len = std::min(size_t(4), body.size() - offset);
+          auto chunk = body.substr(offset, len);
+          offset += len;
+          return chunk;
+        });
+    if (!ctype.empty())
+      res.setHeader("Content-Type", ctype);
+    return res;
+  });
+
   HttpServer server(errorFactory);
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);

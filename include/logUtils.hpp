@@ -1,12 +1,27 @@
 #pragma once
 
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 #include <string_view>
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 
-inline void configureLog() {
+inline void configureLog(bool file = false) {
+
+  if (file) {
+    auto fileLogger = spdlog::basic_logger_mt("server", "server.log", true);
+#ifdef NDEBUG
+    fileLogger->set_level(spdlog::level::info);
+#else
+    fileLogger->set_level(spdlog::level::debug);
+#endif
+    //[thread %t]
+    fileLogger->set_pattern("[%m-%d %H:%M] [%^%l%$] %v");
+    spdlog::set_default_logger(fileLogger);
+    return;
+  }
+
 #ifdef NDEBUG
   spdlog::set_level(spdlog::level::info);
 #else
