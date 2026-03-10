@@ -131,7 +131,8 @@ private:
 
   void handleTimerEvent(int timerFd) {
     uint64_t val;
-    ::read(timerFd, &val, sizeof(val)); // must drain — level triggered
+    size_t n =
+        ::read(timerFd, &val, sizeof(val)); // must drain — level triggered 
     auto &conn = timerConnections_.at(timerFd);
     conn->onTimeout();
     closeConnection(conn->getFd());
