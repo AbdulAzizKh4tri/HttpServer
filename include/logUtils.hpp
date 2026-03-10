@@ -8,10 +8,14 @@
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
 
-inline void configureLog(bool file = false) {
+inline void configureLog(bool on = true, std::string file = "") {
+  if (!on) {
+    spdlog::set_level(spdlog::level::off);
+    return;
+  }
 
-  if (file) {
-    auto fileLogger = spdlog::basic_logger_mt("server", "server.log", true);
+  if (file != "") {
+    auto fileLogger = spdlog::basic_logger_mt("server", file, true);
 #ifdef NDEBUG
     fileLogger->set_level(spdlog::level::info);
 #else

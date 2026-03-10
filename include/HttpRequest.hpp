@@ -3,7 +3,6 @@
 #include <charconv>
 #include <expected>
 #include <spdlog/spdlog.h>
-#include <sstream>
 #include <unordered_map>
 
 #include "utils.hpp"
@@ -22,67 +21,96 @@ public:
 
   HttpRequest() {}
 
-  bool parseRequestHeader(const std::string &headerSection) {
-    std::istringstream iss(headerSection);
-    if (!parseRequestLine(iss))
+  bool parseRequestHeader(std::string_view headerView) {
+    auto lineEnd = headerView.find('\n');
+    if (lineEnd == std::string_view::npos)
       return false;
-    parseRequestHeaders(iss);
+
+    auto requestLine = headerView.substr(0, lineEnd);
+    if (!requestLine.empty() && requestLine.back() == '\r')
+      requestLine.remove_suffix(1);
+
+    if (!parseRequestLine(requestLine))
+      return false;
+
+    headerView.remove_prefix(lineEnd + 1);
+    parseRequestHeaders(headerView);
     return true;
   }
 
-  bool parseRequestLine(std::istringstream &iss) {
-    std::string line;
-
-    std::getline(iss, line);
-    if (!line.empty() && line.back() == '\r')
-      line.pop_back();
-
-    std::istringstream requestLine(line);
-    std::vector<std::string> tokens{
-        std::istream_iterator<std::string>{requestLine},
-        std::istream_iterator<std::string>{}};
-
-    if (tokens.size() != 3)
+  bool parseRequestLine(std::string_view requestLine) {
+    auto method_end = requestLine.find(' ');
+    if (method_end == std::string_view::npos)
       return false;
 
-    method_ = tokens[0];
+    method_ = requestLine.substr(0, method_end);
+    requestLine.remove_prefix(method_end + 1);
 
-    // Extract query parameters
-    std::string rawPath = tokens[1];
+    auto path_end = requestLine.find(' ');
+    if (path_end == std::string_view::npos)
+      return false;
+
+    std::string_view rawPath = requestLine.substr(0, path_end);
     rawPath_ = rawPath;
     parsePathAndQueryParams(rawPath);
+    requestLine.remove_prefix(path_end + 1);
 
-    version_ = tokens[2];
+    version_ = requestLine;
     return true;
   }
 
-  void parseRequestHeaders(std::istringstream &iss) {
-    std::string line;
-    while (std::getline(iss, line)) {
-      if (!line.empty() && line.back() == '\r')
-        line.pop_back();
+  void parseRequestHeaders(std::string_view headerView) {
+    while (!headerView.empty()) {
+      auto lineEnd = headerView.find('\n');
+      auto line = lineEnd == std::string_view::npos
+                      ? headerView
+                      : headerView.substr(0, lineEnd);
 
-      auto pos = line.find(":");
-      if (pos == std::string::npos)
+      headerView.remove_prefix(
+          lineEnd == std::string_view::npos ? headerView.size() : lineEnd + 1);
+
+      if (!line.empty() && line.back() == '\r')
+        line.remove_suffix(1);
+
+      auto pos = line.find(':');
+      if (pos == std::string_view::npos)
         continue;
-      setHeader(line.substr(0, pos), trim(line.substr(pos + 1)));
+
+      auto key = line.substr(0, pos);
+      auto value = line.substr(pos + 1);
+      trim(value);
+      setHeader(std::string(key), std::string(value));
     }
   }
 
-  void parsePathAndQueryParams(const std::string &rawPath) {
-    auto qpos = rawPath.find('?');
-    if (qpos == std::string::npos) {
-      path_ = rawPath;
+  void parsePathAndQueryParams(std::string_view rawPathView) {
+    auto qpos = rawPathView.find('?');
+    if (qpos == std::string_view::npos) {
+      path_ = rawPathView;
+      normalizePath(path_);
     } else {
-      path_ = rawPath.substr(0, qpos);
-      std::string queryString = rawPath.substr(qpos + 1);
+      path_ = rawPathView.substr(0, qpos);
+      normalizePath(path_);
 
-      for (auto &&pair : split(queryString, "&")) {
+      rawPathView.remove_prefix(qpos + 1);
+
+      for (;;) {
+        auto paramDelim = rawPathView.find('&');
+        auto pair = paramDelim == std::string_view::npos
+                        ? rawPathView
+                        : rawPathView.substr(0, paramDelim);
+
         auto eqpos = pair.find('=');
-        if (eqpos == std::string::npos)
+        if (eqpos == std::string_view::npos)
           continue;
+
         queryParams_[percentDecode(pair.substr(0, eqpos))] =
             percentDecode(pair.substr(eqpos + 1));
+
+        if (paramDelim == std::string_view::npos)
+          break;
+
+        rawPathView.remove_prefix(paramDelim + 1);
       }
     }
   }
@@ -107,8 +135,8 @@ public:
     headers_[toLowerCase(key)] = value;
   }
 
-  std::string getHeader(const std::string &key) const {
-    return getOrDefault(headers_, toLowerCase(key), "");
+  std::string getHeader(const std::string &name) const {
+    return getOrDefault(headers_, toLowerCase(name), "");
   }
 
   std::unordered_map<std::string, std::string> getAllHeaders() const {

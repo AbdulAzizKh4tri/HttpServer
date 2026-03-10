@@ -12,6 +12,9 @@
 #include <sys/socket.h>
 #include <vector>
 
+static constexpr std::array<unsigned char, 4> crlf2 = {'\r', '\n', '\r', '\n'};
+static constexpr std::array<unsigned char, 2> crlf = {'\r', '\n'};
+
 struct PeerAddress {
   std::string ip;
   uint16_t port;
@@ -41,7 +44,8 @@ inline PeerAddress resolvePeerAddress(sockaddr_storage addr, socklen_t len) {
   return result;
 }
 
-inline std::string getCommaSeparatedString(std::vector<std::string> strings) {
+inline std::string
+getCommaSeparatedString(const std::vector<std::string> &strings) {
   std::string result;
   for (auto &&s : strings) {
     result += s + ", ";
@@ -53,10 +57,17 @@ inline std::string getCommaSeparatedString(std::vector<std::string> strings) {
   return result;
 }
 
-inline std::string toLowerCase(std::string s) {
-  std::ranges::transform(s, s.begin(),
+inline std::string toLowerCase(std::string_view s) {
+  char buf[64];
+  if (s.size() < sizeof(buf)) {
+    std::transform(s.begin(), s.end(), buf,
+                   [](unsigned char c) { return std::tolower(c); });
+    return std::string(buf, s.size());
+  }
+  std::string result(s);
+  std::ranges::transform(result, result.begin(),
                          [](unsigned char c) { return std::tolower(c); });
-  return s;
+  return result;
 }
 
 inline std::vector<std::string> split(std::string_view s,
@@ -69,7 +80,7 @@ inline std::vector<std::string> split(std::string_view s,
   return {parts.begin(), parts.end()};
 }
 
-inline std::string trim(std::string s) {
+inline void trim(std::string &s) {
   s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
             return !std::isspace(ch);
           }));
@@ -78,8 +89,13 @@ inline std::string trim(std::string s) {
                        [](unsigned char ch) { return !std::isspace(ch); })
               .base(),
           s.end());
+}
 
-  return s;
+inline void trim(std::string_view &s) {
+  while (!s.empty() && std::isspace((unsigned char)s.front()))
+    s.remove_prefix(1);
+  while (!s.empty() && std::isspace((unsigned char)s.back()))
+    s.remove_suffix(1);
 }
 
 template <typename Map>
@@ -93,18 +109,17 @@ inline auto getOrDefault(const Map &map, const typename Map::key_type &key,
   return defaultValue;
 }
 
-inline std::string normalizePath(const std::string &path) {
-  std::string result;
-  for (char c : path) {
-    if (c == '/' && !result.empty() && result.back() == '/')
-      continue;
-    result += c;
-  }
-  if (!result.empty() && result.front() == '/')
-    result.erase(0, 1);
-  if (!result.empty() && result.back() == '/')
-    result.pop_back();
-  return result;
+inline void normalizePath(std::string &path) {
+  auto newEnd = std::unique(path.begin(), path.end(), [](char a, char b) {
+    return a == '/' && b == '/';
+  });
+  path.erase(newEnd, path.end());
+
+  if (!path.empty() && path.front() == '/')
+    path.erase(0, 1);
+
+  if (!path.empty() && path.back() == '/')
+    path.pop_back();
 }
 
 inline std::string percentDecode(std::string_view s) {
@@ -141,12 +156,20 @@ inline std::string percentDecode(std::string_view s) {
   return result;
 }
 
-inline std::string getCurrentHttpDate() {
-  auto time =
+inline const std::string &getCurrentHttpDate() {
+  static std::string cached;
+  static time_t lastTime = 0;
+
+  time_t now =
       std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-  std::tm tm{};
-  gmtime_r(&time, &tm);
-  char buf[32];
-  strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-  return buf;
+
+  if (now != lastTime) {
+    std::tm tm{};
+    gmtime_r(&now, &tm);
+    char buf[32];
+    strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+    cached = buf;
+    lastTime = now;
+  }
+  return cached;
 }

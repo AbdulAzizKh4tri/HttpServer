@@ -46,7 +46,7 @@ public:
       headerString = acceptHeader.substr(0, it);
     }
     for (auto type : split(headerString, ",")) {
-      type = trim(type);
+      trim(type);
       if (auto it = registeredFormatters_.find(type);
           it != registeredFormatters_.end()) {
         return it->second(statusCode, message);

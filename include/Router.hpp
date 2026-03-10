@@ -16,6 +16,7 @@
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
 struct RouteEntry {
   std::string pattern;
+  std::vector<std::string> patternParts;
   std::unordered_map<std::string, Handler> requestHandlers;
 };
 
@@ -46,7 +47,10 @@ public:
   void use(Middleware middleware) { middlewares_.push_back(middleware); }
 
   Response dispatch(HttpRequest &request) {
-    auto routeEntry = findMatchingRouteEntry(request.getPath());
+    const auto &requestPath = request.getPath();
+    auto pathParts = split(requestPath, "/");
+
+    auto routeEntry = findMatchingRouteEntry(pathParts);
 
     if (routeEntry == nullptr) {
       auto response = errorFactory_.build(request.getHeader("Accept"), 404);
@@ -56,10 +60,10 @@ public:
     }
 
     auto &definedMethods = routeEntry->requestHandlers;
-    auto allowedMethods = getAllowedMethodsString(request.getPath());
+    auto allowedMethods = getAllowedMethodsString(requestPath);
     request.setAttribute("allowedMethods", allowedMethods);
 
-    auto pathParams = getPathParams(routeEntry->pattern, request.getPath());
+    auto pathParams = getPathParams(routeEntry->patternParts, pathParts);
     request.setPathParams(pathParams);
 
     Handler terminal = [&](const HttpRequest &req) -> Response {
@@ -104,7 +108,8 @@ public:
   RouterResponse validate(const std::string &path, const std::string &method) {
     auto lookupMethod = (method == "HEAD") ? "GET" : method;
 
-    auto routeEntry = findMatchingRouteEntry(path);
+    auto pathParts = split(path, "/");
+    auto routeEntry = findMatchingRouteEntry(pathParts);
     if (routeEntry == nullptr)
       return RouterResponse::NOT_FOUND;
 
@@ -116,7 +121,8 @@ public:
 
   std::string getAllowedMethodsString(const std::string &path) {
 
-    auto routeEntry = findMatchingRouteEntry(path);
+    auto pathParts = split(path, "/");
+    auto routeEntry = findMatchingRouteEntry(pathParts);
     if (routeEntry == nullptr)
       return "";
 
@@ -150,25 +156,21 @@ private:
     return middleware(request, next);
   }
 
-  RouteEntry *findMatchingRouteEntry(const std::string &path) {
-    auto it = std::find_if(
-        routes_.begin(), routes_.end(),
-        [&](const RouteEntry &entry) { return matches(entry.pattern, path); });
+  RouteEntry *
+  findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
+    auto it = std::find_if(routes_.begin(), routes_.end(),
+                           [&](const RouteEntry &entry) {
+                             return matches(entry.patternParts, pathParts);
+                           });
 
     return it != routes_.end() ? &(*it) : nullptr;
   }
 
   std::unordered_map<std::string, std::string>
-  getPathParams(const std::string &routePattern,
-                const std::string &requestPath) {
+  getPathParams(const std::vector<std::string> &patternParts,
+                const std::vector<std::string> &pathParts) {
 
     std::unordered_map<std::string, std::string> pathParams;
-
-    auto pattern = normalizePath(routePattern);
-    auto path = normalizePath(requestPath);
-
-    auto patternParts = split(pattern, "/");
-    auto pathParts = split(path, "/");
 
     for (size_t i = 0; i < patternParts.size(); i++) {
       if (patternParts[i] == "**") {
@@ -193,23 +195,25 @@ private:
     return pathParams;
   }
 
-  void addRoute(const std::string &pattern, const std::string &method,
+  void addRoute(const std::string &routePattern, const std::string &method,
                 const Handler &handler) {
 
-    auto ptrn = normalizePath(pattern);
-    validatePattern(ptrn);
+    auto pattern = routePattern;
+    normalizePath(pattern);
+    validatePattern(pattern);
 
     auto it = std::find_if(
         routes_.begin(), routes_.end(),
-        [&](const RouteEntry &entry) { return entry.pattern == ptrn; });
+        [&](const RouteEntry &entry) { return entry.pattern == pattern; });
 
     if (it != routes_.end()) {
       if (it->requestHandlers.contains(method))
-        throw std::invalid_argument("Duplicate route: " + ptrn);
+        throw std::invalid_argument("Duplicate route: " + pattern);
       it->requestHandlers[method] = handler;
     } else {
       RouteEntry entry;
-      entry.pattern = ptrn;
+      entry.pattern = pattern;
+      entry.patternParts = split(pattern, "/");
       entry.requestHandlers[method] = handler;
       routes_.push_back(entry);
     }
@@ -252,13 +256,8 @@ private:
     }
   }
 
-  bool matches(const std::string &routePattern,
-               const std::string &requestPath) {
-    auto pattern = normalizePath(routePattern);
-    auto path = normalizePath(requestPath);
-
-    auto patternParts = split(pattern, "/");
-    auto pathParts = split(path, "/");
+  bool matches(const std::vector<std::string> &patternParts,
+               const std::vector<std::string> &pathParts) {
 
     size_t i;
     for (i = 0; i < patternParts.size(); i++) {

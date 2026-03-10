@@ -1,6 +1,6 @@
 #pragma once
 
-#include <format>
+#include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +12,10 @@ public:
   static std::string statusText(int statusCode) {
     return getOrDefault(statusStrings_, statusCode, "Unknown");
   };
+
+  static size_t headerLineSize(const std::string &k, const std::string &v) {
+    return k.size() + 2 + v.size() + 2; // "key: value\r\n"
+  }
 
   HttpResponse() : statusCode_(-1) {}
 
@@ -25,16 +29,44 @@ public:
   }
 
   std::vector<unsigned char> serialize() const {
-    std::string response = std::format("{} {} {}\r\n", version_, statusCode_,
-                                       HttpResponse::statusText(statusCode_));
+    const std::string &statusTxt = HttpResponse::statusText(statusCode_);
 
-    for (auto &header : headers_) {
-      response += std::format("{}: {}\r\n", header.first, header.second);
+    size_t size = version_.size() + 1 + 3 + 1 + statusTxt.size() + 2;
+
+    for (auto &[k, v] : headers_)
+      size += headerLineSize(k, v);
+    size += 2; // final \r\n
+    size += body_.size();
+
+    std::vector<unsigned char> serializedResponse(size);
+    size_t offset = 0;
+
+    auto write = [&](std::string_view s) {
+      std::memcpy(serializedResponse.data() + offset, s.data(), s.size());
+      offset += s.size();
+    };
+    auto writeChar = [&](char c) { serializedResponse[offset++] = c; };
+
+    char statusBuf[3];
+    std::to_chars(statusBuf, statusBuf + 3, statusCode_);
+
+    write(version_);
+    writeChar(' ');
+    write(std::string_view(statusBuf, 3));
+    writeChar(' ');
+    write(statusTxt);
+    write("\r\n");
+
+    for (auto &[k, v] : headers_) {
+      write(k);
+      write(": ");
+      write(v);
+      write("\r\n");
     }
+    write("\r\n");
+    write(body_);
 
-    response += "\r\n";
-    response += body_;
-    return std::vector<unsigned char>(response.begin(), response.end());
+    return serializedResponse;
   }
 
   void setHeader(const std::string &name, const std::string &value) {

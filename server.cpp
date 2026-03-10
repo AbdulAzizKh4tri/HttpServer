@@ -19,7 +19,7 @@
 using json = nlohmann::json;
 
 int main() {
-  configureLog();
+  configureLog(true, "server.log");
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
   ErrorFactory errorFactory;

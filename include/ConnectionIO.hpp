@@ -22,7 +22,7 @@ public:
   drainIntoReadBuffer(size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) {
     bool gotData = false;
     for (;;) {
-      if (readBuffer_.size() >= maxBufferSize)
+      if (getReadBufferSize() >= maxBufferSize)
         return ReadResult::BUFFER_LIMIT_EXCEEDED;
 
       std::vector<unsigned char> buf(4096);
@@ -48,14 +48,23 @@ public:
     }
   }
 
+  auto readBufferBegin() const { return readBuffer_.begin() + readOffset_; }
+  auto readBufferEnd() const { return readBuffer_.end(); }
+
+  auto writeBufferBegin() const { return writeBuffer_.begin() + writeOffset_; }
+  auto writeBufferEnd() const { return writeBuffer_.end(); }
+
   bool flushFromWriteBuffer() {
-    while (!writeBuffer_.empty()) {
-      ssize_t n = stream_->send(writeBuffer_);
+    while (getWriteBufferSize() > 0) {
+      ssize_t n =
+          stream_->send(std::span(writeBufferBegin(), writeBufferEnd()));
       if (n < 0)
         return false; // error
-      if (n == 0)
-        return true; // would block, try later
-      writeBuffer_.erase(writeBuffer_.begin(), writeBuffer_.begin() + n);
+      if (n == 0) {
+        return true;
+      }
+
+      eraseFromWriteBuffer(n);
     }
     return true;
   }
@@ -64,22 +73,54 @@ public:
     writeBuffer_.insert(writeBuffer_.end(), data.begin(), data.end());
   }
 
-  bool hasPendingWrites() const { return !writeBuffer_.empty(); }
-
-  std::vector<unsigned char> &readBuffer() { return readBuffer_; }
+  bool hasPendingWrites() const { return getWriteBufferSize() > 0; }
 
   void eraseFromReadBuffer(size_t n) {
-    readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + n);
+    readOffset_ += n;
+
+    if (readOffset_ > readBuffer_.size() / 2) {
+      readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + readOffset_);
+      readOffset_ = 0;
+    }
+  };
+
+  void eraseFromWriteBuffer(size_t n) {
+    writeOffset_ += n;
+
+    if (writeOffset_ > writeBuffer_.size() / 2) {
+      writeBuffer_.erase(writeBuffer_.begin(),
+                         writeBuffer_.begin() + writeOffset_);
+      writeOffset_ = 0;
+    }
   };
 
   std::string getReadBufferString(int end = -1) const {
     if (end < 0)
-      return std::string(readBuffer_.begin(), readBuffer_.end());
+      return std::string(readBuffer_.begin() + readOffset_, readBuffer_.end());
     else
-      return std::string(readBuffer_.begin(), readBuffer_.begin() + end);
+      return std::string(readBuffer_.begin() + readOffset_,
+                         readBuffer_.begin() + readOffset_ + end);
   }
 
-  size_t getReadBufferSize() const { return readBuffer_.size(); }
+  std::string getWriteBufferString(int end = -1) const {
+    if (end < 0)
+      return std::string(writeBuffer_.begin() + writeOffset_,
+                         writeBuffer_.end());
+    else
+      return std::string(writeBuffer_.begin() + writeOffset_,
+                         writeBuffer_.begin() + writeOffset_ + end);
+  }
+
+  const unsigned char *readBufferData() const {
+    return readBuffer_.data() + readOffset_;
+  }
+  size_t getReadOffset() const { return readOffset_; }
+  size_t getWriteOffset() const { return writeOffset_; }
+
+  size_t getReadBufferSize() const { return readBuffer_.size() - readOffset_; }
+  size_t getWriteBufferSize() const {
+    return writeBuffer_.size() - writeOffset_;
+  }
 
   std::string getIp() const { return stream_->getIp(); };
   uint16_t getPort() const { return stream_->getPort(); };
@@ -88,6 +129,7 @@ public:
 
 private:
   std::shared_ptr<IStream> stream_;
+  size_t readOffset_ = 0, writeOffset_ = 0;
   std::vector<unsigned char> readBuffer_;
   std::vector<unsigned char> writeBuffer_;
 };

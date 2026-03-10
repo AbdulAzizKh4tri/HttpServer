@@ -1,62 +1,8 @@
 [
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer/external -I/home/pair/cmake-source-cache/fmt-src/include -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=gnu++23 -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
+  "command": "/usr/bin/c++  -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
   "file": "/home/pair/stuff/HttpServer/server.cpp",
   "output": "CMakeFiles/server.dir/server.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/fmt-build",
-  "command": "/usr/bin/c++  -I/home/pair/cmake-source-cache/fmt-src/include -g -std=gnu++23 -o CMakeFiles/fmt.dir/src/format.cc.o -c /home/pair/cmake-source-cache/fmt-src/src/format.cc",
-  "file": "/home/pair/cmake-source-cache/fmt-src/src/format.cc",
-  "output": "/home/pair/cmake-source-cache/fmt-build/CMakeFiles/fmt.dir/src/format.cc.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/fmt-build",
-  "command": "/usr/bin/c++  -I/home/pair/cmake-source-cache/fmt-src/include -g -std=gnu++23 -o CMakeFiles/fmt.dir/src/os.cc.o -c /home/pair/cmake-source-cache/fmt-src/src/os.cc",
-  "file": "/home/pair/cmake-source-cache/fmt-src/src/os.cc",
-  "output": "/home/pair/cmake-source-cache/fmt-build/CMakeFiles/fmt.dir/src/os.cc.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/spdlog.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/spdlog.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/spdlog.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/spdlog.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/stdout_sinks.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/stdout_sinks.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/stdout_sinks.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/stdout_sinks.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/color_sinks.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/color_sinks.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/color_sinks.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/color_sinks.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/file_sinks.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/file_sinks.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/file_sinks.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/file_sinks.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/async.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/async.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/async.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/async.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/cfg.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/cfg.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/cfg.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/cfg.cpp.o"
-},
-{
-  "directory": "/home/pair/cmake-source-cache/spdlog-build",
-  "command": "/usr/bin/c++ -DSPDLOG_COMPILED_LIB -I/home/pair/cmake-source-cache/spdlog-src/include -g -std=c++23 -o CMakeFiles/spdlog.dir/src/bundled_fmtlib_format.cpp.o -c /home/pair/cmake-source-cache/spdlog-src/src/bundled_fmtlib_format.cpp",
-  "file": "/home/pair/cmake-source-cache/spdlog-src/src/bundled_fmtlib_format.cpp",
-  "output": "/home/pair/cmake-source-cache/spdlog-build/CMakeFiles/spdlog.dir/src/bundled_fmtlib_format.cpp.o"
 }
 ]

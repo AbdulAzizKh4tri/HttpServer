@@ -31,11 +31,11 @@ class HttpConnection {
 public:
   HttpConnection(std::shared_ptr<IStream> stream, Router &router,
                  ErrorFactory &errorFactory)
-      : connIO_(std::move(stream)), router_(router),
+      : io_(std::move(stream)), router_(router),
         state_(ConnectionState::HANDSHAKING), errorFactory_(errorFactory) {
 
-    request_.setIp(connIO_.getIp());
-    request_.setPort(connIO_.getPort());
+    request_.setIp(io_.getIp());
+    request_.setPort(io_.getPort());
     // create timer for Connection: keep alive
     timerFd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timerFd_ == -1)
@@ -93,23 +93,23 @@ public:
   }
 
   void onTimeout() {
-    SPDLOG_DEBUG("Connection timed out {}:{}", connIO_.getIp(),
-                 connIO_.getPort());
+    SPDLOG_DEBUG("Connection timed out {}:{}", io_.getIp(), io_.getPort());
     setState(ConnectionState::CLOSING);
   }
 
   bool wantsWrite() const {
-    return connIO_.hasPendingWrites() || handshakeWantsWrite_ ||
+
+    return io_.hasPendingWrites() || handshakeWantsWrite_ ||
            state_ == ConnectionState::STREAMING_RESPONSE;
     ;
   }
 
   bool isClosing() const { return state_ == ConnectionState::CLOSING; }
 
-  int getFd() const { return connIO_.getFd(); }
+  int getFd() const { return io_.getFd(); }
   int getTimerFd() const { return timerFd_; }
-  std::string getIp() const { return connIO_.getIp(); }
-  uint16_t getPort() const { return connIO_.getPort(); }
+  std::string getIp() const { return io_.getIp(); }
+  uint16_t getPort() const { return io_.getPort(); }
 
 private:
   static constexpr int IDLE_TIMEOUT_SECS = 30;
@@ -119,7 +119,7 @@ private:
   ConnectionState state_;
   bool handshakeWantsWrite_ = false, keepAlive_ = false;
 
-  ConnectionIO connIO_;
+  ConnectionIO io_;
   ChunkedBodyParser chunkParser_;
 
   HttpRequest request_;
@@ -153,8 +153,8 @@ private:
 
   void resetForNextRequest() {
     request_ = HttpRequest();
-    request_.setIp(connIO_.getIp());
-    request_.setPort(connIO_.getPort());
+    request_.setIp(io_.getIp());
+    request_.setPort(io_.getPort());
     responseStream_ = HttpStreamResponse();
     setState(ConnectionState::READING_HEADERS);
     chunkParser_.reset();
@@ -163,7 +163,7 @@ private:
 
   void handleHandshake() {
     handshakeWantsWrite_ = false;
-    HandshakeResult result = connIO_.handshake();
+    HandshakeResult result = io_.handshake();
     switch (result) {
     case HandshakeResult::DONE:
     case HandshakeResult::NO_TLS:
@@ -175,64 +175,72 @@ private:
       handshakeWantsWrite_ = true;
       break;
     case HandshakeResult::ERROR:
-      SPDLOG_ERROR("TLS handshake failed for {}:{}", connIO_.getIp(),
-                   connIO_.getPort());
+      SPDLOG_ERROR("TLS handshake failed for {}:{}", io_.getIp(),
+                   io_.getPort());
       setState(ConnectionState::CLOSING);
       break;
     }
   }
 
   void handleReadingHeaders() {
-    ReadResult result =
-        connIO_.drainIntoReadBuffer(HttpRequest::MAX_HEADER_SIZE);
+    ReadResult result = io_.drainIntoReadBuffer(HttpRequest::MAX_HEADER_SIZE);
 
     if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
       setState(ConnectionState::CLOSING);
       return;
     }
-    if (result == ReadResult::WOULD_BLOCK && connIO_.readBuffer().empty()) {
+    if (result == ReadResult::WOULD_BLOCK && io_.getReadBufferSize() == 0) {
       return;
     }
 
-    while (connIO_.getReadBufferSize() >= 2 &&
-           connIO_.readBuffer()[0] == '\r' && connIO_.readBuffer()[1] == '\n') {
-      connIO_.eraseFromReadBuffer(2);
+    while (io_.getReadBufferSize() >= 2 && *(io_.readBufferBegin()) == '\r' &&
+           *(io_.readBufferBegin() + 1) == '\n') {
+      io_.eraseFromReadBuffer(2);
     }
 
-    auto data = connIO_.getReadBufferString();
-    size_t end = data.find("\r\n\r\n"); // Looking for end of header.
-    if (end == std::string::npos) {
+    auto it = std::search(io_.readBufferBegin(), io_.readBufferEnd(),
+                          crlf2.begin(), crlf2.end());
+
+    if (it == io_.readBufferEnd()) {
       if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
         sendErrorResponseAndClose(431);
       }
       return;
     }
 
-    if (end > HttpRequest::MAX_HEADER_SIZE) {
+    size_t headerSize = std::distance(io_.readBufferBegin(), it);
+
+    if (headerSize > HttpRequest::MAX_HEADER_SIZE) {
       sendErrorResponseAndClose(431);
       return;
     }
 
-    std::string headerString = data.substr(0, end);
-    if (!request_.parseRequestHeader(headerString)) {
-      SPDLOG_DEBUG("PARSE ERROR... {}", headerString);
+    std::string_view headerView(
+        reinterpret_cast<const char *>(io_.readBufferData()), headerSize);
+
+    if (!request_.parseRequestHeader(headerView)) {
+      SPDLOG_DEBUG(
+          "PARSE ERROR... {}",
+          std::string_view(reinterpret_cast<const char *>(io_.readBufferData()),
+                           headerSize));
       sendErrorResponseAndClose(400, "Malformed Header");
       return;
     }
 
     if (request_.getVersion() != "HTTP/1.0" &&
         request_.getVersion() != "HTTP/1.1") {
+      SPDLOG_DEBUG("VERSION ERROR... {}", request_.getVersion());
       sendErrorResponseAndClose(505);
       return;
     }
 
     if (request_.getHeader("Host") == "") {
-      SPDLOG_DEBUG("HOST ERROR... {}", headerString);
+      SPDLOG_DEBUG("HOST ERROR... {}", headerView);
       sendErrorResponseAndClose(400, "No Host Header Provided");
       return;
     }
 
-    connIO_.eraseFromReadBuffer(end + 4);
+    io_.eraseFromReadBuffer(headerSize + 4);
 
     if (request_.getHeader("Expect") != "") {
       handleExpectHeader();
@@ -260,7 +268,7 @@ private:
         std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
         auto responseBytes =
             std::vector<unsigned char>(response.begin(), response.end());
-        connIO_.enqueue(responseBytes);
+        io_.enqueue(responseBytes);
         handleSendingContinue();
         return;
       }
@@ -274,7 +282,7 @@ private:
   }
 
   void handleSendingContinue() {
-    if (!connIO_.flushFromWriteBuffer()) {
+    if (!io_.flushFromWriteBuffer()) {
       setState(ConnectionState::CLOSING);
       return;
     }
@@ -311,7 +319,7 @@ private:
 
   void handleReadingBodyChunked() {
     ReadResult readResult =
-        connIO_.drainIntoReadBuffer(HttpRequest::MAX_CONTENT_LENGTH);
+        io_.drainIntoReadBuffer(HttpRequest::MAX_CONTENT_LENGTH);
 
     if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
       sendErrorResponseAndClose(413);
@@ -322,7 +330,7 @@ private:
       return;
     }
 
-    auto result = chunkParser_.feed(connIO_.readBuffer());
+    auto result = chunkParser_.feed(io_);
     if (!result)
       switch (result.error()) {
       case ChunkError::TOO_LARGE:
@@ -333,6 +341,7 @@ private:
         return;
       }
     auto resultVal = result.value();
+
     if (resultVal.has_value()) {
       request_.setBody(*resultVal);
       generateAndHandleResponse();
@@ -356,11 +365,11 @@ private:
     }
 
     size_t contentLength = contentLengthResult.value();
-    bool bodyComplete = connIO_.getReadBufferSize() >= contentLength;
+    bool bodyComplete = io_.getReadBufferSize() >= contentLength;
 
     if (!bodyComplete) { // read more data if body is incomplete
       ReadResult result =
-          connIO_.drainIntoReadBuffer(HttpRequest::MAX_CONTENT_LENGTH);
+          io_.drainIntoReadBuffer(HttpRequest::MAX_CONTENT_LENGTH);
 
       if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
         sendErrorResponseAndClose(413);
@@ -371,14 +380,14 @@ private:
         return;
       }
 
-      bodyComplete = connIO_.getReadBufferSize() >= contentLength;
+      bodyComplete = io_.getReadBufferSize() >= contentLength;
     }
 
     if (!bodyComplete) // if still incomplete, try again later
       return;
 
-    request_.setBody(connIO_.getReadBufferString(contentLength));
-    connIO_.eraseFromReadBuffer(contentLength);
+    request_.setBody(io_.getReadBufferString(contentLength));
+    io_.eraseFromReadBuffer(contentLength);
 
     generateAndHandleResponse();
   }
@@ -423,28 +432,28 @@ private:
 
     std::vector<unsigned char> serializedHeader =
         responseStream_.getSerializedHeader();
-    connIO_.enqueue(serializedHeader);
+    io_.enqueue(serializedHeader);
     handleStreamingResponse();
   }
 
   void handleStreamingResponse() {
-    if (!connIO_.hasPendingWrites()) {
+    if (!io_.hasPendingWrites()) {
       std::optional<std::string> chunkOpt;
       try {
         chunkOpt = responseStream_.getNextChunk();
       } catch (const std::exception &e) {
         SPDLOG_ERROR("Stream handler threw exception: {}", e.what());
-        connIO_.enqueue(HttpStreamResponse::serializeChunk(
+        io_.enqueue(HttpStreamResponse::serializeChunk(
             "Internal Server Error: " + std::string(e.what())));
-        connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
+        io_.enqueue(HttpStreamResponse::serializeChunk(""));
         keepAlive_ = false;
         setState(ConnectionState::WRITING_RESPONSE);
         return;
       } catch (...) {
         SPDLOG_ERROR("Stream handler threw unknown exception");
-        connIO_.enqueue(
+        io_.enqueue(
             HttpStreamResponse::serializeChunk("Internal Server Error"));
-        connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
+        io_.enqueue(HttpStreamResponse::serializeChunk(""));
         keepAlive_ = false;
         setState(ConnectionState::WRITING_RESPONSE);
         return;
@@ -453,11 +462,11 @@ private:
       std::string chunk = chunkOpt.value_or("");
 
       if (chunk.empty()) {
-        connIO_.enqueue(HttpStreamResponse::serializeChunk(""));
+        io_.enqueue(HttpStreamResponse::serializeChunk(""));
         logRequest(request_, responseStream_);
         if (keepAlive_) {
           resetForNextRequest();
-          if (!connIO_.readBuffer().empty())
+          if (io_.getReadBufferSize() > 0)
             handleReadingHeaders();
         } else {
           setState(ConnectionState::WRITING_RESPONSE);
@@ -465,10 +474,10 @@ private:
         return;
       }
 
-      connIO_.enqueue(HttpStreamResponse::serializeChunk(chunk));
+      io_.enqueue(HttpStreamResponse::serializeChunk(chunk));
     }
 
-    if (connIO_.hasPendingWrites() && !connIO_.flushFromWriteBuffer()) {
+    if (io_.hasPendingWrites() && !io_.flushFromWriteBuffer()) {
       setState(ConnectionState::CLOSING);
       return;
     }
@@ -477,7 +486,7 @@ private:
   void serializeAndSendResponse(HttpResponse response) {
     setState(ConnectionState::WRITING_RESPONSE);
     std::vector<unsigned char> serialized = response.serialize();
-    connIO_.enqueue(serialized);
+    io_.enqueue(serialized);
     logRequest(request_, response);
     handleWritingResponse();
   }
@@ -503,14 +512,14 @@ private:
   }
 
   void handleWritingResponse() {
-    if (!connIO_.flushFromWriteBuffer()) {
+    if (!io_.flushFromWriteBuffer()) {
       setState(ConnectionState::CLOSING);
       return;
     }
     if (!wantsWrite()) {
       if (keepAlive_) {
         resetForNextRequest();
-        if (!connIO_.readBuffer().empty())
+        if (io_.getReadBufferSize() > 0)
           handleReadingHeaders();
       } else
         setState(ConnectionState::CLOSING);

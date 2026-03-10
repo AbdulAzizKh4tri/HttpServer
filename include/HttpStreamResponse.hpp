@@ -1,6 +1,5 @@
 #pragma once
 
-#include <format>
 #include <functional>
 #include <optional>
 #include <spdlog/spdlog.h>
@@ -12,9 +11,24 @@ using NextChunkLambda = std::function<std::optional<std::string>()>;
 
 class HttpStreamResponse {
 public:
-  static std::vector<unsigned char> serializeChunk(std::string chunk) {
-    std::string response = std::format("{:x}\r\n{}\r\n", chunk.size(), chunk);
-    return std::vector<unsigned char>(response.begin(), response.end());
+  static std::vector<unsigned char> serializeChunk(std::string_view chunk) {
+    char hexBuf[16];
+    auto [ptr, ec] =
+        std::to_chars(hexBuf, hexBuf + sizeof(hexBuf), chunk.size(), 16);
+    size_t hexLen = ptr - hexBuf;
+
+    std::vector<unsigned char> chunkBytes(chunk.size() + hexLen + 4);
+    size_t offset = hexLen;
+
+    std::memcpy(chunkBytes.data(), hexBuf, hexLen);
+    chunkBytes[offset++] = '\r';
+    chunkBytes[offset++] = '\n';
+    std::memcpy(chunkBytes.data() + offset, chunk.data(), chunk.size());
+    offset += chunk.size();
+    chunkBytes[offset++] = '\r';
+    chunkBytes[offset++] = '\n';
+
+    return chunkBytes;
   }
 
   HttpStreamResponse() : statusCode_(-1) {}
@@ -27,15 +41,43 @@ public:
   std::optional<std::string> getNextChunk() { return nextChunkLambda_(); }
 
   std::vector<unsigned char> getSerializedHeader() const {
-    std::string response = std::format("{} {} {}\r\n", version_, statusCode_,
-                                       HttpResponse::statusText(statusCode_));
 
-    for (auto &header : headers_) {
-      response += std::format("{}: {}\r\n", header.first, header.second);
+    const std::string &statText = HttpResponse::statusText(statusCode_);
+
+    size_t size = version_.size() + 1 + 3 + 1 + statText.size() + 2;
+
+    for (const auto &[k, v] : headers_)
+      size += k.size() + 2 + v.size() + 2;
+    size += 2;
+
+    std::vector<unsigned char> serializedHeader(size);
+    size_t offset = 0;
+
+    auto write = [&](std::string_view s) {
+      std::memcpy(serializedHeader.data() + offset, s.data(), s.size());
+      offset += s.size();
+    };
+    auto writeChar = [&](char c) { serializedHeader[offset++] = c; };
+
+    char statusBuf[3];
+    std::to_chars(statusBuf, statusBuf + 3, statusCode_);
+
+    write(version_);
+    writeChar(' ');
+    write(std::string_view(statusBuf, 3));
+    writeChar(' ');
+    write(statText);
+    write("\r\n");
+
+    for (const auto &[k, v] : headers_) {
+      write(k);
+      write(": ");
+      write(v);
+      write("\r\n");
     }
+    write("\r\n");
 
-    response += "\r\n";
-    return std::vector<unsigned char>(response.begin(), response.end());
+    return serializedHeader;
   }
 
   void setHeader(const std::string &name, const std::string &value) {
