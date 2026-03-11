@@ -149,7 +149,41 @@ private:
     return connection != "close";
   }
 
-  void setState(ConnectionState newState) { state_ = newState; }
+  void setState(ConnectionState newState) {
+    state_ = newState;
+
+    switch (state_) {
+    case ConnectionState::HANDSHAKING:
+      SPDLOG_TRACE("State set to Handshaking for {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+    case ConnectionState::READING_HEADERS:
+      SPDLOG_TRACE("State set to Reading Headers for {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+    case ConnectionState::READING_BODY:
+      SPDLOG_TRACE("State set to Reading Bodyfor {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+    case ConnectionState::SENDING_CONTINUE:
+      SPDLOG_TRACE("State set to Sending Continue for {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+    case ConnectionState::STREAMING_RESPONSE:
+      SPDLOG_TRACE("State set to Streaming Response for {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+    case ConnectionState::WRITING_RESPONSE:
+      SPDLOG_TRACE("State set to Writing Response for {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+    case ConnectionState::CLOSING:
+      SPDLOG_TRACE("State set to Closing for {}:{}", io_.getIp(),
+                   io_.getPort());
+      break;
+      break;
+    }
+  }
 
   void resetForNextRequest() {
     request_ = HttpRequest();

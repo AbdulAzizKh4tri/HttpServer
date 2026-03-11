@@ -14,24 +14,16 @@ inline void configureLog(bool on = true, std::string file = "") {
     return;
   }
 
+  spdlog::set_level(spdlog::level::debug);
+
   if (file != "") {
     auto fileLogger = spdlog::basic_logger_mt("server", file, true);
-#ifdef NDEBUG
-    fileLogger->set_level(spdlog::level::info);
-#else
-    fileLogger->set_level(spdlog::level::debug);
-#endif
     //[thread %t]
     fileLogger->set_pattern("[%m-%d %H:%M] [%^%l%$] %v");
     spdlog::set_default_logger(fileLogger);
     return;
   }
 
-#ifdef NDEBUG
-  spdlog::set_level(spdlog::level::info);
-#else
-  spdlog::set_level(spdlog::level::debug);
-#endif
   //[thread %t]
   spdlog::set_pattern("[%m-%d %H:%M] [%^%l%$] %v");
 }
@@ -54,14 +46,34 @@ inline std::string_view statusColor(int statusCode) {
 
 inline void logRequest(const HttpRequest &req, const HttpResponse &res) {
   int status = res.getStatusCode();
-  SPDLOG_INFO("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status), status,
-              Color::Reset, req.getMethod(), req.getPath(), req.getIp(),
-              req.getPort());
+  if (status >= 500) {
+    SPDLOG_ERROR("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status),
+                 status, Color::Reset, req.getMethod(), req.getPath(),
+                 req.getIp(), req.getPort());
+  } else if (status >= 400) {
+    SPDLOG_WARN("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status),
+                status, Color::Reset, req.getMethod(), req.getPath(),
+                req.getIp(), req.getPort());
+  } else {
+    SPDLOG_INFO("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status),
+                status, Color::Reset, req.getMethod(), req.getPath(),
+                req.getIp(), req.getPort());
+  }
 }
 
 inline void logRequest(const HttpRequest &req, const HttpStreamResponse &res) {
   int status = res.getStatusCode();
-  SPDLOG_INFO("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status), status,
-              Color::Reset, req.getMethod(), req.getPath(), req.getIp(),
-              req.getPort());
+  if (status >= 500) {
+    SPDLOG_ERROR("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status),
+                 status, Color::Reset, req.getMethod(), req.getPath(),
+                 req.getIp(), req.getPort());
+  } else if (status >= 400) {
+    SPDLOG_WARN("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status),
+                status, Color::Reset, req.getMethod(), req.getPath(),
+                req.getIp(), req.getPort());
+  } else {
+    SPDLOG_INFO("{}{}{}  {:<8} {:<20}  {:<16}:{:<6}", statusColor(status),
+                status, Color::Reset, req.getMethod(), req.getPath(),
+                req.getIp(), req.getPort());
+  }
 }

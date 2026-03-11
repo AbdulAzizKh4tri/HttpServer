@@ -1,12 +1,5 @@
-#ifdef NDEBUG
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
-#else
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
-#endif
-
-#include <spdlog/spdlog.h>
-
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 
 #include "CorsMiddleware.hpp"
 #include "ErrorFactory.hpp"
@@ -19,7 +12,7 @@
 using json = nlohmann::json;
 
 int main() {
-  configureLog(true, "server.log");
+  configureLog(true, "");
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
   ErrorFactory errorFactory;

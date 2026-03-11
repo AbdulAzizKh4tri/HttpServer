@@ -86,6 +86,8 @@ public:
       return ReceiveResult::wouldBlock();
     case SSL_ERROR_ZERO_RETURN: // clean TLS shutdown
       return ReceiveResult::closed();
+    case SSL_ERROR_SYSCALL: // TCP closed without close_notify — treat as closed
+      return ReceiveResult::closed();
     default:
       SPDLOG_ERROR("SSL_read error for {}:{} — SSL error {}", ip_, port_, err);
       return ReceiveResult::error();
