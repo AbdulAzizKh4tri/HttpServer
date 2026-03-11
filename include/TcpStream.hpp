@@ -35,6 +35,8 @@ public:
       return ReceiveResult::closed();
     if (errno == EAGAIN || errno == EWOULDBLOCK)
       return ReceiveResult::wouldBlock();
+    if (errno == ECONNRESET)
+      return ReceiveResult::closed();
     return ReceiveResult::error();
   }
 
