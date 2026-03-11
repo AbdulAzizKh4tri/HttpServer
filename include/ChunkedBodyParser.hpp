@@ -122,16 +122,13 @@ private:
 
     switch (state_) {
     case ChunkState::READING_SIZE:
-      SPDLOG_TRACE("ChunkState set to Reading Size for {}:{}", io_.getIp(),
-                   io_.getPort());
+      SPDLOG_TRACE("ChunkState set to Reading Size");
       break;
     case ChunkState::READING_DATA:
-      SPDLOG_TRACE("ChunkState set to Reading Data for {}:{}", io_.getIp(),
-                   io_.getPort());
+      SPDLOG_TRACE("ChunkState set to Reading Data");
       break;
     case ChunkState::READING_TRAILING_CRLF:
-      SPDLOG_TRACE("ChunkState set to Reading Trailing CRLF for {}:{}",
-                   io_.getIp(), io_.getPort());
+      SPDLOG_TRACE("ChunkState set to Reading Trailing CRLF");
       break;
     }
   }
