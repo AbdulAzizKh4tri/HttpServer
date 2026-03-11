@@ -1,7 +1,13 @@
 [
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++  -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -x c++-header -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/cmake_pch.hxx.gch -c /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
+  "file": "/home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
+  "output": "CMakeFiles/server.dir/cmake_pch.hxx.gch"
+},
+{
+  "directory": "/home/pair/stuff/HttpServer/build/debug",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
   "file": "/home/pair/stuff/HttpServer/server.cpp",
   "output": "CMakeFiles/server.dir/server.cpp.o"
 }
