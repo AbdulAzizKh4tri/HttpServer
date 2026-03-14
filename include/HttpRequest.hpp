@@ -52,6 +52,21 @@ public:
 
     std::string_view rawPath = requestLine.substr(0, path_end);
     rawPath_ = rawPath;
+
+    auto hostStart = rawPath.find("://");
+    if (hostStart != std::string_view::npos) {
+      rawPath.remove_prefix(hostStart + 3);
+      // host ends at either '/' or '?' or end of string
+      auto hostEnd = rawPath.find_first_of("/?");
+      if (hostEnd != std::string_view::npos) {
+        setHeader("Host", std::string(rawPath.substr(0, hostEnd)));
+        rawPath.remove_prefix(hostEnd);
+      } else {
+        setHeader("Host", std::string(rawPath));
+        rawPath = "/"; // host with no path — treat as root
+      }
+    }
+
     parsePathAndQueryParams(rawPath);
     requestLine.remove_prefix(path_end + 1);
 
@@ -79,6 +94,11 @@ public:
       auto key = line.substr(0, pos);
       auto value = line.substr(pos + 1);
       trim(value);
+
+      // After v1.2 revamp, this should be optimized
+      if (toLowerCase(key) == "host" && getHeader("Host") != "")
+        continue;
+
       setHeader(std::string(key), std::string(value));
     }
   }
@@ -93,6 +113,10 @@ public:
       normalizePath(path_);
 
       rawPathView.remove_prefix(qpos + 1);
+      auto fragmentpos = rawPathView.find('#');
+      if (fragmentpos != std::string_view::npos) {
+        rawPathView.remove_suffix(rawPathView.size() - fragmentpos);
+      }
 
       for (;;) {
         auto paramDelim = rawPathView.find('&');
@@ -101,11 +125,13 @@ public:
                         : rawPathView.substr(0, paramDelim);
 
         auto eqpos = pair.find('=');
-        if (eqpos == std::string_view::npos)
-          continue;
-
-        queryParams_[percentDecode(pair.substr(0, eqpos))] =
-            percentDecode(pair.substr(eqpos + 1));
+        if (eqpos != std::string_view::npos) {
+          const auto &val = percentDecode(pair.substr(eqpos + 1));
+          queryParams_[percentDecode(pair.substr(0, eqpos))] =
+              val == "" ? "true" : val;
+        } else {
+          queryParams_[percentDecode(pair)] = "true";
+        }
 
         if (paramDelim == std::string_view::npos)
           break;

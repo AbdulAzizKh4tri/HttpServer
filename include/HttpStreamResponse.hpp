@@ -31,10 +31,13 @@ public:
     return chunkBytes;
   }
 
-  HttpStreamResponse() : statusCode_(-1) {}
+  HttpStreamResponse() : statusCode_(-1) {
+    setHeader("Server", "Azooz's Chad Compiled C++ Server");
+  }
 
   HttpStreamResponse(int statusCode, NextChunkLambda nextChunkLambda)
       : statusCode_(statusCode), nextChunkLambda_(nextChunkLambda) {
+    setHeader("Server", "Azooz's Chad Compiled C++ Server");
     setHeader("Transfer-Encoding", "chunked");
   }
 

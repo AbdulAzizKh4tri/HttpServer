@@ -17,15 +17,19 @@ public:
     return k.size() + 2 + v.size() + 2; // "key: value\r\n"
   }
 
-  HttpResponse() : statusCode_(-1) {}
+  HttpResponse() : statusCode_(-1) {
+    setHeader("Server", "Azooz's Chad Compiled C++ Server");
+  }
 
   HttpResponse(int statusCode) : statusCode_(statusCode) {
     setHeader("Content-Length", std::to_string(body_.size()));
+    setHeader("Server", "Azooz's Chad Compiled C++ Server");
   }
 
   HttpResponse(int statusCode, std::string body)
       : statusCode_(statusCode), body_(body) {
     setHeader("Content-Length", std::to_string(body_.size()));
+    setHeader("Server", "Azooz's Chad Compiled C++ Server");
   }
 
   std::vector<unsigned char> serialize() const {
@@ -78,7 +82,7 @@ public:
     setHeader("Content-Length", std::to_string(body_.size()));
   }
 
-  void stripBodyForHeadRequest() { body_ = ""; }
+  void stripBody() { body_ = ""; }
 
   void setVersion(const std::string &version) { version_ = version; }
   void setStatusCode(int statusCode) { statusCode_ = statusCode; }

@@ -94,7 +94,7 @@ public:
 
   void onTimeout() {
     SPDLOG_DEBUG("Connection timed out {}:{}", io_.getIp(), io_.getPort());
-    setState(ConnectionState::CLOSING);
+    sendErrorResponseAndClose(408);
   }
 
   bool wantsWrite() const {
@@ -143,10 +143,9 @@ private:
   void resetTimer() { armTimer(); }
 
   bool shouldKeepAlive() const {
-    auto connection = request_.getHeader("Connection");
-    if (request_.getVersion() == "HTTP/1.0")
-      return connection == "keep-alive";
-    return connection != "close";
+    const std::string &connection =
+        toLowerCase(request_.getHeader("Connection"));
+    return connection.find("close") == std::string::npos;
   }
 
   void setState(ConnectionState newState) {
@@ -261,8 +260,7 @@ private:
       return;
     }
 
-    if (request_.getVersion() != "HTTP/1.0" &&
-        request_.getVersion() != "HTTP/1.1") {
+    if (request_.getVersion() != "HTTP/1.1") {
       SPDLOG_DEBUG("VERSION ERROR... {}", request_.getVersion());
       sendErrorResponseAndClose(505);
       return;
@@ -286,7 +284,7 @@ private:
   }
 
   void handleExpectHeader() {
-    auto expect = request_.getHeader("Expect");
+    auto expect = toLowerCase(request_.getHeader("Expect"));
     if (expect == "100-continue") {
       RouterResponse result =
           router_.validate(request_.getPath(), request_.getMethod());
@@ -328,7 +326,8 @@ private:
 
   void handleReadingBody() {
     bool hasContentLengthHeader = request_.getHeader("Content-Length") != "";
-    auto transferEncodingHeader = request_.getHeader("Transfer-Encoding");
+    auto transferEncodingHeader =
+        toLowerCase(request_.getHeader("Transfer-Encoding"));
 
     if (hasContentLengthHeader && transferEncodingHeader != "") {
       SPDLOG_ERROR("Content-Length and Transfer-Encoding headers both found");
@@ -518,6 +517,11 @@ private:
   }
 
   void serializeAndSendResponse(HttpResponse response) {
+    if (response.getStatusCode() == -1) {
+      SPDLOG_ERROR("Prevented: Trying to send response with status code -1");
+      return;
+    }
+
     setState(ConnectionState::WRITING_RESPONSE);
     std::vector<unsigned char> serialized = response.serialize();
     io_.enqueue(serialized);
@@ -530,7 +534,7 @@ private:
     HttpResponse response =
         errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
     if (request_.getMethod() == "HEAD")
-      response.stripBodyForHeadRequest();
+      response.stripBody();
     if (statusCode == 405)
       response.setHeader("Allow",
                          router_.getAllowedMethodsString(request_.getPath()));

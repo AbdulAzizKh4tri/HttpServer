@@ -47,6 +47,11 @@ public:
   void use(Middleware middleware) { middlewares_.push_back(middleware); }
 
   Response dispatch(HttpRequest &request) {
+
+    if (request.getMethod() == "TRACE" || request.getMethod() == "CONNECT") {
+      return errorFactory_.build(request.getHeader("Accept"), 501);
+    }
+
     const auto &requestPath = request.getPath();
     auto pathParts = split(requestPath, "/");
 
@@ -55,7 +60,7 @@ public:
     if (routeEntry == nullptr) {
       auto response = errorFactory_.build(request.getHeader("Accept"), 404);
       if (request.getMethod() == "HEAD")
-        response.stripBodyForHeadRequest();
+        response.stripBody();
       return response;
     }
 
@@ -73,7 +78,7 @@ public:
         auto response = methodIt->second(req);
         std::visit(overloaded{[&req, &response](HttpResponse &res) {
                                 if (req.getMethod() == "HEAD")
-                                  res.stripBodyForHeadRequest();
+                                  res.stripBody();
                               },
                               [&req, &response](HttpStreamResponse &stream) {
                                 if (req.getMethod() == "HEAD") {
@@ -81,7 +86,7 @@ public:
                                   for (auto &[k, v] : stream.getAllHeaders()) {
                                     res.setHeader(k, v);
                                   }
-                                  res.stripBodyForHeadRequest();
+                                  res.stripBody();
                                   response = res;
                                 }
                               }},
@@ -97,7 +102,7 @@ public:
 
       HttpResponse response = errorFactory_.build(req.getHeader("Accept"), 405);
       if (request.getMethod() == "HEAD")
-        response.stripBodyForHeadRequest();
+        response.stripBody();
       response.setHeader("Allow", allowedMethods);
       return response;
     };
