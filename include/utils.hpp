@@ -5,6 +5,7 @@
 #include <chrono>
 #include <ctime>
 #include <netinet/in.h>
+#include <nlohmann/json.hpp>
 #include <ranges>
 #include <stdexcept>
 #include <string>
@@ -107,6 +108,37 @@ inline auto getOrDefault(const Map &map, const typename Map::key_type &key,
     return it->second;
   }
   return defaultValue;
+}
+
+inline auto
+getLastOrDefault(const std::vector<std::pair<std::string, std::string>> &mp,
+                 const std::string &key, std::string defaultValue)
+    -> std::string {
+
+  auto it = std::find_if(mp.rbegin(), mp.rend(),
+                         [&key](const auto &p) { return p.first == key; });
+  if (it != mp.rend())
+    return it->second;
+  return "";
+}
+
+inline auto
+getAllValues(const std::vector<std::pair<std::string, std::string>> &mp,
+             const std::string &key) -> std::vector<std::string> {
+  std::vector<std::string> values;
+  for (auto &[k, v] : mp) {
+    if (k == key)
+      values.push_back(v);
+  }
+  return values;
+}
+
+inline auto
+toJsonObject(const std::vector<std::pair<std::string, std::string>> &pairs) {
+  nlohmann::json j = nlohmann::json::object();
+  for (const auto &[k, v] : pairs)
+    j[k] = v;
+  return j;
 }
 
 inline void normalizePath(std::string &path) {

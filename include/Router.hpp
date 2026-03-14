@@ -171,11 +171,11 @@ private:
     return it != routes_.end() ? &(*it) : nullptr;
   }
 
-  std::unordered_map<std::string, std::string>
+  std::vector<std::pair<std::string, std::string>>
   getPathParams(const std::vector<std::string> &patternParts,
                 const std::vector<std::string> &pathParts) {
 
-    std::unordered_map<std::string, std::string> pathParams;
+    std::vector<std::pair<std::string, std::string>> pathParams;
 
     for (size_t i = 0; i < patternParts.size(); i++) {
       if (patternParts[i] == "**") {
@@ -184,16 +184,17 @@ private:
           captured += pathParts[j] + "/";
         if (!captured.empty())
           captured.pop_back();
-        pathParams["**"] = captured;
+        pathParams.emplace_back("**", captured);
         return pathParams;
       }
       if (patternParts[i] == "*") {
-        pathParams["*"] = pathParts[i];
+        pathParams.emplace_back("*", pathParts[i]);
         continue;
       }
       if (patternParts[i][0] == '<' && patternParts[i].back() == '>') {
         auto paramKey = patternParts[i].substr(1, patternParts[i].size() - 2);
-        pathParams[percentDecode(paramKey)] = percentDecode(pathParts[i]);
+        pathParams.emplace_back(percentDecode(paramKey),
+                                percentDecode(pathParts[i]));
       }
     }
 

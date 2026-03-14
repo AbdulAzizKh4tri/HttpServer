@@ -9,6 +9,15 @@
 
 class HttpResponse {
 public:
+  static constexpr std::array singletonHeaders_ = {
+      std::string_view("content-length"),
+      std::string_view("content-type"),
+      std::string_view("transfer-encoding"),
+      std::string_view("date"),
+      std::string_view("server"),
+      std::string_view("location"),
+  };
+
   static std::string statusText(int statusCode) {
     return getOrDefault(statusStrings_, statusCode, "Unknown");
   };
@@ -73,8 +82,40 @@ public:
     return serializedResponse;
   }
 
+  std::string getHeader(const std::string &name) const {
+    return getLastOrDefault(headers_, toLowerCase(name), "");
+  }
+
+  std::vector<std::string> getHeaders(const std::string &name) const {
+    return getAllValues(headers_, toLowerCase(name));
+  }
+
+  std::vector<std::pair<std::string, std::string>> getAllHeaders() const {
+    return headers_;
+  }
+
   void setHeader(const std::string &name, const std::string &value) {
-    headers_[toLowerCase(name)] = value;
+    std::string lowerKey = toLowerCase(name);
+    std::erase_if(headers_,
+                  [&lowerKey](const auto &p) { return p.first == lowerKey; });
+    headers_.emplace_back(lowerKey, value);
+  }
+
+  void addHeader(const std::string &name, const std::string &value) {
+    auto key = toLowerCase(name);
+    if (std::ranges::contains(singletonHeaders_, key)) {
+      if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) {
+            return p.first == key;
+          }) == headers_.end())
+        headers_.emplace_back(key, value);
+      return;
+    }
+    headers_.emplace_back(key, value);
+  }
+
+  void removeHeader(const std::string &name) {
+    auto key = toLowerCase(name);
+    std::erase_if(headers_, [&key](const auto &p) { return p.first == key; });
   }
 
   void setBody(const std::string &body) {
@@ -93,17 +134,10 @@ public:
   std::string getVersion() const { return version_; }
   int getStatusCode() const { return statusCode_; }
 
-  std::string getHeader(const std::string &name) const {
-    return getOrDefault(headers_, toLowerCase(name), "");
-  }
-  std::unordered_map<std::string, std::string> getAllHeaders() const {
-    return headers_;
-  }
-
 private:
   std::string body_, version_ = "HTTP/1.1";
   int statusCode_;
-  std::unordered_map<std::string, std::string> headers_;
+  std::vector<std::pair<std::string, std::string>> headers_;
 
   inline static const std::unordered_map<int, std::string> statusStrings_ = {
       // 1xx Informational

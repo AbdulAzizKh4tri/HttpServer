@@ -8,6 +8,7 @@
 #include "HttpServer.hpp"
 #include "Router.hpp"
 #include "logUtils.hpp"
+#include "utils.hpp"
 
 using json = nlohmann::json;
 
@@ -55,7 +56,7 @@ int main() {
   // Returns all query-string params as a JSON object.
   // e.g. ?name=Alice&foo=bar  →  {"name":"Alice","foo":"bar"}
   router.get("/tests/echo", [](const HttpRequest &request) {
-    json j(request.getAllQueryParams());
+    json j = toJsonObject(request.getAllQueryParams());
     auto res = HttpResponse(200, j.dump());
     res.setHeader("Content-Type", "application/json");
     return res;
@@ -86,7 +87,7 @@ int main() {
   // Keys are lowercased (that's how they're stored internally).
   // Useful for verifying CORS headers, Host, custom headers, etc.
   router.get("/tests/headers", [](const HttpRequest &request) {
-    json j(request.getAllHeaders());
+    json j = toJsonObject(request.getAllHeaders());
     auto res = HttpResponse(200, j.dump());
     res.setHeader("Content-Type", "application/json");
     return res;
@@ -145,7 +146,7 @@ int main() {
   // e.g. ?name=John%20Doe  →  {"name":"John Doe"}
   // e.g. ?key%20hi=val     →  {"key hi":"val"}
   router.get("/tests/decode/query", [](const HttpRequest &request) {
-    json j(request.getAllQueryParams());
+    json j = toJsonObject(request.getAllQueryParams());
     auto res = HttpResponse(200, j.dump());
     res.setHeader("Content-Type", "application/json");
     return res;

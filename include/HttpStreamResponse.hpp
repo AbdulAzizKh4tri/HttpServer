@@ -83,16 +83,40 @@ public:
     return serializedHeader;
   }
 
-  void setHeader(const std::string &name, const std::string &value) {
-    headers_[toLowerCase(name)] = value;
-  }
-
   std::string getHeader(const std::string &name) const {
-    return getOrDefault(headers_, toLowerCase(name), "");
+    return getLastOrDefault(headers_, toLowerCase(name), "");
   }
 
-  std::unordered_map<std::string, std::string> getAllHeaders() const {
+  std::vector<std::string> getHeaders(const std::string &name) const {
+    return getAllValues(headers_, toLowerCase(name));
+  }
+
+  std::vector<std::pair<std::string, std::string>> getAllHeaders() const {
     return headers_;
+  }
+
+  void setHeader(const std::string &name, const std::string &value) {
+    std::string lowerKey = toLowerCase(name);
+    std::erase_if(headers_,
+                  [&lowerKey](const auto &p) { return p.first == lowerKey; });
+    headers_.emplace_back(lowerKey, value);
+  }
+
+  void addHeader(const std::string &name, const std::string &value) {
+    auto key = toLowerCase(name);
+    if (std::ranges::contains(HttpResponse::singletonHeaders_, key)) {
+      if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) {
+            return p.first == key;
+          }) == headers_.end())
+        headers_.emplace_back(key, value);
+      return;
+    }
+    headers_.emplace_back(key, value);
+  }
+
+  void removeHeader(const std::string &name) {
+    auto key = toLowerCase(name);
+    std::erase_if(headers_, [&key](const auto &p) { return p.first == key; });
   }
 
   std::string getVersion() const { return version_; }
@@ -101,7 +125,7 @@ public:
 private:
   int statusCode_;
   std::string version_ = "HTTP/1.1";
-  std::unordered_map<std::string, std::string> headers_;
+  std::vector<std::pair<std::string, std::string>> headers_;
 
   NextChunkLambda nextChunkLambda_;
 };

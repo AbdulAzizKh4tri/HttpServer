@@ -3,7 +3,6 @@
 #include <charconv>
 #include <expected>
 #include <spdlog/spdlog.h>
-#include <unordered_map>
 
 #include "utils.hpp"
 
@@ -18,6 +17,12 @@ class HttpRequest {
 public:
   static constexpr size_t MAX_HEADER_SIZE = 8 * 1024;
   static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
+
+  static constexpr std::array singletonHeaders_ = {
+      std::string_view("host"),          std::string_view("content-length"),
+      std::string_view("content-type"),  std::string_view("transfer-encoding"),
+      std::string_view("authorization"), std::string_view("expect"),
+  };
 
   HttpRequest() {}
 
@@ -94,12 +99,7 @@ public:
       auto key = line.substr(0, pos);
       auto value = line.substr(pos + 1);
       trim(value);
-
-      // After v1.2 revamp, this should be optimized
-      if (toLowerCase(key) == "host" && getHeader("Host") != "")
-        continue;
-
-      setHeader(std::string(key), std::string(value));
+      addHeader(std::string(key), std::string(value));
     }
   }
 
@@ -127,10 +127,10 @@ public:
         auto eqpos = pair.find('=');
         if (eqpos != std::string_view::npos) {
           const auto &val = percentDecode(pair.substr(eqpos + 1));
-          queryParams_[percentDecode(pair.substr(0, eqpos))] =
-              val == "" ? "true" : val;
+          queryParams_.emplace_back(percentDecode(pair.substr(0, eqpos)),
+                                    val == "" ? "true" : val);
         } else {
-          queryParams_[percentDecode(pair)] = "true";
+          queryParams_.emplace_back(percentDecode(pair), "true");
         }
 
         if (paramDelim == std::string_view::npos)
@@ -157,44 +157,73 @@ public:
     return len;
   }
 
-  void setHeader(const std::string &key, const std::string &value) {
-    headers_[toLowerCase(key)] = value;
-  }
-
   std::string getHeader(const std::string &name) const {
-    return getOrDefault(headers_, toLowerCase(name), "");
+    return getLastOrDefault(headers_, toLowerCase(name), "");
   }
 
-  std::unordered_map<std::string, std::string> getAllHeaders() const {
+  std::vector<std::string> getHeaders(const std::string &name) const {
+    return getAllValues(headers_, toLowerCase(name));
+  }
+
+  std::vector<std::pair<std::string, std::string>> getAllHeaders() const {
     return headers_;
   }
 
+  void setHeader(const std::string &name, const std::string &value) {
+    std::string key = toLowerCase(name);
+    std::erase_if(headers_, [&key](const auto &p) { return p.first == key; });
+    headers_.emplace_back(key, value);
+  }
+
+  void addHeader(const std::string &name, const std::string &value) {
+    auto key = toLowerCase(name);
+    if (std::ranges::contains(singletonHeaders_, key)) {
+      if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) {
+            return p.first == key;
+          }) == headers_.end())
+        headers_.emplace_back(key, value);
+      return;
+    }
+    headers_.emplace_back(key, value);
+  }
+
+  void removeHeader(const std::string &name) {
+    auto key = toLowerCase(name);
+    std::erase_if(headers_, [&key](const auto &p) { return p.first == key; });
+  }
+
   void setAttribute(const std::string &key, const std::string &value) {
-    attributes_[key] = value;
+    std::erase_if(attributes_,
+                  [&key](const auto &p) { return p.first == key; });
+    attributes_.emplace_back(key, value);
   }
 
   std::string getAttribute(const std::string &key) const {
-    return getOrDefault(attributes_, key, "");
+    return getLastOrDefault(attributes_, key, "");
   }
 
   std::string getQueryParam(const std::string &key) const {
-    return getOrDefault(queryParams_, key, "");
+    return getLastOrDefault(queryParams_, key, "");
   }
 
-  std::unordered_map<std::string, std::string> getAllQueryParams() const {
+  std::vector<std::string> getQueryParams(const std::string &key) const {
+    return getAllValues(queryParams_, key);
+  }
+
+  std::vector<std::pair<std::string, std::string>> getAllQueryParams() const {
     return queryParams_;
   }
 
   std::string getPathParam(const std::string &key) const {
-    return getOrDefault(pathParams_, key, "");
+    return getLastOrDefault(pathParams_, key, "");
   }
 
   void setPathParams(
-      const std::unordered_map<std::string, std::string> &pathParams) {
+      const std::vector<std::pair<std::string, std::string>> &pathParams) {
     pathParams_ = pathParams;
   }
 
-  std::unordered_map<std::string, std::string> getAllPathParams() const {
+  std::vector<std::pair<std::string, std::string>> getAllPathParams() const {
     return pathParams_;
   }
 
@@ -215,7 +244,7 @@ public:
   void setPort(uint16_t port) { port_ = port; }
 
 private:
-  std::unordered_map<std::string, std::string> headers_, queryParams_,
+  std::vector<std::pair<std::string, std::string>> headers_, queryParams_,
       attributes_, pathParams_;
   std::string method_, rawPath_, path_, version_, body_, ip_;
   uint16_t port_ = 0;
