@@ -29,7 +29,7 @@ public:
       if (!isOriginAllowed(origin))
         return response;
 
-	  response.setHeader("Vary", "origin");
+      response.addHeader("Vary", "origin");
       response.setHeader("Access-Control-Allow-Origin", origin);
       response.setHeader("Access-Control-Allow-Methods", allowedMethods);
       response.setHeader("Access-Control-Allow-Headers",
