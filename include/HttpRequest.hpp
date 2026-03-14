@@ -43,104 +43,6 @@ public:
     return true;
   }
 
-  bool parseRequestLine(std::string_view requestLine) {
-    auto method_end = requestLine.find(' ');
-    if (method_end == std::string_view::npos)
-      return false;
-
-    method_ = requestLine.substr(0, method_end);
-    requestLine.remove_prefix(method_end + 1);
-
-    auto path_end = requestLine.find(' ');
-    if (path_end == std::string_view::npos)
-      return false;
-
-    std::string_view rawPath = requestLine.substr(0, path_end);
-    rawPath_ = rawPath;
-
-    auto hostStart = rawPath.find("://");
-    if (hostStart != std::string_view::npos) {
-      rawPath.remove_prefix(hostStart + 3);
-      // host ends at either '/' or '?' or end of string
-      auto hostEnd = rawPath.find_first_of("/?");
-      if (hostEnd != std::string_view::npos) {
-        setHeader("Host", std::string(rawPath.substr(0, hostEnd)));
-        rawPath.remove_prefix(hostEnd);
-      } else {
-        setHeader("Host", std::string(rawPath));
-        rawPath = "/"; // host with no path — treat as root
-      }
-    }
-
-    parsePathAndQueryParams(rawPath);
-    requestLine.remove_prefix(path_end + 1);
-
-    version_ = requestLine;
-    return true;
-  }
-
-  void parseRequestHeaders(std::string_view headerView) {
-    while (!headerView.empty()) {
-      auto lineEnd = headerView.find('\n');
-      auto line = lineEnd == std::string_view::npos
-                      ? headerView
-                      : headerView.substr(0, lineEnd);
-
-      headerView.remove_prefix(
-          lineEnd == std::string_view::npos ? headerView.size() : lineEnd + 1);
-
-      if (!line.empty() && line.back() == '\r')
-        line.remove_suffix(1);
-
-      auto pos = line.find(':');
-      if (pos == std::string_view::npos)
-        continue;
-
-      auto key = line.substr(0, pos);
-      auto value = line.substr(pos + 1);
-      trim(value);
-      addHeader(std::string(key), std::string(value));
-    }
-  }
-
-  void parsePathAndQueryParams(std::string_view rawPathView) {
-    auto qpos = rawPathView.find('?');
-    if (qpos == std::string_view::npos) {
-      path_ = rawPathView;
-      normalizePath(path_);
-    } else {
-      path_ = rawPathView.substr(0, qpos);
-      normalizePath(path_);
-
-      rawPathView.remove_prefix(qpos + 1);
-      auto fragmentpos = rawPathView.find('#');
-      if (fragmentpos != std::string_view::npos) {
-        rawPathView.remove_suffix(rawPathView.size() - fragmentpos);
-      }
-
-      for (;;) {
-        auto paramDelim = rawPathView.find('&');
-        auto pair = paramDelim == std::string_view::npos
-                        ? rawPathView
-                        : rawPathView.substr(0, paramDelim);
-
-        auto eqpos = pair.find('=');
-        if (eqpos != std::string_view::npos) {
-          const auto &val = percentDecode(pair.substr(eqpos + 1));
-          queryParams_.emplace_back(percentDecode(pair.substr(0, eqpos)),
-                                    val == "" ? "true" : val);
-        } else {
-          queryParams_.emplace_back(percentDecode(pair), "true");
-        }
-
-        if (paramDelim == std::string_view::npos)
-          break;
-
-        rawPathView.remove_prefix(paramDelim + 1);
-      }
-    }
-  }
-
   std::expected<size_t, ContentLengthError> getContentLength() const {
     auto lenStr = getHeader("Content-Length");
     if (lenStr == "")
@@ -248,4 +150,102 @@ private:
       attributes_, pathParams_;
   std::string method_, rawPath_, path_, version_, body_, ip_;
   uint16_t port_ = 0;
+
+  bool parseRequestLine(std::string_view requestLine) {
+    auto method_end = requestLine.find(' ');
+    if (method_end == std::string_view::npos)
+      return false;
+
+    method_ = requestLine.substr(0, method_end);
+    requestLine.remove_prefix(method_end + 1);
+
+    auto path_end = requestLine.find(' ');
+    if (path_end == std::string_view::npos)
+      return false;
+
+    std::string_view rawPath = requestLine.substr(0, path_end);
+    rawPath_ = rawPath;
+
+    auto hostStart = rawPath.find("://");
+    if (hostStart != std::string_view::npos) {
+      rawPath.remove_prefix(hostStart + 3);
+      // host ends at either '/' or '?' or end of string
+      auto hostEnd = rawPath.find_first_of("/?");
+      if (hostEnd != std::string_view::npos) {
+        setHeader("Host", std::string(rawPath.substr(0, hostEnd)));
+        rawPath.remove_prefix(hostEnd);
+      } else {
+        setHeader("Host", std::string(rawPath));
+        rawPath = "/"; // host with no path — treat as root
+      }
+    }
+
+    parsePathAndQueryParams(rawPath);
+    requestLine.remove_prefix(path_end + 1);
+
+    version_ = requestLine;
+    return true;
+  }
+
+  void parseRequestHeaders(std::string_view headerView) {
+    while (!headerView.empty()) {
+      auto lineEnd = headerView.find('\n');
+      auto line = lineEnd == std::string_view::npos
+                      ? headerView
+                      : headerView.substr(0, lineEnd);
+
+      headerView.remove_prefix(
+          lineEnd == std::string_view::npos ? headerView.size() : lineEnd + 1);
+
+      if (!line.empty() && line.back() == '\r')
+        line.remove_suffix(1);
+
+      auto pos = line.find(':');
+      if (pos == std::string_view::npos)
+        continue;
+
+      auto key = line.substr(0, pos);
+      auto value = line.substr(pos + 1);
+      trim(value);
+      addHeader(std::string(key), std::string(value));
+    }
+  }
+
+  void parsePathAndQueryParams(std::string_view rawPathView) {
+    auto qpos = rawPathView.find('?');
+    if (qpos == std::string_view::npos) {
+      path_ = rawPathView;
+      normalizePath(path_);
+    } else {
+      path_ = rawPathView.substr(0, qpos);
+      normalizePath(path_);
+
+      rawPathView.remove_prefix(qpos + 1);
+      auto fragmentpos = rawPathView.find('#');
+      if (fragmentpos != std::string_view::npos) {
+        rawPathView.remove_suffix(rawPathView.size() - fragmentpos);
+      }
+
+      for (;;) {
+        auto paramDelim = rawPathView.find('&');
+        auto pair = paramDelim == std::string_view::npos
+                        ? rawPathView
+                        : rawPathView.substr(0, paramDelim);
+
+        auto eqpos = pair.find('=');
+        if (eqpos != std::string_view::npos) {
+          const auto &val = percentDecode(pair.substr(eqpos + 1));
+          queryParams_.emplace_back(percentDecode(pair.substr(0, eqpos)),
+                                    val == "" ? "true" : val);
+        } else {
+          queryParams_.emplace_back(percentDecode(pair), "true");
+        }
+
+        if (paramDelim == std::string_view::npos)
+          break;
+
+        rawPathView.remove_prefix(paramDelim + 1);
+      }
+    }
+  }
 };
