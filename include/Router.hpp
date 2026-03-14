@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -14,10 +15,14 @@
 #include "utils.hpp"
 
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
-struct RouteEntry {
-  std::string pattern;
-  std::vector<std::string> patternParts;
+
+struct RouteNode {
+  std::unordered_map<std::string, RouteNode> children;
+  std::unique_ptr<RouteNode> paramChild;
+  std::unique_ptr<RouteNode> wildcardChild;
+  std::unique_ptr<RouteNode> deepWildcardChild;
   std::unordered_map<std::string, Handler> requestHandlers;
+  std::vector<std::string> patternParts;
 };
 
 class Router {
@@ -55,20 +60,20 @@ public:
     const auto &requestPath = request.getPath();
     auto pathParts = split(requestPath, "/");
 
-    auto routeEntry = findMatchingRouteEntry(pathParts);
+    auto pathNode = findMatchingRouteEntry(pathParts);
 
-    if (routeEntry == nullptr) {
+    if (pathNode == nullptr) {
       auto response = errorFactory_.build(request.getHeader("Accept"), 404);
       if (request.getMethod() == "HEAD")
         response.stripBody();
       return response;
     }
 
-    auto &definedMethods = routeEntry->requestHandlers;
-    auto allowedMethods = getAllowedMethodsString(requestPath);
+    auto &definedMethods = pathNode->requestHandlers;
+    auto allowedMethods = getAllowedMethodsString(pathNode);
     request.setAttribute("allowedMethods", allowedMethods);
 
-    auto pathParams = getPathParams(routeEntry->patternParts, pathParts);
+    const auto &pathParams = getPathParams(pathNode->patternParts, pathParts);
     request.setPathParams(pathParams);
 
     Handler terminal = [&](const HttpRequest &req) -> Response {
@@ -114,11 +119,11 @@ public:
     auto lookupMethod = (method == "HEAD") ? "GET" : method;
 
     auto pathParts = split(path, "/");
-    auto routeEntry = findMatchingRouteEntry(pathParts);
-    if (routeEntry == nullptr)
+    auto pathNode = findMatchingRouteEntry(pathParts);
+    if (pathNode == nullptr)
       return RouterResponse::NOT_FOUND;
 
-    if (!routeEntry->requestHandlers.contains(lookupMethod))
+    if (!pathNode->requestHandlers.contains(lookupMethod))
       return RouterResponse::METHOD_NOT_ALLOWED;
 
     return RouterResponse::OK;
@@ -127,11 +132,15 @@ public:
   std::string getAllowedMethodsString(const std::string &path) {
 
     auto pathParts = split(path, "/");
-    auto routeEntry = findMatchingRouteEntry(pathParts);
-    if (routeEntry == nullptr)
+    auto pathNode = findMatchingRouteEntry(pathParts);
+    return getAllowedMethodsString(pathNode);
+  }
+
+  std::string getAllowedMethodsString(const RouteNode *pathNode) {
+    if (pathNode == nullptr)
       return "";
 
-    auto methods = routeEntry->requestHandlers;
+    auto methods = pathNode->requestHandlers;
 
     std::string result;
     for (const auto &[method, _] : methods) {
@@ -146,7 +155,7 @@ public:
   }
 
 private:
-  std::vector<RouteEntry> routes_;
+  RouteNode pathTreeRoot_;
   std::vector<Middleware> middlewares_;
   ErrorFactory &errorFactory_;
 
@@ -161,14 +170,26 @@ private:
     return middleware(request, next);
   }
 
-  RouteEntry *
-  findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
-    auto it = std::find_if(routes_.begin(), routes_.end(),
-                           [&](const RouteEntry &entry) {
-                             return matches(entry.patternParts, pathParts);
-                           });
+  RouteNode *findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
+    RouteNode *node = &pathTreeRoot_;
 
-    return it != routes_.end() ? &(*it) : nullptr;
+    for (const auto &part : pathParts) {
+      if (node->children.contains(part)) {
+        node = &node->children[part];
+      } else if (node->paramChild) {
+        node = node->paramChild.get();
+      } else if (node->wildcardChild) {
+        node = node->wildcardChild.get();
+      } else if (node->deepWildcardChild) {
+        node = node->deepWildcardChild.get();
+        break;
+      } else {
+        return nullptr;
+      }
+    }
+    if (node->requestHandlers.empty())
+      return nullptr;
+    return node;
   }
 
   std::vector<std::pair<std::string, std::string>>
@@ -203,31 +224,43 @@ private:
 
   void addRoute(const std::string &routePattern, const std::string &method,
                 const Handler &handler) {
-
     auto pattern = routePattern;
     normalizePath(pattern);
-    validatePattern(pattern);
+    auto patternParts = split(pattern, "/");
+    validatePattern(pattern, patternParts);
 
-    auto it = std::find_if(
-        routes_.begin(), routes_.end(),
-        [&](const RouteEntry &entry) { return entry.pattern == pattern; });
+    RouteNode *node = &pathTreeRoot_;
 
-    if (it != routes_.end()) {
-      if (it->requestHandlers.contains(method))
-        throw std::invalid_argument("Duplicate route: " + pattern);
-      it->requestHandlers[method] = handler;
-    } else {
-      RouteEntry entry;
-      entry.pattern = pattern;
-      entry.patternParts = split(pattern, "/");
-      entry.requestHandlers[method] = handler;
-      routes_.push_back(entry);
+    for (const auto &part : patternParts) {
+      if (part.starts_with('<') && part.ends_with('>')) {
+        if (!node->paramChild) {
+          node->paramChild = std::make_unique<RouteNode>();
+        }
+        node = node->paramChild.get();
+      } else if (part == "**") {
+        if (!node->deepWildcardChild) {
+          node->deepWildcardChild = std::make_unique<RouteNode>();
+        }
+        node = node->deepWildcardChild.get();
+      } else if (part == "*") {
+        if (!node->wildcardChild) {
+          node->wildcardChild = std::make_unique<RouteNode>();
+        }
+        node = node->wildcardChild.get();
+      } else {
+        node = &node->children[part];
+      }
     }
+
+    if (node->requestHandlers.contains(method))
+      throw std::invalid_argument("Duplicate route: " + pattern);
+    node->requestHandlers[method] = handler;
+    node->patternParts = std::move(patternParts);
   }
 
-  void validatePattern(const std::string &pattern) {
+  void validatePattern(const std::string &pattern,
+                       const std::vector<std::string> &parts) {
 
-    auto parts = split(pattern, "/");
     std::unordered_set<std::string> params;
 
     auto isValidParamChar = [](char c) { return std::isalnum(c) || c == '_'; };
@@ -260,25 +293,5 @@ private:
         params.insert(param);
       }
     }
-  }
-
-  bool matches(const std::vector<std::string> &patternParts,
-               const std::vector<std::string> &pathParts) {
-
-    size_t i;
-    for (i = 0; i < patternParts.size(); i++) {
-      if (i >= pathParts.size())
-        return false;
-      if (patternParts[i] == "**")
-        return true;
-      if (patternParts[i] == "*")
-        continue;
-      if (patternParts[i][0] == '<' && patternParts[i].back() == '>')
-        continue;
-      if (patternParts[i] != pathParts[i])
-        return false;
-    }
-
-    return i == pathParts.size();
   }
 };
