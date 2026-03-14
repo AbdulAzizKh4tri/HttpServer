@@ -1,5 +1,6 @@
 #pragma once
 
+#include <csignal>
 #include <cstdint>
 #include <memory>
 #include <openssl/ssl.h>
@@ -52,6 +53,8 @@ public:
   void setRouter(Router &router) { router_ = &router; };
 
   void run() {
+    signal(SIGPIPE, SIG_IGN);
+
     if (!router_)
       throw std::runtime_error("Call setRouter() before run()");
 
@@ -132,7 +135,7 @@ private:
   void handleTimerEvent(int timerFd) {
     uint64_t val;
     size_t n =
-        ::read(timerFd, &val, sizeof(val)); // must drain — level triggered 
+        ::read(timerFd, &val, sizeof(val)); // must drain — level triggered
     auto &conn = timerConnections_.at(timerFd);
     conn->onTimeout();
     closeConnection(conn->getFd());
