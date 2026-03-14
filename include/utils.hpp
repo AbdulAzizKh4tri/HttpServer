@@ -205,3 +205,14 @@ inline const std::string &getCurrentHttpDate() {
   }
   return cached;
 }
+
+inline bool mime_match(std::string_view p, std::string_view v) {
+  if (p == "*/*")
+    return true;
+  auto ps = p.find('/'), vs = v.find('/');
+  if (ps == std::string_view::npos || vs == std::string_view::npos)
+    return false;
+  return (p[0] == '*' || v[0] == '*' || p.substr(0, ps) == v.substr(0, vs)) &&
+         (p[ps + 1] == '*' || v[vs + 1] == '*' ||
+          p.substr(ps + 1) == v.substr(vs + 1));
+}

@@ -54,7 +54,7 @@ public:
   Response dispatch(HttpRequest &request) {
 
     if (request.getMethod() == "TRACE" || request.getMethod() == "CONNECT") {
-      return errorFactory_.build(request.getHeader("Accept"), 501);
+      return errorFactory_.build(request, 501);
     }
 
     const auto &requestPath = request.getPath();
@@ -63,7 +63,7 @@ public:
     auto pathNode = findMatchingRouteEntry(pathParts);
 
     if (pathNode == nullptr) {
-      auto response = errorFactory_.build(request.getHeader("Accept"), 404);
+      auto response = errorFactory_.build(request, 404);
       if (request.getMethod() == "HEAD")
         response.stripBody();
       return response;
@@ -105,7 +105,7 @@ public:
         return response;
       }
 
-      HttpResponse response = errorFactory_.build(req.getHeader("Accept"), 405);
+      HttpResponse response = errorFactory_.build(req, 405);
       if (request.getMethod() == "HEAD")
         response.stripBody();
       response.setHeader("Allow", allowedMethods);

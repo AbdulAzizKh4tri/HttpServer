@@ -532,7 +532,7 @@ private:
   HttpResponse buildErrorResponse(int statusCode,
                                   const std::string &message = "") {
     HttpResponse response =
-        errorFactory_.build(request_.getHeader("Accept"), statusCode, message);
+        errorFactory_.build(request_, statusCode, message);
     if (request_.getMethod() == "HEAD")
       response.stripBody();
     if (statusCode == 405)
