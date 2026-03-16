@@ -47,13 +47,21 @@ inline PeerAddress resolvePeerAddress(sockaddr_storage addr, socklen_t len) {
 
 inline std::string
 getCommaSeparatedString(const std::vector<std::string> &strings) {
+
+  if (strings.empty())
+    return {};
+
+  size_t total = 2 * (strings.size() - 1); // ", " separators
+  for (auto &s : strings)
+    total += s.size();
+
   std::string result;
-  for (auto &&s : strings) {
-    result += s + ", ";
-  }
-  if (!strings.empty()) {
-    result.pop_back();
-    result.pop_back();
+  result.reserve(total);
+
+  for (size_t i = 0; i < strings.size(); i++) {
+    if (i > 0)
+      result += ", ";
+    result += strings[i];
   }
   return result;
 }

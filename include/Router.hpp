@@ -144,7 +144,8 @@ public:
 
     std::string result;
     for (const auto &[method, _] : methods) {
-      result += method + ", ";
+      result += method;
+      result += ", ";
       if (method == "GET")
         result += "HEAD, ";
     }
