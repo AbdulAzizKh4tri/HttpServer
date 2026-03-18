@@ -1,13 +1,13 @@
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
 
+#include "Generator.hpp"
 #include "HttpResponse.hpp"
 
-using NextChunkLambda = std::function<std::optional<std::string>()>;
+using NextChunkGenerator = Generator<std::string>;
 
 class HttpStreamResponse {
 public:
@@ -35,13 +35,16 @@ public:
     setHeader("Server", "Azooz's Chad Compiled C++ Server");
   }
 
-  HttpStreamResponse(int statusCode, NextChunkLambda nextChunkLambda)
-      : statusCode_(statusCode), nextChunkLambda_(nextChunkLambda) {
+  HttpStreamResponse(int statusCode, NextChunkGenerator nextChunkGenerator)
+      : statusCode_(statusCode),
+        nextChunkGenerator_(std::move(nextChunkGenerator)) {
     setHeader("Server", "Azooz's Chad Compiled C++ Server");
     setHeader("Transfer-Encoding", "chunked");
   }
 
-  std::optional<std::string> getNextChunk() { return nextChunkLambda_(); }
+  std::optional<std::string> getNextChunk() {
+    return nextChunkGenerator_.next();
+  }
 
   std::vector<unsigned char> getSerializedHeader() const {
 
@@ -127,5 +130,5 @@ private:
   std::string version_ = "HTTP/1.1";
   std::vector<std::pair<std::string, std::string>> headers_;
 
-  NextChunkLambda nextChunkLambda_;
+  NextChunkGenerator nextChunkGenerator_;
 };

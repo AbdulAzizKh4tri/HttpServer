@@ -222,33 +222,28 @@ int main() {
   // A handful of small named chunks. Assembled body: "Hello, World!"
   // The canonical "does streaming work at all" check.
   router.get("/tests/stream/basic", [](const HttpRequest &) {
-    std::vector<std::string> chunks = {"Hello", ", ", "World", "!"};
-    return HttpStreamResponse(
-        200, [chunks, i = 0]() mutable -> std::optional<std::string> {
-          if (i == (int)chunks.size())
-            return std::nullopt;
-          return chunks[i++];
-        });
+    auto gen = []() -> Generator<std::string> {
+      co_yield "Hello";
+      co_yield ", ";
+      co_yield "World";
+      co_yield "!";
+    }();
+    return HttpStreamResponse(200, std::move(gen));
   });
 
   // GET /tests/stream/single
   // Exactly one chunk, then done. Assembled body: "hello"
   router.get("/tests/stream/single", [](const HttpRequest &) {
-    return HttpStreamResponse(
-        200, [done = false]() mutable -> std::optional<std::string> {
-          if (done)
-            return std::nullopt;
-          done = true;
-          return "hello";
-        });
+    auto gen = []() -> Generator<std::string> { co_yield "hello"; }();
+    return HttpStreamResponse(200, std::move(gen));
   });
 
   // GET /tests/stream/empty
   // Returns nullopt on the very first call — terminal chunk immediately.
   // Assembled body is empty, status still 200.
   router.get("/tests/stream/empty", [](const HttpRequest &) {
-    return HttpStreamResponse(
-        200, []() -> std::optional<std::string> { return std::nullopt; });
+    auto gen = []() -> Generator<std::string> { co_return; }();
+    return HttpStreamResponse(200, std::move(gen));
   });
 
   // GET /tests/stream/count/<n>
@@ -259,15 +254,17 @@ int main() {
   //   constructed, generateResponse() catches it → plain 500 JSON response.
   //   This is intentional; the caller is responsible for valid input.
   router.get("/tests/stream/count/<n>", [](const HttpRequest &request) {
-    int n = std::stoi(request.getPathParam("n")); // throws on bad input → 500
+    int n = std::stoi(request.getPathParam(
+        "n")); // throws here → caught by generateResponse → 500
     if (n < 0)
       n = 0;
-    return HttpStreamResponse(
-        200, [n, i = 0]() mutable -> std::optional<std::string> {
-          if (i >= n)
-            return std::nullopt;
-          return "chunk-" + std::to_string(++i);
-        });
+
+    auto gen = [](int n) -> Generator<std::string> {
+      for (int i = 0; i < n; i++)
+        co_yield "chunk-" + std::to_string(i + 1);
+    }(n);
+
+    return HttpStreamResponse(200, std::move(gen));
   });
 
   // GET /tests/stream/throw
@@ -277,12 +274,12 @@ int main() {
   // closes cleanly. Status is still 200 (headers already sent).
   // Assembled body: "chunk-1chunk-2Internal Server Error"
   router.get("/tests/stream/throw", [](const HttpRequest &) {
-    return HttpStreamResponse(
-        200, [i = 0]() mutable -> std::optional<std::string> {
-          if (i++ < 2)
-            return "chunk-" + std::to_string(i);
-          throw std::runtime_error("Deliberate stream error");
-        });
+    auto gen = []() -> Generator<std::string> {
+      co_yield "chunk-1";
+      co_yield "chunk-2";
+      throw std::runtime_error("Deliberate stream error");
+    }();
+    return HttpStreamResponse(200, std::move(gen));
   });
 
   // POST /tests/stream/echo
@@ -292,16 +289,17 @@ int main() {
   router.post("/tests/stream/echo", [](const HttpRequest &request) {
     std::string body = request.getBody();
     std::string ctype = request.getHeader("Content-Type");
-    auto res = HttpStreamResponse(
-        200,
-        [body, offset = size_t(0)]() mutable -> std::optional<std::string> {
-          if (offset >= body.size())
-            return std::nullopt;
-          auto len = std::min(size_t(4), body.size() - offset);
-          auto chunk = body.substr(offset, len);
-          offset += len;
-          return chunk;
-        });
+
+    auto gen = [](std::string body) -> Generator<std::string> {
+      size_t offset = 0;
+      while (offset < body.size()) {
+        auto len = std::min(size_t(4), body.size() - offset);
+        co_yield body.substr(offset, len);
+        offset += len;
+      }
+    }(std::move(body));
+
+    auto res = HttpStreamResponse(200, std::move(gen));
     if (!ctype.empty())
       res.setHeader("Content-Type", ctype);
     return res;

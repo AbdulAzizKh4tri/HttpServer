@@ -140,7 +140,7 @@ public:
     if (pathNode == nullptr)
       return "";
 
-    auto methods = pathNode->requestHandlers;
+    const auto &methods = pathNode->requestHandlers;
 
     std::string result;
     for (const auto &[method, _] : methods) {
@@ -160,8 +160,7 @@ private:
   std::vector<Middleware> middlewares_;
   ErrorFactory &errorFactory_;
 
-  Response runChain(HttpRequest &request, const Handler &handler,
-                    size_t startIndex) {
+  Response runChain(HttpRequest &request, Handler &handler, size_t startIndex) {
     if (startIndex >= middlewares_.size()) {
       return handler(request);
     }
@@ -224,7 +223,7 @@ private:
   }
 
   void addRoute(const std::string &routePattern, const std::string &method,
-                const Handler &handler) {
+                Handler &handler) {
     auto pattern = routePattern;
     normalizePath(pattern);
     auto patternParts = split(pattern, "/");
@@ -255,7 +254,7 @@ private:
 
     if (node->requestHandlers.contains(method))
       throw std::invalid_argument("Duplicate route: " + pattern);
-    node->requestHandlers[method] = handler;
+    node->requestHandlers.emplace(method, std::move(handler));
     node->patternParts = std::move(patternParts);
   }
 

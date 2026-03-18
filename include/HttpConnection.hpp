@@ -453,8 +453,8 @@ private:
     std::visit(overloaded{[this](const HttpResponse &res) {
                             serializeAndSendResponse(res);
                           },
-                          [this](const HttpStreamResponse &res) {
-                            startStreamResponse(res);
+                          [this](HttpStreamResponse &res) {
+                            startStreamResponse(std::move(res));
                           }},
                response);
   }
@@ -531,8 +531,7 @@ private:
 
   HttpResponse buildErrorResponse(int statusCode,
                                   const std::string &message = "") {
-    HttpResponse response =
-        errorFactory_.build(request_, statusCode, message);
+    HttpResponse response = errorFactory_.build(request_, statusCode, message);
     if (request_.getMethod() == "HEAD")
       response.stripBody();
     if (statusCode == 405)
