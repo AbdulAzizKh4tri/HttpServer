@@ -3,8 +3,10 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
+#include "Awaitables.hpp"
 #include "HttpRequest.hpp"
 #include "IStream.hpp"
+#include "Task.hpp"
 
 enum class ReadResult {
   DATA,
@@ -18,8 +20,7 @@ class ConnectionIO {
 public:
   ConnectionIO(std::shared_ptr<IStream> stream) : stream_(std::move(stream)) {}
 
-  ReadResult
-  drainIntoReadBuffer(size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) {
+  ReadResult drainIntoReadBuffer(size_t maxBufferSize) {
     bool gotData = false;
     for (;;) {
       if (getReadBufferSize() >= maxBufferSize)
@@ -55,7 +56,7 @@ public:
   auto writeBufferEnd() const { return writeBuffer_.end(); }
 
   bool flushFromWriteBuffer() {
-    while (getWriteBufferSize() > 0) {
+    while (hasPendingWrites()) {
       ssize_t n =
           stream_->send(std::span(writeBufferBegin(), writeBufferEnd()));
       if (n < 0)
@@ -67,6 +68,26 @@ public:
       eraseFromWriteBuffer(n);
     }
     return true;
+  }
+
+  Task<ReadResult>
+  read(size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) {
+    ReadResult result = drainIntoReadBuffer(maxBufferSize);
+    if (result == ReadResult::WOULD_BLOCK) {
+      co_await ReadAwaitable{getFd()};
+      result = drainIntoReadBuffer(maxBufferSize);
+    }
+    co_return result;
+  }
+
+  Task<bool> write() {
+    while (hasPendingWrites()) {
+      if (!flushFromWriteBuffer())
+        co_return false;
+      if (hasPendingWrites())
+        co_await WriteAwaitable{getFd()};
+    }
+    co_return true;
   }
 
   void enqueue(std::vector<unsigned char> data) {

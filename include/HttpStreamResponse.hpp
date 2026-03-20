@@ -4,10 +4,10 @@
 #include <spdlog/spdlog.h>
 #include <string>
 
-#include "Generator.hpp"
 #include "HttpResponse.hpp"
+#include "Task.hpp"
 
-using NextChunkGenerator = Generator<std::string>;
+using NextChunkFn = std::move_only_function<Task<std::optional<std::string>>()>;
 
 class HttpStreamResponse {
 public:
@@ -35,15 +35,14 @@ public:
     setHeader("Server", "Azooz's Chad Compiled C++ Server");
   }
 
-  HttpStreamResponse(int statusCode, NextChunkGenerator nextChunkGenerator)
-      : statusCode_(statusCode),
-        nextChunkGenerator_(std::move(nextChunkGenerator)) {
+  HttpStreamResponse(int statusCode, NextChunkFn nextChunkFn)
+      : statusCode_(statusCode), nextChunkFn(std::move(nextChunkFn)) {
     setHeader("Server", "Azooz's Chad Compiled C++ Server");
     setHeader("Transfer-Encoding", "chunked");
   }
 
-  std::optional<std::string> getNextChunk() {
-    return nextChunkGenerator_.next();
+  Task<std::optional<std::string>> getNextChunk() {
+    co_return co_await nextChunkFn();
   }
 
   std::vector<unsigned char> getSerializedHeader() const {
@@ -130,5 +129,5 @@ private:
   std::string version_ = "HTTP/1.1";
   std::vector<std::pair<std::string, std::string>> headers_;
 
-  NextChunkGenerator nextChunkGenerator_;
+  NextChunkFn nextChunkFn;
 };

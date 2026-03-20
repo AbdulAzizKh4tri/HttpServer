@@ -51,10 +51,10 @@ public:
 
   void use(Middleware middleware) { middlewares_.push_back(middleware); }
 
-  Response dispatch(HttpRequest &request) {
+  Task<Response> dispatch(HttpRequest &request) {
 
     if (request.getMethod() == "TRACE" || request.getMethod() == "CONNECT") {
-      return errorFactory_.build(request, 501);
+      co_return errorFactory_.build(request, 501);
     }
 
     const auto &requestPath = request.getPath();
@@ -66,7 +66,7 @@ public:
       auto response = errorFactory_.build(request, 404);
       if (request.getMethod() == "HEAD")
         response.stripBody();
-      return response;
+      co_return response;
     }
 
     auto &definedMethods = pathNode->requestHandlers;
@@ -76,43 +76,42 @@ public:
     const auto &pathParams = getPathParams(pathNode->patternParts, pathParts);
     request.setPathParams(pathParams);
 
-    Handler terminal = [&](const HttpRequest &req) -> Response {
+    Handler terminal = [&](const HttpRequest &req) -> Task<Response> {
       auto lookupMethod = req.getMethod() == "HEAD" ? "GET" : req.getMethod();
       auto methodIt = definedMethods.find(lookupMethod);
+
       if (methodIt != definedMethods.end()) {
-        auto response = methodIt->second(req);
-        std::visit(overloaded{[&req, &response](HttpResponse &res) {
-                                if (req.getMethod() == "HEAD")
-                                  res.stripBody();
-                              },
-                              [&req, &response](HttpStreamResponse &stream) {
-                                if (req.getMethod() == "HEAD") {
-                                  HttpResponse res(stream.getStatusCode());
-                                  for (auto &[k, v] : stream.getAllHeaders()) {
-                                    res.setHeader(k, v);
-                                  }
-                                  res.stripBody();
-                                  response = res;
-                                }
-                              }},
-                   response);
-        return response;
+        Response response = co_await methodIt->second(req);
+
+        if (req.getMethod() == "HEAD") {
+          if (std::holds_alternative<HttpResponse>(response)) {
+            std::get<HttpResponse>(response).stripBody();
+          } else {
+            auto &stream = std::get<HttpStreamResponse>(response);
+            HttpResponse res(stream.getStatusCode());
+            for (auto &[k, v] : stream.getAllHeaders())
+              res.setHeader(k, v);
+            res.stripBody();
+            response = res;
+          }
+        }
+        co_return response;
       }
 
       if (req.getMethod() == "OPTIONS" && req.getHeader("Origin") == "") {
         HttpResponse response(204);
         response.setHeader("Allow", allowedMethods);
-        return response;
+        co_return response;
       }
 
       HttpResponse response = errorFactory_.build(req, 405);
       if (request.getMethod() == "HEAD")
         response.stripBody();
       response.setHeader("Allow", allowedMethods);
-      return response;
+      co_return response;
     };
 
-    return runChain(request, terminal, 0);
+    co_return co_await runChain(request, terminal, 0);
   }
 
   RouterResponse validate(const std::string &path, const std::string &method) {
@@ -160,14 +159,15 @@ private:
   std::vector<Middleware> middlewares_;
   ErrorFactory &errorFactory_;
 
-  Response runChain(HttpRequest &request, Handler &handler, size_t startIndex) {
+  Task<Response> runChain(HttpRequest &request, Handler &handler,
+                          size_t startIndex) {
     if (startIndex >= middlewares_.size()) {
-      return handler(request);
+      co_return co_await handler(request);
     }
 
     auto next = [&] { return runChain(request, handler, startIndex + 1); };
     const auto &middleware = middlewares_[startIndex];
-    return middleware(request, next);
+    co_return co_await middleware(request, next);
   }
 
   RouteNode *findMatchingRouteEntry(const std::vector<std::string> &pathParts) {

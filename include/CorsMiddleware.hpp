@@ -19,7 +19,7 @@ public:
   CorsMiddleware() {}
   CorsMiddleware(CorsConfig corsConfig) : corsConfig_(corsConfig) {}
 
-  Response operator()(const HttpRequest &request, Next next) {
+  Task<Response> operator()(const HttpRequest &request, Next next) {
     std::string origin = request.getHeader("Origin");
 
     if (request.getMethod() == "OPTIONS" && origin != "") {
@@ -27,7 +27,7 @@ public:
       std::string allowedMethods = request.getAttribute("allowedMethods");
 
       if (!isOriginAllowed(origin))
-        return response;
+        co_return response;
 
       response.addHeader("Vary", "origin");
       response.setHeader("Access-Control-Allow-Origin", origin);
@@ -36,10 +36,10 @@ public:
                          getCommaSeparatedString(corsConfig_.allowedHeaders));
       response.setHeader("Access-Control-Max-Age",
                          std::to_string(corsConfig_.maxAge));
-      return response;
+      co_return response;
     }
 
-    Response response = next();
+    Response response = co_await next();
 
     std::visit(overloaded{[&origin, this](auto &res) {
                  if (origin != "" && isOriginAllowed(origin))
@@ -47,7 +47,7 @@ public:
                }},
                response);
 
-    return response;
+    co_return response;
   }
 
   void setCorsOrigins(const std::vector<std::string> &origins) {
