@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 #include "Awaitables.hpp"
+#include "ExecutorContext.hpp"
 #include "HttpRequest.hpp"
 #include "IStream.hpp"
 #include "Task.hpp"
@@ -13,7 +14,14 @@ enum class ReadResult {
   CLOSED,
   WOULD_BLOCK,
   BUFFER_LIMIT_EXCEEDED,
-  ERROR
+  ERROR,
+  TIMED_OUT,
+};
+
+enum class WriteResult {
+  OK,
+  ERROR,
+  TIMED_OUT,
 };
 
 class ConnectionIO {
@@ -71,23 +79,38 @@ public:
   }
 
   Task<ReadResult>
-  read(size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) {
+  read(std::chrono::steady_clock::time_point deadline =
+           std::chrono::steady_clock::time_point::max(),
+       size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) {
     ReadResult result = drainIntoReadBuffer(maxBufferSize);
     if (result == ReadResult::WOULD_BLOCK) {
-      co_await ReadAwaitable{getFd()};
+      co_await ReadAwaitable{getFd(), deadline};
+      if (tl_timed_out) {
+        tl_timed_out = false;
+        co_return ReadResult::TIMED_OUT;
+      }
       result = drainIntoReadBuffer(maxBufferSize);
     }
     co_return result;
   }
 
-  Task<bool> write() {
+  Task<WriteResult> write(int inactivitySeconds = 0) {
     while (hasPendingWrites()) {
-      if (!flushFromWriteBuffer())
-        co_return false;
-      if (hasPendingWrites())
-        co_await WriteAwaitable{getFd()};
+      if (not flushFromWriteBuffer())
+        co_return WriteResult::ERROR;
+
+      if (hasPendingWrites()) {
+        std::chrono::steady_clock::time_point deadline =
+            inactivitySeconds ? now() + std::chrono::seconds(inactivitySeconds)
+                              : std::chrono::steady_clock::time_point::max();
+        co_await WriteAwaitable{getFd(), deadline};
+        if (tl_timed_out) {
+          tl_timed_out = false;
+          co_return WriteResult::TIMED_OUT;
+        }
+      }
     }
-    co_return true;
+    co_return WriteResult::OK;
   }
 
   void enqueue(std::vector<unsigned char> data) {

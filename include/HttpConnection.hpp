@@ -8,6 +8,7 @@
 #include "ChunkedBodyParser.hpp"
 #include "ConnectionIO.hpp"
 #include "ErrorFactory.hpp"
+#include "ExecutorContext.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
@@ -19,6 +20,9 @@
 
 class HttpConnection {
 public:
+  static constexpr int INACTIVITY_TIMEOUT = 20;
+  static constexpr int FORMATION_TIMEOUT = 2 * 60;
+
   HttpConnection(std::shared_ptr<IStream> stream, Router &router,
                  ErrorFactory &errorFactory)
       : io_(std::move(stream)), router_(router), errorFactory_(errorFactory) {
@@ -31,6 +35,8 @@ public:
   HttpConnection &operator=(const HttpConnection &) = delete;
 
   Task<void> run() {
+    resetInactivity();
+
     if (!co_await handshake())
       co_return;
 
@@ -38,8 +44,15 @@ public:
       if (not keepAlive_)
         co_return;
 
+      formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT);
+
       if (not co_await readHeaders())
         co_return;
+
+      if (!formationArmed_) {
+        formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT);
+        formationArmed_ = true;
+      }
 
       if (request_.getHeader("Expect") != "") {
         if (not co_await handleExpectHeader())
@@ -49,6 +62,8 @@ public:
       if (not co_await readBody())
         co_return;
 
+      formationDeadline_ = std::chrono::steady_clock::time_point::max();
+
       if (not co_await generateAndSendResponse())
         co_return;
 
@@ -56,21 +71,35 @@ public:
     }
   }
 
-  Task<void> timeOut() { co_await sendErrorResponseAndClose(408); }
-
   int getFd() const { return io_.getFd(); }
   std::string getIp() const { return io_.getIp(); }
   uint16_t getPort() const { return io_.getPort(); }
 
 private:
-  bool keepAlive_ = true;
+  HttpRequest request_;
+  Router &router_;
+  ErrorFactory &errorFactory_;
 
   ConnectionIO io_;
   ChunkedBodyParser chunkParser_;
 
-  HttpRequest request_;
-  Router &router_;
-  ErrorFactory &errorFactory_;
+  bool keepAlive_ = true;
+
+  bool formationArmed_ = false;
+  std::chrono::steady_clock::time_point inactivityDeadline_ =
+      std::chrono::steady_clock::time_point::max();
+  std::chrono::steady_clock::time_point formationDeadline_ =
+      std::chrono::steady_clock::time_point::max();
+
+  void resetInactivity() {
+    inactivityDeadline_ = now() + std::chrono::seconds(INACTIVITY_TIMEOUT);
+  }
+
+  std::chrono::steady_clock::time_point activeDeadline() const {
+    return formationDeadline_ != std::chrono::steady_clock::time_point::max()
+               ? std::min(inactivityDeadline_, formationDeadline_)
+               : inactivityDeadline_;
+  }
 
   bool shouldKeepAlive() const {
     const std::string &connection =
@@ -86,10 +115,14 @@ private:
       case HandshakeResult::NO_TLS:
         co_return true;
       case HandshakeResult::WANT_READ:
-        co_await ReadAwaitable{io_.getFd()};
+        co_await ReadAwaitable{io_.getFd(), inactivityDeadline_};
+        if (tl_timed_out)
+          co_return false;
         break;
       case HandshakeResult::WANT_WRITE:
-        co_await WriteAwaitable{io_.getFd()};
+        co_await WriteAwaitable{io_.getFd(), inactivityDeadline_};
+        if (tl_timed_out)
+          co_return false;
         break;
       case HandshakeResult::ERROR:
         co_return false;
@@ -113,14 +146,23 @@ private:
         break;
       }
 
-      auto readResult = co_await io_.read();
-
-      if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR)
+      auto readResult =
+          co_await io_.read(activeDeadline(), HttpRequest::MAX_HEADER_SIZE);
+      if (readResult == ReadResult::DATA) {
+        resetInactivity();
+        if (!formationArmed_) {
+          formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT);
+          formationArmed_ = true;
+        }
+      } else if (readResult == ReadResult::CLOSED ||
+                 readResult == ReadResult::ERROR) {
         co_return false;
-
-      if (it == io_.readBufferEnd() &&
-          readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+      } else if (it == io_.readBufferEnd() &&
+                 readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
         co_await sendErrorResponseAndClose(431);
+        co_return false;
+      } else if (readResult == ReadResult::TIMED_OUT) {
+        co_await sendErrorResponseAndClose(408);
         co_return false;
       }
     }
@@ -176,7 +218,8 @@ private:
         auto responseBytes =
             std::vector<unsigned char>(response.begin(), response.end());
         io_.enqueue(responseBytes);
-        if (not co_await io_.write())
+        if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT);
+            result != WriteResult::OK)
           co_return false;
         co_return true;
       }
@@ -232,13 +275,19 @@ private:
       }
 
       // parser needs more data — now read
-      ReadResult readResult = co_await io_.read();
-      if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+      ReadResult readResult = co_await io_.read(activeDeadline());
+      if (readResult == ReadResult::DATA) {
+        resetInactivity();
+      } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
         co_await sendErrorResponseAndClose(413);
         co_return false;
-      }
-      if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR)
+      } else if (readResult == ReadResult::CLOSED ||
+                 readResult == ReadResult::ERROR) {
         co_return false;
+      } else if (readResult == ReadResult::TIMED_OUT) {
+        co_await sendErrorResponseAndClose(408);
+        co_return false;
+      }
     }
   }
 
@@ -261,14 +310,17 @@ private:
 
     size_t contentLength = contentLengthResult.value();
 
-    while (io_.getReadBufferSize() <
-           contentLength) { // read more data if body is incomplete
-      ReadResult result = co_await io_.read();
-
-      if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+    while (io_.getReadBufferSize() < contentLength) {
+      ReadResult result = co_await io_.read(activeDeadline());
+      if (result == ReadResult::DATA) {
+        resetInactivity();
+      } else if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
         co_await sendErrorResponseAndClose(413);
         co_return false;
       } else if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
+        co_return false;
+      } else if (result == ReadResult::TIMED_OUT) {
+        co_await sendErrorResponseAndClose(408);
         co_return false;
       }
     }
@@ -294,7 +346,8 @@ private:
         responseStream.getSerializedHeader();
     io_.enqueue(serializedHeader);
 
-    if (not co_await io_.write())
+    if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT);
+        result != WriteResult::OK)
       co_return false;
 
     std::optional<std::string> chunkOpt = "init";
@@ -317,7 +370,7 @@ private:
       }
 
       if (error) {
-        co_await io_.write();
+        co_await io_.write(INACTIVITY_TIMEOUT);
         co_return false;
       }
 
@@ -326,12 +379,16 @@ private:
       if (chunk.empty()) {
         io_.enqueue(HttpStreamResponse::serializeChunk(""));
         logRequest(request_, responseStream);
-        co_return co_await io_.write();
+        if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT);
+            result != WriteResult::OK)
+          co_return false;
+        co_return true;
       } else {
         io_.enqueue(HttpStreamResponse::serializeChunk(chunk));
       }
 
-      if (not co_await io_.write())
+      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT);
+          result != WriteResult::OK)
         co_return false;
     }
     std::unreachable();
@@ -346,7 +403,8 @@ private:
     std::vector<unsigned char> serialized = response.serialize();
     io_.enqueue(serialized);
     logRequest(request_, response);
-    if (not co_await io_.write())
+    if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT);
+        result != WriteResult::OK)
       co_return false;
     co_return true;
   }
@@ -398,5 +456,7 @@ private:
     request_.setIp(io_.getIp());
     request_.setPort(io_.getPort());
     chunkParser_.reset();
+    formationArmed_ = false;
+    formationDeadline_ = std::chrono::steady_clock::time_point::max();
   }
 };

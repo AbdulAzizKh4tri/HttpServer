@@ -80,7 +80,8 @@ private:
 
   Task<void> tcpAcceptLoop(ListenerSocket &listener) {
     for (;;) {
-      co_await ReadAwaitable{listener.getFd()};
+      co_await ReadAwaitable{listener.getFd(),
+                             std::chrono::steady_clock::time_point::max()};
       auto stream = std::make_shared<TcpStream>(listener.accept());
       stream->setSocketNonBlocking();
       executor_.spawn(handleConnection(std::move(stream)));
@@ -89,7 +90,8 @@ private:
 
   Task<void> tlsAcceptLoop(ListenerSocket &listener) {
     for (;;) {
-      co_await ReadAwaitable{listener.getFd()};
+      co_await ReadAwaitable{listener.getFd(),
+                             std::chrono::steady_clock::time_point::max()};
       auto stream =
           std::make_shared<TlsStream>(listener.acceptTls(tlsContext_.get()));
       stream->setSocketNonBlocking();

@@ -224,3 +224,7 @@ inline bool mime_match(std::string_view p, std::string_view v) {
          (p[ps + 1] == '*' || v[vs + 1] == '*' ||
           p.substr(ps + 1) == v.substr(vs + 1));
 }
+
+inline std::chrono::steady_clock::time_point now() {
+  return std::chrono::steady_clock::now();
+}

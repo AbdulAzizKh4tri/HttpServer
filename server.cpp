@@ -13,6 +13,7 @@
 
 using json = nlohmann::json;
 thread_local Executor *tl_executor = nullptr;
+thread_local bool tl_timed_out = false;
 
 int main() {
   configureLog(true, "");
