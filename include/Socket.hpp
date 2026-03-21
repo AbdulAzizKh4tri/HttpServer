@@ -1,55 +1,29 @@
 #pragma once
 
-#include <fcntl.h>
-#include <unistd.h>
-
 class Socket final {
 public:
   Socket(Socket const &) = delete;
   Socket &operator=(Socket const &) = delete;
 
-  Socket() { socket_fd_ = -1; }
+  Socket();
 
-  Socket(int fd) : socket_fd_(fd) {}
+  Socket(int fd);
 
-  Socket(Socket &&other) noexcept : socket_fd_(other.socket_fd_) {
-    other.socket_fd_ = -1;
-  }
+  Socket(Socket &&other) noexcept;
 
-  Socket &operator=(Socket &&other) noexcept {
-    if (this == &other)
-      return *this;
-    close_socket();
-    socket_fd_ = other.socket_fd_;
-    other.socket_fd_ = -1;
-    return *this;
-  }
+  Socket &operator=(Socket &&other) noexcept;
 
-  ~Socket() noexcept { close_socket(); }
+  ~Socket() noexcept;
 
-  int getFd() const noexcept { return socket_fd_; }
-  bool isValid() const noexcept { return socket_fd_ != -1; }
+  int getFd() const noexcept;
+  bool isValid() const noexcept;
 
-  explicit operator bool() const noexcept { return socket_fd_ != -1; }
+  explicit operator bool() const noexcept;
 
-  int release() noexcept {
-    int fd = socket_fd_;
-    socket_fd_ = -1;
-    return fd;
-  }
-
-  int setNonBlocking() {
-    int flags = fcntl(socket_fd_, F_GETFL, 0);
-    return fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK);
-  }
+  int release() noexcept;
+  int setNonBlocking();
 
 private:
   int socket_fd_;
-
-  void close_socket() {
-    if (socket_fd_ != -1) {
-      close(socket_fd_);
-      socket_fd_ = -1;
-    }
-  }
+  void close_socket();
 };

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,113 +25,38 @@ public:
     return k.size() + 2 + v.size() + 2; // "key: value\r\n"
   }
 
-  HttpResponse() : statusCode_(-1) {
-    setHeader("Server", "Azooz's Chad Compiled C++ Server");
-  }
+  HttpResponse();
 
-  HttpResponse(int statusCode) : statusCode_(statusCode) {
-    setHeader("Content-Length", std::to_string(body_.size()));
-    setHeader("Server", "Azooz's Chad Compiled C++ Server");
-  }
+  HttpResponse(int statusCode);
 
-  HttpResponse(int statusCode, std::string body)
-      : statusCode_(statusCode), body_(body) {
-    setHeader("Content-Length", std::to_string(body_.size()));
-    setHeader("Server", "Azooz's Chad Compiled C++ Server");
-  }
+  HttpResponse(int statusCode, std::string body);
 
-  std::vector<unsigned char> serialize() const {
-    const std::string &statusTxt = HttpResponse::statusText(statusCode_);
+  std::vector<unsigned char> serialize() const;
 
-    size_t size = version_.size() + 1 + 3 + 1 + statusTxt.size() + 2;
+  std::string getHeader(const std::string &name) const;
 
-    for (auto &[k, v] : headers_)
-      size += headerLineSize(k, v);
-    size += 2; // final \r\n
-    size += body_.size();
+  std::vector<std::string> getHeaders(const std::string &name) const;
 
-    std::vector<unsigned char> serializedResponse(size);
-    size_t offset = 0;
+  std::vector<std::pair<std::string, std::string>> getAllHeaders() const;
 
-    auto write = [&](std::string_view s) {
-      std::memcpy(serializedResponse.data() + offset, s.data(), s.size());
-      offset += s.size();
-    };
-    auto writeChar = [&](char c) { serializedResponse[offset++] = c; };
+  void setHeader(const std::string &name, const std::string &value);
 
-    char statusBuf[3];
-    std::to_chars(statusBuf, statusBuf + 3, statusCode_);
+  void addHeader(const std::string &name, const std::string &value);
 
-    write(version_);
-    writeChar(' ');
-    write(std::string_view(statusBuf, 3));
-    writeChar(' ');
-    write(statusTxt);
-    write("\r\n");
+  void removeHeader(const std::string &name);
 
-    for (auto &[k, v] : headers_) {
-      write(k);
-      write(": ");
-      write(v);
-      write("\r\n");
-    }
-    write("\r\n");
-    write(body_);
+  void setBody(const std::string &body);
 
-    return serializedResponse;
-  }
+  void stripBody();
 
-  std::string getHeader(const std::string &name) const {
-    return getLastOrDefault(headers_, toLowerCase(name), "");
-  }
+  void setVersion(const std::string &version);
+  void setStatusCode(int statusCode);
 
-  std::vector<std::string> getHeaders(const std::string &name) const {
-    return getAllValues(headers_, toLowerCase(name));
-  }
+  std::string getBody() const;
+  size_t getBodySize() const;
 
-  std::vector<std::pair<std::string, std::string>> getAllHeaders() const {
-    return headers_;
-  }
-
-  void setHeader(const std::string &name, const std::string &value) {
-    std::string lowerKey = toLowerCase(name);
-    std::erase_if(headers_,
-                  [&lowerKey](const auto &p) { return p.first == lowerKey; });
-    headers_.emplace_back(lowerKey, value);
-  }
-
-  void addHeader(const std::string &name, const std::string &value) {
-    auto key = toLowerCase(name);
-    if (std::ranges::contains(singletonHeaders_, key)) {
-      if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) {
-            return p.first == key;
-          }) == headers_.end())
-        headers_.emplace_back(key, value);
-      return;
-    }
-    headers_.emplace_back(key, value);
-  }
-
-  void removeHeader(const std::string &name) {
-    auto key = toLowerCase(name);
-    std::erase_if(headers_, [&key](const auto &p) { return p.first == key; });
-  }
-
-  void setBody(const std::string &body) {
-    body_ = body;
-    setHeader("Content-Length", std::to_string(body_.size()));
-  }
-
-  void stripBody() { body_ = ""; }
-
-  void setVersion(const std::string &version) { version_ = version; }
-  void setStatusCode(int statusCode) { statusCode_ = statusCode; }
-
-  std::string getBody() const { return body_; }
-  size_t getBodySize() const { return body_.size(); }
-
-  std::string getVersion() const { return version_; }
-  int getStatusCode() const { return statusCode_; }
+  std::string getVersion() const;
+  int getStatusCode() const;
 
 private:
   std::string body_, version_ = "HTTP/1.1";

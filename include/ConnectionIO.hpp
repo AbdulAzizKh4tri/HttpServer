@@ -1,10 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <spdlog/spdlog.h>
 
-#include "Awaitables.hpp"
-#include "ExecutorContext.hpp"
 #include "HttpRequest.hpp"
 #include "IStream.hpp"
 #include "Task.hpp"
@@ -26,150 +23,48 @@ enum class WriteResult {
 
 class ConnectionIO {
 public:
-  ConnectionIO(std::shared_ptr<IStream> stream) : stream_(std::move(stream)) {}
+  ConnectionIO(std::shared_ptr<IStream> stream);
 
-  ReadResult drainIntoReadBuffer(size_t maxBufferSize) {
-    bool gotData = false;
-    for (;;) {
-      if (getReadBufferSize() >= maxBufferSize)
-        return ReadResult::BUFFER_LIMIT_EXCEEDED;
+  ReadResult drainIntoReadBuffer(size_t maxBufferSize);
 
-      std::vector<unsigned char> buf(4096);
-      ReceiveResult result = stream_->receive(buf);
+  std::vector<unsigned char>::const_iterator readBufferBegin() const;
+  std::vector<unsigned char>::const_iterator readBufferEnd() const;
 
-      switch (result.status) {
-      case ReceiveResult::Status::DATA:
-        buf.resize(result.bytes);
-        readBuffer_.insert(readBuffer_.end(), buf.begin(), buf.end());
-        gotData = true;
-        break;
-      case ReceiveResult::Status::WOULD_BLOCK:
-        return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
-      case ReceiveResult::Status::CLOSED:
-        SPDLOG_DEBUG("Connection closed by peer, {}:{}", stream_->getIp(),
-                     stream_->getPort());
-        return ReadResult::CLOSED;
-      case ReceiveResult::Status::ERROR:
-        SPDLOG_ERROR("Receive error for {}:{}", stream_->getIp(),
-                     stream_->getPort());
-        return ReadResult::ERROR;
-      }
-    }
-  }
+  std::vector<unsigned char>::const_iterator writeBufferBegin() const;
+  std::vector<unsigned char>::const_iterator writeBufferEnd() const;
 
-  auto readBufferBegin() const { return readBuffer_.begin() + readOffset_; }
-  auto readBufferEnd() const { return readBuffer_.end(); }
+  bool flushFromWriteBuffer();
 
-  auto writeBufferBegin() const { return writeBuffer_.begin() + writeOffset_; }
-  auto writeBufferEnd() const { return writeBuffer_.end(); }
+  Task<ReadResult> read(std::chrono::steady_clock::time_point deadline =
+                            std::chrono::steady_clock::time_point::max(),
+                        size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH);
 
-  bool flushFromWriteBuffer() {
-    while (hasPendingWrites()) {
-      ssize_t n =
-          stream_->send(std::span(writeBufferBegin(), writeBufferEnd()));
-      if (n < 0)
-        return false; // error
-      if (n == 0) {
-        return true;
-      }
+  Task<WriteResult> write(int inactivitySeconds = 0);
 
-      eraseFromWriteBuffer(n);
-    }
-    return true;
-  }
+  void enqueue(std::vector<unsigned char> data);
 
-  Task<ReadResult>
-  read(std::chrono::steady_clock::time_point deadline =
-           std::chrono::steady_clock::time_point::max(),
-       size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) {
-    ReadResult result = drainIntoReadBuffer(maxBufferSize);
-    if (result == ReadResult::WOULD_BLOCK) {
-      co_await ReadAwaitable{getFd(), deadline};
-      if (tl_timed_out) {
-        tl_timed_out = false;
-        co_return ReadResult::TIMED_OUT;
-      }
-      result = drainIntoReadBuffer(maxBufferSize);
-    }
-    co_return result;
-  }
+  bool hasPendingWrites() const;
 
-  Task<WriteResult> write(int inactivitySeconds = 0) {
-    while (hasPendingWrites()) {
-      if (not flushFromWriteBuffer())
-        co_return WriteResult::ERROR;
+  void eraseFromReadBuffer(size_t n);
 
-      if (hasPendingWrites()) {
-        std::chrono::steady_clock::time_point deadline =
-            inactivitySeconds ? now() + std::chrono::seconds(inactivitySeconds)
-                              : std::chrono::steady_clock::time_point::max();
-        co_await WriteAwaitable{getFd(), deadline};
-        if (tl_timed_out) {
-          tl_timed_out = false;
-          co_return WriteResult::TIMED_OUT;
-        }
-      }
-    }
-    co_return WriteResult::OK;
-  }
+  void eraseFromWriteBuffer(size_t n);
 
-  void enqueue(std::vector<unsigned char> data) {
-    writeBuffer_.insert(writeBuffer_.end(), data.begin(), data.end());
-  }
+  std::string getReadBufferString(int end = -1) const;
 
-  bool hasPendingWrites() const { return getWriteBufferSize() > 0; }
+  std::string getWriteBufferString(int end = -1) const;
 
-  void eraseFromReadBuffer(size_t n) {
-    readOffset_ += n;
+  const unsigned char *readBufferData() const;
 
-    if (readOffset_ > readBuffer_.size() / 2) {
-      readBuffer_.erase(readBuffer_.begin(), readBuffer_.begin() + readOffset_);
-      readOffset_ = 0;
-    }
-  };
+  size_t getReadOffset() const;
+  size_t getWriteOffset() const;
 
-  void eraseFromWriteBuffer(size_t n) {
-    writeOffset_ += n;
+  size_t getReadBufferSize() const;
+  size_t getWriteBufferSize() const;
 
-    if (writeOffset_ > writeBuffer_.size() / 2) {
-      writeBuffer_.erase(writeBuffer_.begin(),
-                         writeBuffer_.begin() + writeOffset_);
-      writeOffset_ = 0;
-    }
-  };
-
-  std::string getReadBufferString(int end = -1) const {
-    if (end < 0)
-      return std::string(readBuffer_.begin() + readOffset_, readBuffer_.end());
-    else
-      return std::string(readBuffer_.begin() + readOffset_,
-                         readBuffer_.begin() + readOffset_ + end);
-  }
-
-  std::string getWriteBufferString(int end = -1) const {
-    if (end < 0)
-      return std::string(writeBuffer_.begin() + writeOffset_,
-                         writeBuffer_.end());
-    else
-      return std::string(writeBuffer_.begin() + writeOffset_,
-                         writeBuffer_.begin() + writeOffset_ + end);
-  }
-
-  const unsigned char *readBufferData() const {
-    return readBuffer_.data() + readOffset_;
-  }
-  size_t getReadOffset() const { return readOffset_; }
-  size_t getWriteOffset() const { return writeOffset_; }
-
-  size_t getReadBufferSize() const { return readBuffer_.size() - readOffset_; }
-  size_t getWriteBufferSize() const {
-    return writeBuffer_.size() - writeOffset_;
-  }
-
-  std::string getIp() const { return stream_->getIp(); };
-  uint16_t getPort() const { return stream_->getPort(); };
-  int getFd() const { return stream_->getFd(); };
-  HandshakeResult handshake() { return stream_->handshake(); }
+  std::string getIp() const;
+  uint16_t getPort() const;
+  int getFd() const;
+  HandshakeResult handshake();
 
 private:
   std::shared_ptr<IStream> stream_;

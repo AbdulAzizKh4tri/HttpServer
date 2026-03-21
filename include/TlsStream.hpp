@@ -6,114 +6,39 @@
 #include <openssl/ssl.h>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
+#include <vector>
 
 #include "IStream.hpp"
 #include "Socket.hpp"
-#include "utils.hpp"
 
 class TlsStream : public IStream {
 public:
-  TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len)
-      : socket_(fd) {
-    ssl_ = SSL_new(ctx);
-    if (!ssl_)
-      throw std::runtime_error("Failed to create SSL object");
-    SSL_set_fd(ssl_, fd);
-    auto [ip, port] = resolvePeerAddress(addr, len);
-    ip_ = ip;
-    port_ = port;
-  }
+  TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len);
 
-  // move constructor — transfer ownership, null out source
-  TlsStream(TlsStream &&other) noexcept
-      : socket_(std::move(other.socket_)), ssl_(other.ssl_),
-        ip_(std::move(other.ip_)), port_(other.port_) {
-    other.ssl_ = nullptr; // prevent double-free in destructor
-  }
+  TlsStream(TlsStream &&other) noexcept;
 
-  TlsStream &operator=(TlsStream &&other) noexcept {
-    if (this == &other)
-      return *this;
-    if (ssl_) {
-      SSL_shutdown(ssl_);
-      SSL_free(ssl_);
-    }
-    socket_ = std::move(other.socket_);
-    ssl_ = other.ssl_;
-    ip_ = std::move(other.ip_);
-    port_ = other.port_;
-    other.ssl_ = nullptr;
-    return *this;
-  }
+  TlsStream &operator=(TlsStream &&other) noexcept;
 
   TlsStream(TlsStream const &) = delete;
   TlsStream &operator=(TlsStream const &) = delete;
 
-  ~TlsStream() {
-    if (ssl_) {
-      SSL_shutdown(ssl_);
-      SSL_free(ssl_);
-    }
-  }
+  ~TlsStream();
 
-  HandshakeResult handshake() override {
-    int ret = SSL_accept(ssl_);
-    if (ret == 1)
-      return HandshakeResult::DONE;
+  HandshakeResult handshake() override;
 
-    int err = SSL_get_error(ssl_, ret);
-    switch (err) {
-    case SSL_ERROR_WANT_READ:
-      return HandshakeResult::WANT_READ;
-    case SSL_ERROR_WANT_WRITE:
-      return HandshakeResult::WANT_WRITE;
-    default:
-      SPDLOG_DEBUG("TLS handshake error for {}:{} — SSL error code {}", ip_,
-                   port_, err);
-      return HandshakeResult::ERROR;
-    }
-  }
+  ReceiveResult receive(std::vector<unsigned char> &buf) const override;
 
-  ReceiveResult receive(std::vector<unsigned char> &buf) const override {
-    int n = SSL_read(ssl_, buf.data(), buf.size());
-    if (n > 0)
-      return ReceiveResult::data(n);
+  ssize_t send(const std::span<const unsigned char> &data) const override;
 
-    int err = SSL_get_error(ssl_, n);
-    switch (err) {
-    case SSL_ERROR_WANT_READ:
-    case SSL_ERROR_WANT_WRITE:
-      return ReceiveResult::wouldBlock();
-    case SSL_ERROR_ZERO_RETURN: // clean TLS shutdown
-      return ReceiveResult::closed();
-    case SSL_ERROR_SYSCALL: // TCP closed without close_notify — treat as closed
-      return ReceiveResult::closed();
-    default:
-      SPDLOG_ERROR("SSL_read error for {}:{} — SSL error {}", ip_, port_, err);
-      return ReceiveResult::error();
-    }
-  }
+  std::string getIp() const override;
+  uint16_t getPort() const override;
 
-  ssize_t send(const std::span<const unsigned char> &data) const override {
-    int n = SSL_write(ssl_, data.data(), data.size());
-    if (n <= 0) {
-      int err = SSL_get_error(ssl_, n);
-      if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
-        return 0;
-      return -1;
-    }
-    return n;
-  }
+  int getFd() const override;
 
-  std::string getIp() const override { return ip_; }
-  uint16_t getPort() const override { return port_; }
-
-  int getFd() const override { return socket_.getFd(); }
-
-  int setSocketNonBlocking() { return socket_.setNonBlocking(); }
+  int setSocketNonBlocking();
 
 private:
-  Socket socket_; // your existing class, just manages the fd
+  Socket socket_;
   SSL *ssl_ = nullptr;
   std::string ip_;
   uint16_t port_;

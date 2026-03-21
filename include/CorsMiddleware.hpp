@@ -4,9 +4,7 @@
 #include <vector>
 
 #include "HttpRequest.hpp"
-#include "HttpResponse.hpp"
 #include "HttpTypes.hpp"
-#include "utils.hpp"
 
 struct CorsConfig {
   std::vector<std::string> allowedOrigins;
@@ -16,59 +14,19 @@ struct CorsConfig {
 
 class CorsMiddleware {
 public:
-  CorsMiddleware() {}
-  CorsMiddleware(CorsConfig corsConfig) : corsConfig_(corsConfig) {}
+  CorsMiddleware();
+  CorsMiddleware(CorsConfig corsConfig);
 
-  Task<Response> operator()(const HttpRequest &request, Next next) {
-    std::string origin = request.getHeader("Origin");
+  Task<Response> operator()(const HttpRequest &request, Next next);
 
-    if (request.getMethod() == "OPTIONS" && origin != "") {
-      HttpResponse response(204);
-      std::string allowedMethods = request.getAttribute("allowedMethods");
+  void setCorsOrigins(const std::vector<std::string> &origins);
 
-      if (!isOriginAllowed(origin))
-        co_return response;
+  void setCorsHeaders(const std::vector<std::string> &headers);
 
-      response.addHeader("Vary", "origin");
-      response.setHeader("Access-Control-Allow-Origin", origin);
-      response.setHeader("Access-Control-Allow-Methods", allowedMethods);
-      response.setHeader("Access-Control-Allow-Headers",
-                         getCommaSeparatedString(corsConfig_.allowedHeaders));
-      response.setHeader("Access-Control-Max-Age",
-                         std::to_string(corsConfig_.maxAge));
-      co_return response;
-    }
-
-    Response response = co_await next();
-
-    std::visit(overloaded{[&origin, this](auto &res) {
-                 if (origin != "" && isOriginAllowed(origin))
-                   res.setHeader("Access-Control-Allow-Origin", origin);
-               }},
-               response);
-
-    co_return response;
-  }
-
-  void setCorsOrigins(const std::vector<std::string> &origins) {
-    corsConfig_.allowedOrigins = origins;
-  }
-
-  void setCorsHeaders(const std::vector<std::string> &headers) {
-    corsConfig_.allowedHeaders = headers;
-  }
-
-  void setCorsMaxAge(int maxAge) { corsConfig_.maxAge = maxAge; }
+  void setCorsMaxAge(int maxAge);
 
 private:
   CorsConfig corsConfig_;
 
-  bool isOriginAllowed(const std::string &origin) {
-    for (auto &allowedOrigin : corsConfig_.allowedOrigins) {
-      if (allowedOrigin == origin || allowedOrigin == "*") {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool isOriginAllowed(const std::string &origin);
 };
