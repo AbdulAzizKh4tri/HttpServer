@@ -29,7 +29,9 @@ void Router::delete_(std::string path, Handler handler) {
   addRoute(path, "DELETE", handler);
 }
 
-void Router::use(Middleware middleware) { middlewares_.push_back(middleware); }
+void Router::use(Middleware middleware) {
+  middlewares_.push_back(std::move(middleware));
+}
 
 Task<Response> Router::dispatch(HttpRequest &request) {
 
@@ -142,7 +144,7 @@ Task<Response> Router::runChain(HttpRequest &request, Handler &handler,
   }
 
   auto next = [&] { return runChain(request, handler, startIndex + 1); };
-  const auto &middleware = middlewares_[startIndex];
+  auto &middleware = middlewares_[startIndex];
   co_return co_await middleware(request, next);
 }
 
