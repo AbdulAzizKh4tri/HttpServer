@@ -41,7 +41,7 @@ void ErrorFactory::setFormatter(std::string type, Formatter formatter) {
 }
 
 HttpResponse ErrorFactory::build(const HttpRequest &req, int statusCode,
-                                 const std::string_view &message) {
+                                 const std::string_view &message) const {
   std::vector<std::pair<std::string, float>> typePrefs;
   std::vector<std::string> excluded;
 

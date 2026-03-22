@@ -7,6 +7,7 @@
 #include "HttpResponse.hpp"
 #include "HttpServer.hpp"
 #include "Router.hpp"
+#include "StaticMiddleware.hpp"
 #include "config.hpp"
 #include "logUtils.hpp"
 #include "routes.hpp"
@@ -65,7 +66,10 @@ int main() {
       {"http://localhost:8080", "https://localhost:8443"});
   corsMiddleware.setCorsMaxAge(10);
 
+  StaticMiddleware staticMiddleware("./public", "static", errorFactory);
+
   router.use(corsMiddleware);
+  router.use(staticMiddleware);
 
   registerRoutes(router);
 

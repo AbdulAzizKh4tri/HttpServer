@@ -20,7 +20,7 @@ public:
   void setFormatter(std::string type, Formatter formatter);
 
   HttpResponse build(const HttpRequest &req, int statusCode,
-                     const std::string_view &message = "");
+                     const std::string_view &message = "") const;
 
 private:
   std::vector<std::pair<std::string, Formatter>> registeredFormatters_;

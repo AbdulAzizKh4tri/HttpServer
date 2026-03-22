@@ -43,22 +43,22 @@ Task<Response> Router::dispatch(HttpRequest &request) {
   auto pathParts = split(requestPath, "/");
 
   auto pathNode = findMatchingRouteEntry(pathParts);
-
-  if (pathNode == nullptr) {
-    auto response = errorFactory_.build(request, 404);
-    if (request.getMethod() == "HEAD")
-      response.stripBody();
-    co_return response;
-  }
-
-  auto &definedMethods = pathNode->requestHandlers;
   auto allowedMethods = getAllowedMethodsString(pathNode);
   request.setAttribute("allowedMethods", allowedMethods);
 
-  const auto &pathParams = getPathParams(pathNode->patternParts, pathParts);
-  request.setPathParams(pathParams);
-
   Handler terminal = [&](const HttpRequest &req) -> Task<Response> {
+    if (pathNode == nullptr) {
+      auto response = errorFactory_.build(request, 404);
+      if (request.getMethod() == "HEAD")
+        response.stripBody();
+      co_return response;
+    }
+
+    auto &definedMethods = pathNode->requestHandlers;
+
+    const auto &pathParams = getPathParams(pathNode->patternParts, pathParts);
+    request.setPathParams(pathParams);
+
     auto lookupMethod = req.getMethod() == "HEAD" ? "GET" : req.getMethod();
     auto methodIt = definedMethods.find(lookupMethod);
 
