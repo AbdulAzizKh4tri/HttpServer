@@ -16,7 +16,7 @@ configure:
 	cmake -B $(BUILD_DIR) -S . -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
 
 build:
-	cmake --build $(BUILD_DIR) --parallel
+	cmake --build $(BUILD_DIR) -j4
 
 run: build
 	@clear

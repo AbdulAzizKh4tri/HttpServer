@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <spdlog/spdlog.h>
+#include <string_view>
 
 #include "utils.hpp"
 
@@ -23,6 +24,45 @@ bool HttpRequest::parseRequestHeader(std::string_view headerView) {
   if (not parseRequestHeaders(headerView))
     return false;
   return true;
+}
+
+std::vector<std::pair<std::string, std::string>>
+HttpRequest::getCookies() const {
+  const std::string cookieHeader = getHeader("Cookie");
+  if (cookieHeader == "")
+    return {};
+
+  std::vector<std::pair<std::string, std::string>> cookies;
+  std::string_view cookieView = cookieHeader;
+
+  for (;;) {
+    auto cookieDelim = cookieView.find(';');
+    auto cookiePair = cookieDelim == std::string_view::npos
+                          ? cookieView
+                          : cookieView.substr(0, cookieDelim);
+    trim(cookiePair);
+    auto eqpos = cookiePair.find('=');
+    if (eqpos != std::string::npos) {
+      cookies.emplace_back(cookiePair.substr(0, eqpos),
+                           cookiePair.substr(eqpos + 1));
+    }
+
+    if (cookieDelim == std::string_view::npos)
+      break;
+
+    cookieView.remove_prefix(cookieDelim + 1);
+  }
+
+  return cookies;
+}
+
+std::optional<std::string>
+HttpRequest::getCookie(const std::string &name) const {
+  for (const auto &cookie : getCookies()) {
+    if (cookie.first == name)
+      return cookie.second;
+  }
+  return std::nullopt;
 }
 
 std::expected<size_t, ContentLengthError>

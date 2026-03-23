@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Cookie.hpp"
 #include "utils.hpp"
 
 class HttpResponse {
@@ -34,6 +35,14 @@ public:
   HttpResponse(int statusCode, std::string body);
 
   std::vector<unsigned char> serialize() const;
+
+  void setCookie(Cookie cookie);
+
+  void removeCookie(const std::string &name);
+
+  std::vector<std::pair<std::string, std::string>> getCookies() const;
+
+  std::optional<std::string> getCookie(const std::string &name) const;
 
   std::string getHeader(const std::string &name) const;
 

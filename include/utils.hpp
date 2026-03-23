@@ -214,6 +214,15 @@ inline const std::string &getCurrentHttpDate() {
   return cached;
 }
 
+inline std::string toHttpDate(std::chrono::system_clock::time_point tp) {
+  time_t t = std::chrono::system_clock::to_time_t(tp);
+  std::tm tm{};
+  gmtime_r(&t, &tm);
+  char buf[32];
+  strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+  return buf;
+}
+
 inline bool mime_match(std::string_view p, std::string_view v) {
   if (p == "*/*")
     return true;

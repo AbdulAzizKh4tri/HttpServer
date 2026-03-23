@@ -60,6 +60,58 @@ std::vector<unsigned char> HttpStreamResponse::getSerializedHeader() const {
   return serializedHeader;
 }
 
+void HttpStreamResponse::setCookie(Cookie cookie) {
+  std::string cookieString = cookie.name + "=" + cookie.value;
+  cookieString += "; Path=" + cookie.path;
+  cookieString += "; SameSite=" + cookie.sameSite;
+
+  if (cookie.httpOnly)
+    cookieString += "; HttpOnly";
+  if (cookie.secure)
+    cookieString += "; Secure";
+
+  if (cookie.domain != "")
+    cookieString += "; Domain=" + cookie.domain;
+
+  if (cookie.expires != std::chrono::system_clock::time_point::max())
+    cookieString += "; Expires=" + toHttpDate(cookie.expires);
+  if (cookie.maxAge != -1)
+    cookieString += "; Max-Age=" + std::to_string(cookie.maxAge);
+
+  addHeader("Set-Cookie", cookieString);
+}
+
+void HttpStreamResponse::removeCookie(const std::string &name) {
+  std::erase_if(headers_, [&name](const auto &p) {
+    return p.first == "set-cookie" && p.second.starts_with(name + "=");
+  });
+}
+
+std::vector<std::pair<std::string, std::string>>
+HttpStreamResponse::getCookies() const {
+  std::vector<std::pair<std::string, std::string>> cookies;
+  for (const auto &[k, v] : headers_) {
+    if (k != "set-cookie")
+      continue;
+    auto firstSemi = v.find(';');
+    auto nameValue =
+        firstSemi == std::string::npos ? v : v.substr(0, firstSemi);
+    auto eq = nameValue.find('=');
+    if (eq == std::string::npos)
+      continue;
+    cookies.emplace_back(nameValue.substr(0, eq), nameValue.substr(eq + 1));
+  }
+  return cookies;
+}
+
+std::optional<std::string>
+HttpStreamResponse::getCookie(const std::string &name) const {
+  for (const auto &cookie : getCookies())
+    if (cookie.first == name)
+      return cookie.second;
+  return std::nullopt;
+}
+
 std::string HttpStreamResponse::getHeader(const std::string &name) const {
   return getLastOrDefault(headers_, toLowerCase(name), "");
 }

@@ -26,6 +26,10 @@ public:
 
   bool parseRequestHeader(std::string_view headerView);
 
+  std::vector<std::pair<std::string, std::string>> getCookies() const;
+
+  std::optional<std::string> getCookie(const std::string &name) const;
+
   std::expected<size_t, ContentLengthError> getContentLength() const;
 
   std::string getHeader(const std::string &name) const;

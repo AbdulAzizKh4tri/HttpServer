@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "Cookie.hpp"
 #include "Task.hpp"
 
 using NextChunkFn = std::move_only_function<Task<std::optional<std::string>>()>;
@@ -37,6 +38,14 @@ public:
   Task<std::optional<std::string>> getNextChunk();
 
   std::vector<unsigned char> getSerializedHeader() const;
+
+  void setCookie(Cookie cookie);
+
+  void removeCookie(const std::string &name);
+
+  std::vector<std::pair<std::string, std::string>> getCookies() const;
+
+  std::optional<std::string> getCookie(const std::string &name) const;
 
   std::string getHeader(const std::string &name) const;
 

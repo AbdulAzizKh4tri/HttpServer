@@ -50,11 +50,11 @@ void HttpServer::run() {
   shutdownEventFd = eventfd(0, EFD_NONBLOCK);
   signal(SIGINT, [](int) {
     uint64_t v = 1;
-    ::write(shutdownEventFd, &v, 8);
+    auto n = ::write(shutdownEventFd, &v, 8);
   });
   signal(SIGTERM, [](int) {
     uint64_t v = 1;
-    ::write(shutdownEventFd, &v, 8);
+    auto n = ::write(shutdownEventFd, &v, 8);
   });
   executor_.spawn(shutdownWatchdog());
 
