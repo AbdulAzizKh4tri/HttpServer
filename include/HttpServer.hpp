@@ -13,6 +13,8 @@
 
 class HttpServer {
 public:
+  static int shutdownEventFd;
+
   HttpServer(ErrorFactory &errorFactory);
 
   void setTlsContext(std::string certPath, std::string keyPath);
@@ -29,6 +31,8 @@ public:
   ErrorFactory &getErrorFactory();
 
 private:
+  bool shutdown_ = false;
+
   std::shared_ptr<SSL_CTX> tlsContext_ = nullptr;
   std::vector<std::unique_ptr<ListenerSocket>> tcpListeners_, tlsListeners_;
 
@@ -42,4 +46,6 @@ private:
   Task<void> tlsAcceptLoop(ListenerSocket &listener);
 
   Task<void> handleConnection(std::shared_ptr<IStream> stream);
+
+  Task<void> shutdownWatchdog();
 };

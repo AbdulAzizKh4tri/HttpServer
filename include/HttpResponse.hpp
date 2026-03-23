@@ -17,6 +17,8 @@ public:
       std::string_view("location"),
   };
 
+  static constexpr std::array noBody = {100, 101, 102, 103, 204, 304};
+
   static std::string statusText(int statusCode) {
     return getOrDefault(statusStrings_, statusCode, "Unknown");
   };

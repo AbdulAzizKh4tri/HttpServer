@@ -35,11 +35,25 @@ void Router::use(Middleware middleware) {
 
 Task<Response> Router::dispatch(HttpRequest &request) {
 
-  if (request.getMethod() == "TRACE" || request.getMethod() == "CONNECT") {
+  auto method = request.getMethod();
+
+  if (method == "TRACE" || method == "CONNECT") {
     co_return errorFactory_.build(request, 501);
   }
 
   const auto &requestPath = request.getPath();
+
+  if (method == "OPTIONS" && requestPath == "*") {
+    auto methods = registeredMethods_;
+    methods.insert("OPTIONS");
+    if (methods.contains("GET"))
+      methods.insert("HEAD");
+    HttpResponse response(204);
+    response.setHeader(
+        "Allow", getCommaSeparatedString({methods.begin(), methods.end()}));
+    co_return response;
+  }
+
   auto pathParts = split(requestPath, "/");
 
   auto pathNode = findMatchingRouteEntry(pathParts);
@@ -235,6 +249,8 @@ void Router::addRoute(const std::string &routePattern,
     throw std::invalid_argument("Duplicate route: " + pattern);
   node->requestHandlers.emplace(method, std::move(handler));
   node->patternParts = std::move(patternParts);
+
+  registeredMethods_.insert(method);
 }
 
 void Router::validatePattern(const std::string &pattern,

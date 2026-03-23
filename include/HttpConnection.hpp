@@ -17,9 +17,8 @@
 
 class HttpConnection {
 public:
-
   HttpConnection(std::shared_ptr<IStream> stream, Router &router,
-                 ErrorFactory &errorFactory);
+                 ErrorFactory &errorFactory, bool &shutdown);
 
   HttpConnection(const HttpConnection &) = delete;
   HttpConnection &operator=(const HttpConnection &) = delete;
@@ -39,6 +38,7 @@ private:
   ChunkedBodyParser chunkParser_;
 
   bool keepAlive_ = true;
+  bool &shutdown_;
 
   bool formationArmed_ = false;
   std::chrono::steady_clock::time_point inactivityDeadline_ =

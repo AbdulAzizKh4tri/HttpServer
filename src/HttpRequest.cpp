@@ -13,14 +13,15 @@ bool HttpRequest::parseRequestHeader(std::string_view headerView) {
     return false;
 
   auto requestLine = headerView.substr(0, lineEnd);
-  if (!requestLine.empty() && requestLine.back() == '\r')
+  if (not requestLine.empty() && requestLine.back() == '\r')
     requestLine.remove_suffix(1);
 
-  if (!parseRequestLine(requestLine))
+  if (not parseRequestLine(requestLine))
     return false;
 
   headerView.remove_prefix(lineEnd + 1);
-  parseRequestHeaders(headerView);
+  if (not parseRequestHeaders(headerView))
+    return false;
   return true;
 }
 
@@ -168,17 +169,20 @@ bool HttpRequest::parseRequestLine(std::string_view requestLine) {
   return true;
 }
 
-void HttpRequest::parseRequestHeaders(std::string_view headerView) {
-  while (!headerView.empty()) {
+bool HttpRequest::parseRequestHeaders(std::string_view headerView) {
+  while (not headerView.empty()) {
     auto lineEnd = headerView.find('\n');
     auto line = lineEnd == std::string_view::npos
                     ? headerView
                     : headerView.substr(0, lineEnd);
 
+    if (not line.empty() && (line.front() == ' ' || line.front() == '\t'))
+      return false;
+
     headerView.remove_prefix(
         lineEnd == std::string_view::npos ? headerView.size() : lineEnd + 1);
 
-    if (!line.empty() && line.back() == '\r')
+    if (not line.empty() && line.back() == '\r')
       line.remove_suffix(1);
 
     auto pos = line.find(':');
@@ -190,6 +194,7 @@ void HttpRequest::parseRequestHeaders(std::string_view headerView) {
     trim(value);
     addHeader(std::string(key), std::string(value));
   }
+  return true;
 }
 
 void HttpRequest::parsePathAndQueryParams(std::string_view rawPathView) {

@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "ErrorFactory.hpp"
@@ -48,6 +49,7 @@ private:
   RouteNode pathTreeRoot_;
   std::vector<Middleware> middlewares_;
   ErrorFactory &errorFactory_;
+  std::unordered_set<std::string> registeredMethods_;
 
   Task<Response> runChain(HttpRequest &request, Handler &handler,
                           size_t startIndex);

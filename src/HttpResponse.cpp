@@ -18,13 +18,19 @@ HttpResponse::HttpResponse(int statusCode, std::string body)
 
 std::vector<unsigned char> HttpResponse::serialize() const {
   const std::string &statusTxt = HttpResponse::statusText(statusCode_);
+  bool hasBody = !std::ranges::contains(noBody, statusCode_);
 
   size_t size = version_.size() + 1 + 3 + 1 + statusTxt.size() + 2;
 
-  for (auto &[k, v] : headers_)
+  for (auto &[k, v] : headers_) {
+    if (!hasBody && k == "content-length")
+      continue;
     size += headerLineSize(k, v);
+  }
   size += 2; // final \r\n
-  size += body_.size();
+
+  if (hasBody)
+    size += body_.size();
 
   std::vector<unsigned char> serializedResponse(size);
   size_t offset = 0;
@@ -46,13 +52,17 @@ std::vector<unsigned char> HttpResponse::serialize() const {
   write("\r\n");
 
   for (auto &[k, v] : headers_) {
+    if (!hasBody && k == "content-length")
+      continue;
     write(k);
     write(": ");
     write(v);
     write("\r\n");
   }
   write("\r\n");
-  write(body_);
+
+  if (hasBody)
+    write(body_);
 
   return serializedResponse;
 }

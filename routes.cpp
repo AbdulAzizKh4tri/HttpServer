@@ -1,15 +1,36 @@
-
 #include "routes.hpp"
 
 #include <nlohmann/json.hpp>
+
+#include "AsyncFileReader.hpp"
+#include "ErrorFactory.hpp"
+#include "HttpResponse.hpp"
+
 using json = nlohmann::json;
 
-void registerRoutes(Router &router) {
-router.get("/", [](const HttpRequest &request) -> Task<Response> {
-    auto name = request.getQueryParam("name");
+void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
 
-    co_return HttpResponse(200, "Hello " + name + "!");
-  });
+  router.get(
+      "/", [&errorFactory](const HttpRequest &request) -> Task<Response> {
+        auto name = request.getQueryParam("name");
+
+        std::filesystem::path resolved = std::filesystem::weakly_canonical(
+            std::filesystem::path("./public/home/index.html"));
+        std::optional<AsyncFileReader> fileOpt =
+            AsyncFileReader::open(resolved);
+
+        if (not fileOpt.has_value())
+          co_return errorFactory.build(request, 403);
+
+        AsyncFileReader &file = fileOpt.value();
+
+        std::string body = co_await file.readAll();
+        HttpResponse response(200, body);
+        response.setHeader("Content-Type", "text/html");
+        if (request.getMethod() == "HEAD")
+          response.stripBody();
+        co_return response;
+      });
 
   router.post("/", [](const HttpRequest &request) -> Task<Response> {
     json data = json::parse(request.getBody());
@@ -20,6 +41,15 @@ router.get("/", [](const HttpRequest &request) -> Task<Response> {
 
   router.put("/", [](const HttpRequest &request) -> Task<Response> {
     co_return HttpResponse(200, request.getBody());
+  });
+
+  // WARNING: BLOCKS THE ENTIRE THREAD FOR 5 SECONDS!
+  router.get("/tests/slow", [](const HttpRequest &) -> Task<Response> {
+    // simulate slow work — busy wait for 5 seconds
+    auto end = now() + std::chrono::seconds(5);
+    while (now() < end) {
+    }
+    co_return HttpResponse(200, "slow response");
   });
 
   // ── Test routes ────────────────────────────────────────────────────────────

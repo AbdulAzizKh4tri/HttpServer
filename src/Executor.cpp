@@ -51,7 +51,6 @@ void Executor::submitFileWrite(int fd, void *buf, size_t len,
 void Executor::run() {
   tl_executor = this;
   for (;;) {
-
     ioUring_.drainCompletions([this](uint64_t userData, int result) {
       auto it = pendingFileOps_.find(userData);
       if (it == pendingFileOps_.end())
@@ -105,3 +104,5 @@ void Executor::run() {
     ioUring_.ioSubmit();
   }
 }
+
+int Executor::getOwnedTaskCount() { return ownedTasks_.size(); }

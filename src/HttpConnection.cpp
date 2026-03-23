@@ -2,13 +2,14 @@
 
 #include "Awaitables.hpp"
 #include "ExecutorContext.hpp"
-#include "serverConfig.hpp"
 #include "logUtils.hpp"
+#include "serverConfig.hpp"
 #include "utils.hpp"
 
 HttpConnection::HttpConnection(std::shared_ptr<IStream> stream, Router &router,
-                               ErrorFactory &errorFactory)
-    : io_(std::move(stream)), router_(router), errorFactory_(errorFactory) {
+                               ErrorFactory &errorFactory, bool &shutdown)
+    : io_(std::move(stream)), router_(router), errorFactory_(errorFactory),
+      shutdown_(shutdown) {
 
   request_.setIp(io_.getIp());
   request_.setPort(io_.getPort());
@@ -220,7 +221,7 @@ Task<bool> HttpConnection::readBody() {
 
 Task<bool> HttpConnection::handleReadingBodyChunked() {
   for (;;) {
-    auto result = chunkParser_.feed(io_);
+    auto result = chunkParser_.feed(io_, request_);
 
     if (!result)
       switch (result.error()) {
@@ -393,8 +394,14 @@ Task<Response> HttpConnection::generateResponse() {
   }
 
   std::visit(overloaded{[this](auto &res) {
-               keepAlive_ = shouldKeepAlive();
-               res.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
+               if (shutdown_) {
+                 keepAlive_ = false;
+                 res.setHeader("Connection", "close");
+               } else {
+                 keepAlive_ = shouldKeepAlive();
+                 res.setHeader("Connection",
+                               keepAlive_ ? "keep-alive" : "close");
+               }
                res.setHeader("Date", getCurrentHttpDate());
              }},
              response);

@@ -84,7 +84,7 @@ private:
 
   bool parseRequestLine(std::string_view requestLine);
 
-  void parseRequestHeaders(std::string_view headerView);
+  bool parseRequestHeaders(std::string_view headerView);
 
   void parsePathAndQueryParams(std::string_view rawPathView);
 };

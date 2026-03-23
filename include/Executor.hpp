@@ -40,6 +40,8 @@ public:
 
   void run();
 
+  int getOwnedTaskCount();
+
 private:
   EpollInstance epoll_;
   IoUringInstance ioUring_;

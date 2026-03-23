@@ -39,17 +39,23 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request,
     co_return buildErrorResponse(request, 403);
   }
 
-  if (std::filesystem::is_directory(resolved))
-    resolved /= "index.html";
-
-  if (not std::filesystem::exists(resolved))
+  std::filesystem::directory_entry entry(resolved);
+  if (!entry.exists())
     co_return co_await next();
+  if (entry.is_directory()) {
+    resolved /= "index.html";
+    entry.assign(resolved); // refresh for the index.html
+    if (!entry.exists())
+      co_return co_await next();
+  }
 
-  auto fileSize = std::filesystem::file_size(resolved);
+  auto fileSize = entry.file_size();
+
   std::string ext = resolved.extension().string(); // e.g. ".html"
   std::string mime = getOrDefault(MIME_TYPES, ext, "application/octet-stream");
 
-  std::optional<AsyncFileReader> fileOpt = AsyncFileReader::open(resolved);
+  std::optional<AsyncFileReader> fileOpt =
+      AsyncFileReader::open(resolved, fileSize);
   if (not fileOpt.has_value())
     co_return buildErrorResponse(request, 403);
   AsyncFileReader &file = fileOpt.value();

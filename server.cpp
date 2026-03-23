@@ -71,7 +71,7 @@ int main() {
   router.use(corsMiddleware);
   router.use(staticMiddleware);
 
-  registerRoutes(router);
+  registerRoutes(router, errorFactory);
 
   HttpServer server(errorFactory);
   server.setTlsContext(TLS_CERT_PATH, TLS_KEY_PATH);

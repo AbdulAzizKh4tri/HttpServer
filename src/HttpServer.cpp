@@ -1,6 +1,7 @@
 #include "HttpServer.hpp"
 
 #include <csignal>
+#include <sys/eventfd.h>
 
 #include "Awaitables.hpp"
 #include "HttpConnection.hpp"
@@ -42,8 +43,21 @@ void HttpServer::addTlsListener(const std::string &host,
 
 void HttpServer::setRouter(Router &router) { router_ = &router; };
 
+int HttpServer::shutdownEventFd = -1;
 void HttpServer::run() {
   signal(SIGPIPE, SIG_IGN);
+
+  shutdownEventFd = eventfd(0, EFD_NONBLOCK);
+  signal(SIGINT, [](int) {
+    uint64_t v = 1;
+    ::write(shutdownEventFd, &v, 8);
+  });
+  signal(SIGTERM, [](int) {
+    uint64_t v = 1;
+    ::write(shutdownEventFd, &v, 8);
+  });
+  executor_.spawn(shutdownWatchdog());
+
   if (!router_)
     throw std::runtime_error("Call setRouter() before run()");
 
@@ -85,7 +99,39 @@ Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
 
 Task<void> HttpServer::handleConnection(std::shared_ptr<IStream> stream) {
   int fd = stream->getFd();
-  HttpConnection conn(stream, *router_, errorFactory_);
+  HttpConnection conn(stream, *router_, errorFactory_, shutdown_);
   co_await conn.run();
   tl_executor->unregister(fd);
+}
+
+Task<void> HttpServer::shutdownWatchdog() {
+  co_await ReadAwaitable{shutdownEventFd,
+                         std::chrono::steady_clock::time_point::max()};
+
+  SPDLOG_INFO("Shutdown signal received, draining connections...");
+  shutdown_ = true;
+
+  for (auto &listener : tcpListeners_)
+    executor_.unregister(listener->getFd());
+  for (auto &listener : tlsListeners_)
+    executor_.unregister(listener->getFd());
+
+  auto deadline = now() + std::chrono::seconds(GRACEFUL_SHUTDOWN_TIMEOUT_S);
+  int acceptLoopCount = tcpListeners_.size() + tlsListeners_.size();
+
+  while (now() < deadline) {
+    // + 1 for the watchdog itself
+    if (executor_.getOwnedTaskCount() <= acceptLoopCount + 1) {
+      SPDLOG_INFO("Graceful Shutdown");
+      spdlog::shutdown();
+      exit(0);
+    }
+    auto pollDeadline = now() + std::chrono::seconds(1);
+    co_await ReadAwaitable{shutdownEventFd, pollDeadline};
+    tl_timed_out = false;
+  }
+
+  SPDLOG_INFO("Timeout, Shutting down");
+  spdlog::shutdown();
+  exit(0);
 }

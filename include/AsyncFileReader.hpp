@@ -38,6 +38,14 @@ public:
     return AsyncFileReader(fd, std::filesystem::file_size(path));
   }
 
+  static std::optional<AsyncFileReader> open(const std::filesystem::path &path,
+                                             const uintmax_t fileSize) {
+    int fd = ::open(path.c_str(), O_RDONLY);
+    if (fd == -1)
+      return std::nullopt;
+    return AsyncFileReader(fd, fileSize);
+  }
+
   Task<std::string> readAll() {
     std::string buf(fileSize_, '\0');
     int n = co_await FileReadAwaitable{

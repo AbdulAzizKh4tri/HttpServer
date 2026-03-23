@@ -4,6 +4,7 @@
 // ── Timeouts (seconds) ────────────────────────────────────
 #define INACTIVITY_TIMEOUT_S 20
 #define FORMATION_TIMEOUT_S 120
+#define GRACEFUL_SHUTDOWN_TIMEOUT_S 10
 
 // ── Request limits ────────────────────────────────────────
 #define MAX_HEADER_BYTES (8 * 1024)
