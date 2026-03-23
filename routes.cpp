@@ -5,7 +5,7 @@
 using json = nlohmann::json;
 
 void registerRoutes(Router &router) {
-  router.get("/", [](const HttpRequest &request) -> Task<Response> {
+router.get("/", [](const HttpRequest &request) -> Task<Response> {
     auto name = request.getQueryParam("name");
 
     co_return HttpResponse(200, "Hello " + name + "!");
@@ -22,8 +22,7 @@ void registerRoutes(Router &router) {
     co_return HttpResponse(200, request.getBody());
   });
 
-  // ── Test routes
-  // ────────────────────────────────────────────────────────────
+  // ── Test routes ────────────────────────────────────────────────────────────
   // All live under /tests/* so they're instantly readable in the server log.
 
   // GET /tests/ping
@@ -34,7 +33,7 @@ void registerRoutes(Router &router) {
 
   // GET /tests/echo
   // co_returns all query-string params as a JSON object.
-  // e.g. ?name=Alice&foo=bar  →  {"name":"Alice","foo":"bar"}
+  // e.g. ?name=Alice&foo=bar  ->  {"name":"Alice","foo":"bar"}
   router.get("/tests/echo", [](const HttpRequest &request) -> Task<Response> {
     json j = toJsonObject(request.getAllQueryParams());
     auto res = HttpResponse(200, j.dump());
@@ -53,8 +52,7 @@ void registerRoutes(Router &router) {
   });
 
   // PUT /tests/echo
-  // Same as POST echo — useful for testing PUT-specific behaviour (405
-  // etc.).
+  // Same as POST echo — useful for testing PUT-specific behaviour (405 etc.).
   router.put("/tests/echo", [](const HttpRequest &request) -> Task<Response> {
     auto res = HttpResponse(200, request.getBody());
     auto ct = request.getHeader("Content-Type");
@@ -77,8 +75,7 @@ void registerRoutes(Router &router) {
 
   // GET /tests/error/throw
   // Deliberately throws a std::runtime_error to exercise the exception handler
-  // in HttpConnection::generateResponse() — should produce a 500 JSON
-  // response.
+  // in HttpConnection::generateResponse() — should produce a 500 JSON response.
   router.get("/tests/error/throw", [](const HttpRequest &) -> Task<Response> {
     throw std::runtime_error("Deliberate test error");
   });
@@ -125,13 +122,14 @@ void registerRoutes(Router &router) {
                res.setHeader("Content-Type", "application/json");
                co_return res;
              });
-  // �� URL decoding test routes �����������������������������������������������
+
+  // ── URL decoding test routes ───────────────────────────────────────────────
 
   // GET /tests/decode/query
   // co_returns all decoded query params as JSON.
   // Tests: %20, +, encoded keys, malformed sequences kept as-is.
-  // e.g. ?name=John%20Doe  �  {"name":"John Doe"}
-  // e.g. ?key%20hi=val     �  {"key hi":"val"}
+  // e.g. ?name=John%20Doe  →  {"name":"John Doe"}
+  // e.g. ?key%20hi=val     →  {"key hi":"val"}
   router.get("/tests/decode/query",
              [](const HttpRequest &request) -> Task<Response> {
                json j = toJsonObject(request.getAllQueryParams());
@@ -144,8 +142,8 @@ void registerRoutes(Router &router) {
   // co_returns the decoded path param.
   // Tests: %20 in path segments, %2F (slash) decoded inside param value,
   //        malformed sequences kept as-is.
-  // e.g. /tests/decode/path/John%20Doe  �  {"name":"John Doe"}
-  // e.g. /tests/decode/path/foo%2Fbar   �  {"name":"foo/bar"}
+  // e.g. /tests/decode/path/John%20Doe  →  {"name":"John Doe"}
+  // e.g. /tests/decode/path/foo%2Fbar   →  {"name":"foo/bar"}
   router.get("/tests/decode/path/<name>",
              [](const HttpRequest &request) -> Task<Response> {
                json j = {{"name", request.getPathParam("name")}};
@@ -157,7 +155,7 @@ void registerRoutes(Router &router) {
   // GET /tests/decode/rawpath
   // co_returns the raw, un-decoded path + query string exactly as the client
   // sent it. Useful for verifying that getRawPath() is untouched while decoded
-  // getters work. e.g. ?name=John%20Doe  �
+  // getters work. e.g. ?name=John%20Doe  →
   // {"rawPath":"/tests/decode/rawpath?name=John%20Doe"}
   router.get("/tests/decode/rawpath",
              [](const HttpRequest &request) -> Task<Response> {
@@ -167,7 +165,7 @@ void registerRoutes(Router &router) {
                co_return res;
              });
 
-  // �� Chunked / streaming response test routes ������������������������������
+  // ── Chunked / streaming response test routes ──────────────────────────────
   // All live under /tests/stream/*
 
   // GET /tests/stream/basic
@@ -196,7 +194,7 @@ void registerRoutes(Router &router) {
   });
 
   // GET /tests/stream/empty
-  // co_returns nullopt on the very first call � terminal chunk immediately.
+  // co_returns nullopt on the very first call — terminal chunk immediately.
   // Assembled body is empty, status still 200.
   router.get("/tests/stream/empty", [](const HttpRequest &) -> Task<Response> {
     co_return HttpStreamResponse(200, []() -> Task<std::optional<std::string>> {
@@ -205,11 +203,11 @@ void registerRoutes(Router &router) {
   });
 
   // GET /tests/stream/count/<n>
-  // Streams exactly n chunks: "chunk-1", "chunk-2", �, "chunk-n".
-  // n=0  � empty body (same as /empty)
-  // n<0  � clamped to 0
-  // non-numeric n � std::stoi throws before the HttpStreamResponse is
-  //   constructed, generateResponse() catches it � plain 500 JSON response.
+  // Streams exactly n chunks: "chunk-1", "chunk-2", …, "chunk-n".
+  // n=0  → empty body (same as /empty)
+  // n<0  → clamped to 0
+  // non-numeric n → std::stoi throws before the HttpStreamResponse is
+  //   constructed, generateResponse() catches it → plain 500 JSON response.
   //   This is intentional; the caller is responsible for valid input.
   router.get("/tests/stream/count/<n>",
              [](const HttpRequest &request) -> Task<Response> {
@@ -242,7 +240,7 @@ void registerRoutes(Router &router) {
 
   // POST /tests/stream/echo
   // Reads the request body and streams it back in 4-byte chunks.
-  // Empty body � empty stream (terminal chunk only).
+  // Empty body → empty stream (terminal chunk only).
   // Mirrors Content-Type if provided.
   router.post("/tests/stream/echo",
               [](const HttpRequest &request) -> Task<Response> {

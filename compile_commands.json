@@ -1,121 +1,127 @@
 [
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -x c++-header -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/cmake_pch.hxx.gch -c /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -x c++-header -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/cmake_pch.hxx.gch -c /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
   "file": "/home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
   "output": "CMakeFiles/server.dir/cmake_pch.hxx.gch"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
   "file": "/home/pair/stuff/HttpServer/server.cpp",
   "output": "CMakeFiles/server.dir/server.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/routes.cpp.o -c /home/pair/stuff/HttpServer/routes.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/routes.cpp.o -c /home/pair/stuff/HttpServer/routes.cpp",
   "file": "/home/pair/stuff/HttpServer/routes.cpp",
   "output": "CMakeFiles/server.dir/routes.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ChunkedBodyParser.cpp.o -c /home/pair/stuff/HttpServer/src/ChunkedBodyParser.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ChunkedBodyParser.cpp.o -c /home/pair/stuff/HttpServer/src/ChunkedBodyParser.cpp",
   "file": "/home/pair/stuff/HttpServer/src/ChunkedBodyParser.cpp",
   "output": "CMakeFiles/server.dir/src/ChunkedBodyParser.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ConnectionIO.cpp.o -c /home/pair/stuff/HttpServer/src/ConnectionIO.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ConnectionIO.cpp.o -c /home/pair/stuff/HttpServer/src/ConnectionIO.cpp",
   "file": "/home/pair/stuff/HttpServer/src/ConnectionIO.cpp",
   "output": "CMakeFiles/server.dir/src/ConnectionIO.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/CorsMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/CorsMiddleware.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/CorsMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/CorsMiddleware.cpp",
   "file": "/home/pair/stuff/HttpServer/src/CorsMiddleware.cpp",
   "output": "CMakeFiles/server.dir/src/CorsMiddleware.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/EpollInstance.cpp.o -c /home/pair/stuff/HttpServer/src/EpollInstance.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/EpollInstance.cpp.o -c /home/pair/stuff/HttpServer/src/EpollInstance.cpp",
   "file": "/home/pair/stuff/HttpServer/src/EpollInstance.cpp",
   "output": "CMakeFiles/server.dir/src/EpollInstance.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ErrorFactory.cpp.o -c /home/pair/stuff/HttpServer/src/ErrorFactory.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ErrorFactory.cpp.o -c /home/pair/stuff/HttpServer/src/ErrorFactory.cpp",
   "file": "/home/pair/stuff/HttpServer/src/ErrorFactory.cpp",
   "output": "CMakeFiles/server.dir/src/ErrorFactory.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Executor.cpp.o -c /home/pair/stuff/HttpServer/src/Executor.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Executor.cpp.o -c /home/pair/stuff/HttpServer/src/Executor.cpp",
   "file": "/home/pair/stuff/HttpServer/src/Executor.cpp",
   "output": "CMakeFiles/server.dir/src/Executor.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpConnection.cpp.o -c /home/pair/stuff/HttpServer/src/HttpConnection.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpConnection.cpp.o -c /home/pair/stuff/HttpServer/src/HttpConnection.cpp",
   "file": "/home/pair/stuff/HttpServer/src/HttpConnection.cpp",
   "output": "CMakeFiles/server.dir/src/HttpConnection.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpRequest.cpp.o -c /home/pair/stuff/HttpServer/src/HttpRequest.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpRequest.cpp.o -c /home/pair/stuff/HttpServer/src/HttpRequest.cpp",
   "file": "/home/pair/stuff/HttpServer/src/HttpRequest.cpp",
   "output": "CMakeFiles/server.dir/src/HttpRequest.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpResponse.cpp.o -c /home/pair/stuff/HttpServer/src/HttpResponse.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpResponse.cpp.o -c /home/pair/stuff/HttpServer/src/HttpResponse.cpp",
   "file": "/home/pair/stuff/HttpServer/src/HttpResponse.cpp",
   "output": "CMakeFiles/server.dir/src/HttpResponse.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpServer.cpp.o -c /home/pair/stuff/HttpServer/src/HttpServer.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpServer.cpp.o -c /home/pair/stuff/HttpServer/src/HttpServer.cpp",
   "file": "/home/pair/stuff/HttpServer/src/HttpServer.cpp",
   "output": "CMakeFiles/server.dir/src/HttpServer.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpStreamResponse.cpp.o -c /home/pair/stuff/HttpServer/src/HttpStreamResponse.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpStreamResponse.cpp.o -c /home/pair/stuff/HttpServer/src/HttpStreamResponse.cpp",
   "file": "/home/pair/stuff/HttpServer/src/HttpStreamResponse.cpp",
   "output": "CMakeFiles/server.dir/src/HttpStreamResponse.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ListenerSocket.cpp.o -c /home/pair/stuff/HttpServer/src/ListenerSocket.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ListenerSocket.cpp.o -c /home/pair/stuff/HttpServer/src/ListenerSocket.cpp",
   "file": "/home/pair/stuff/HttpServer/src/ListenerSocket.cpp",
   "output": "CMakeFiles/server.dir/src/ListenerSocket.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Router.cpp.o -c /home/pair/stuff/HttpServer/src/Router.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Router.cpp.o -c /home/pair/stuff/HttpServer/src/Router.cpp",
   "file": "/home/pair/stuff/HttpServer/src/Router.cpp",
   "output": "CMakeFiles/server.dir/src/Router.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Socket.cpp.o -c /home/pair/stuff/HttpServer/src/Socket.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Socket.cpp.o -c /home/pair/stuff/HttpServer/src/Socket.cpp",
   "file": "/home/pair/stuff/HttpServer/src/Socket.cpp",
   "output": "CMakeFiles/server.dir/src/Socket.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/TcpStream.cpp.o -c /home/pair/stuff/HttpServer/src/TcpStream.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/StaticMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/StaticMiddleware.cpp",
+  "file": "/home/pair/stuff/HttpServer/src/StaticMiddleware.cpp",
+  "output": "CMakeFiles/server.dir/src/StaticMiddleware.cpp.o"
+},
+{
+  "directory": "/home/pair/stuff/HttpServer/build/debug",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/TcpStream.cpp.o -c /home/pair/stuff/HttpServer/src/TcpStream.cpp",
   "file": "/home/pair/stuff/HttpServer/src/TcpStream.cpp",
   "output": "CMakeFiles/server.dir/src/TcpStream.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/TlsStream.cpp.o -c /home/pair/stuff/HttpServer/src/TlsStream.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/TlsStream.cpp.o -c /home/pair/stuff/HttpServer/src/TlsStream.cpp",
   "file": "/home/pair/stuff/HttpServer/src/TlsStream.cpp",
   "output": "CMakeFiles/server.dir/src/TlsStream.cpp.o"
 },
 {
   "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/logUtils.cpp.o -c /home/pair/stuff/HttpServer/src/logUtils.cpp",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/logUtils.cpp.o -c /home/pair/stuff/HttpServer/src/logUtils.cpp",
   "file": "/home/pair/stuff/HttpServer/src/logUtils.cpp",
   "output": "CMakeFiles/server.dir/src/logUtils.cpp.o"
 }

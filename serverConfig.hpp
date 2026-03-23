@@ -13,3 +13,5 @@
 #define STATIC_STREAM_THRESHOLD_BYTES (256 * 1024)
 #define STATIC_STREAM_CHUNK_SIZE 4096
 
+// ── File IO (IoUring)──────────────────────────────────────
+#define IO_URING_RING_SIZE 64

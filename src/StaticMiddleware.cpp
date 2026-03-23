@@ -1,5 +1,6 @@
 #include "StaticMiddleware.hpp"
 
+#include "AsyncFileReader.hpp"
 #include "ErrorFactory.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
@@ -7,7 +8,6 @@
 #include "utils.hpp"
 
 #include <filesystem>
-#include <fstream>
 
 StaticMiddleware::StaticMiddleware(const std::string root,
                                    const std::string prefix,
@@ -49,23 +49,19 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request,
   std::string ext = resolved.extension().string(); // e.g. ".html"
   std::string mime = getOrDefault(MIME_TYPES, ext, "application/octet-stream");
 
-  if (fileSize <= STATIC_STREAM_THRESHOLD_BYTES) {
-    std::ifstream file(resolved, std::ios::binary);
-    if (!file.is_open())
-      co_return buildErrorResponse(request, 403);
+  std::optional<AsyncFileReader> fileOpt = AsyncFileReader::open(resolved);
+  if (not fileOpt.has_value())
+    co_return buildErrorResponse(request, 403);
+  AsyncFileReader &file = fileOpt.value();
 
-    std::string body(fileSize, '\0');
-    file.read(body.data(), fileSize);
+  if (fileSize <= STATIC_STREAM_THRESHOLD_BYTES) {
+    std::string body = co_await file.readAll();
     HttpResponse response(200, body);
     response.setHeader("Content-Type", mime);
     if (method == "HEAD")
       response.stripBody();
     co_return response;
   } else {
-    auto filePtr = std::make_shared<std::ifstream>(resolved, std::ios::binary);
-    if (!filePtr->is_open())
-      co_return buildErrorResponse(request, 403);
-
     if (method == "HEAD") {
       HttpResponse response(200);
       response.setHeader("Content-Type", mime);
@@ -74,14 +70,9 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request,
     }
 
     HttpStreamResponse response(
-        200, [filePtr]() -> Task<std::optional<std::string>> {
-          std::string chunk(STATIC_STREAM_CHUNK_SIZE, '\0');
-          filePtr->read(chunk.data(), chunk.size());
-          auto n = filePtr->gcount();
-          if (n == 0)
-            co_return std::nullopt;
-          chunk.resize(n);
-          co_return chunk;
+        200,
+        [file = std::move(file)]() mutable -> Task<std::optional<std::string>> {
+          co_return co_await file.readChunk(STATIC_STREAM_CHUNK_SIZE);
         });
     response.setHeader("Content-Type", mime);
     co_return response;
