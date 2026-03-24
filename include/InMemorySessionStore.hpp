@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <openssl/rand.h>
+#include <optional>
+#include <shared_mutex>
 
 #include "ISessionStore.hpp"
 
@@ -15,26 +17,33 @@ public:
   InMemorySessionStore(std::chrono::seconds ttl) : ttl_(ttl) {}
 
   Task<std::optional<Session>> load(const std::string &id) override {
-    auto entryIt = sessions_.find(id);
-    if (entryIt == sessions_.end()) {
-      co_return std::nullopt;
+    {
+      std::shared_lock readLock(mutex_);
+      auto entryIt = sessions_.find(id);
+      if (entryIt == sessions_.end()) {
+        co_return std::nullopt;
+      }
+
+      const auto &entry = entryIt->second;
+      if (not(std::chrono::system_clock::now() - entry.lastAccessed > ttl_ || entry.session.isInvalidated())) {
+        co_return entry.session;
+      }
     }
 
-    const auto &entry = entryIt->second;
-    if (std::chrono::system_clock::now() - entry.lastAccessed > ttl_ || entry.session.isInvalidated()) {
-      sessions_.erase(entryIt);
-      co_return std::nullopt;
-    }
-
-    co_return entry.session;
+    std::unique_lock writeLock(mutex_);
+    if (auto it = sessions_.find(id); it != sessions_.end())
+      sessions_.erase(it);
+    co_return std::nullopt;
   };
 
   Task<void> save(const std::string &id, const Session &session) override {
+    std::unique_lock writeLock(mutex_);
     sessions_[id] = {session, std::chrono::system_clock::now()};
     co_return;
   };
 
   Task<void> destroy(const std::string &id) override {
+    std::unique_lock writeLock(mutex_);
     sessions_.erase(id);
     co_return;
   };
@@ -53,6 +62,7 @@ public:
   }
 
 private:
+  std::shared_mutex mutex_;
   std::unordered_map<std::string, SessionEntry> sessions_;
   std::chrono::seconds ttl_;
 };
