@@ -1,3 +1,4 @@
+#include <chrono>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
@@ -6,7 +7,9 @@
 #include "ExecutorContext.hpp"
 #include "HttpResponse.hpp"
 #include "HttpServer.hpp"
+#include "InMemorySessionStore.hpp"
 #include "Router.hpp"
+#include "SessionMiddleware.hpp"
 #include "StaticMiddleware.hpp"
 #include "config.hpp"
 #include "logUtils.hpp"
@@ -22,21 +25,17 @@ int main() {
 
   ErrorFactory errorFactory;
 
-  auto jsonFormatter = [](int statusCode,
-                          const std::string_view &message = "") {
+  auto jsonFormatter = [](int statusCode, const std::string_view &message = "") {
     HttpResponse response(statusCode);
     json body = {{"errorCode", statusCode},
-                 {"errorMessage", message == ""
-                                      ? HttpResponse::statusText(statusCode)
-                                      : message}};
+                 {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
     response.setHeader("Content-Type", "application/json");
     response.setBody(body.dump());
     return response;
   };
 
-  auto htmlFormatter = [](int statusCode,
-                          const std::string_view &message = "") {
+  auto htmlFormatter = [](int statusCode, const std::string_view &message = "") {
     HttpResponse response(statusCode);
     std::string statusText = HttpResponse::statusText(statusCode);
     std::string msg = message.empty() ? statusText : std::string(message);
@@ -61,12 +60,19 @@ int main() {
   errorFactory.setFormatter("text/html", htmlFormatter);
 
   Router router(errorFactory);
+
   CorsMiddleware corsMiddleware;
-  corsMiddleware.setCorsOrigins(
-      {"http://localhost:8080", "https://localhost:8443"});
+  corsMiddleware.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
   corsMiddleware.setCorsMaxAge(10);
 
   StaticMiddleware staticMiddleware("./public", "static", errorFactory);
+
+  SessionConfig sessionConfig;
+  auto ttl = std::chrono::seconds(std::stoi(std::to_string(SESSION_TTL_S)));
+  InMemorySessionStore sessionStore(ttl);
+  SessionMiddleware sessionMiddleware(sessionConfig, sessionStore);
+
+  router.use(sessionMiddleware);
 
   router.use(corsMiddleware);
   router.use(staticMiddleware);

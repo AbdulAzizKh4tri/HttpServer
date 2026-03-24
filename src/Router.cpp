@@ -9,29 +9,17 @@
 
 Router::Router(ErrorFactory &errorFactory) : errorFactory_(errorFactory) {}
 
-void Router::get(std::string path, Handler handler) {
-  addRoute(path, "GET", handler);
-}
+void Router::get(std::string path, Handler handler) { addRoute(path, "GET", handler); }
 
-void Router::post(std::string path, Handler handler) {
-  addRoute(path, "POST", handler);
-}
+void Router::post(std::string path, Handler handler) { addRoute(path, "POST", handler); }
 
-void Router::put(std::string path, Handler handler) {
-  addRoute(path, "PUT", handler);
-}
+void Router::put(std::string path, Handler handler) { addRoute(path, "PUT", handler); }
 
-void Router::patch(std::string path, Handler handler) {
-  addRoute(path, "PATCH", handler);
-}
+void Router::patch(std::string path, Handler handler) { addRoute(path, "PATCH", handler); }
 
-void Router::delete_(std::string path, Handler handler) {
-  addRoute(path, "DELETE", handler);
-}
+void Router::delete_(std::string path, Handler handler) { addRoute(path, "DELETE", handler); }
 
-void Router::use(Middleware middleware) {
-  middlewares_.push_back(std::move(middleware));
-}
+void Router::use(Middleware middleware) { middlewares_.push_back(std::move(middleware)); }
 
 Task<Response> Router::dispatch(HttpRequest &request) {
 
@@ -49,8 +37,7 @@ Task<Response> Router::dispatch(HttpRequest &request) {
     if (methods.contains("GET"))
       methods.insert("HEAD");
     HttpResponse response(204);
-    response.setHeader(
-        "Allow", getCommaSeparatedString({methods.begin(), methods.end()}));
+    response.setHeader("Allow", getCommaSeparatedString({methods.begin(), methods.end()}));
     co_return response;
   }
 
@@ -60,7 +47,7 @@ Task<Response> Router::dispatch(HttpRequest &request) {
   auto allowedMethods = getAllowedMethodsString(pathNode);
   request.setAttribute("allowedMethods", allowedMethods);
 
-  Handler terminal = [&](const HttpRequest &req) -> Task<Response> {
+  Handler terminal = [&](HttpRequest &req) -> Task<Response> {
     if (pathNode == nullptr) {
       auto response = errorFactory_.build(request, 404);
       if (request.getMethod() == "HEAD")
@@ -110,8 +97,7 @@ Task<Response> Router::dispatch(HttpRequest &request) {
   co_return co_await runChain(request, terminal, 0);
 }
 
-RouterResponse Router::validate(const std::string &path,
-                                const std::string &method) {
+RouterResponse Router::validate(const std::string &path, const std::string &method) {
   auto lookupMethod = (method == "HEAD") ? "GET" : method;
 
   auto pathParts = split(path, "/");
@@ -151,8 +137,7 @@ std::string Router::getAllowedMethodsString(const RouteNode *pathNode) {
   return result;
 }
 
-Task<Response> Router::runChain(HttpRequest &request, Handler &handler,
-                                size_t startIndex) {
+Task<Response> Router::runChain(HttpRequest &request, Handler &handler, size_t startIndex) {
   if (startIndex >= middlewares_.size()) {
     co_return co_await handler(request);
   }
@@ -162,8 +147,7 @@ Task<Response> Router::runChain(HttpRequest &request, Handler &handler,
   co_return co_await middleware(request, next);
 }
 
-RouteNode *
-Router::findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
+RouteNode *Router::findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
   RouteNode *node = &pathTreeRoot_;
 
   for (const auto &part : pathParts) {
@@ -185,9 +169,8 @@ Router::findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
   return node;
 }
 
-std::vector<std::pair<std::string, std::string>>
-Router::getPathParams(const std::vector<std::string> &patternParts,
-                      const std::vector<std::string> &pathParts) {
+std::vector<std::pair<std::string, std::string>> Router::getPathParams(const std::vector<std::string> &patternParts,
+                                                                       const std::vector<std::string> &pathParts) {
 
   std::vector<std::pair<std::string, std::string>> pathParams;
 
@@ -207,16 +190,14 @@ Router::getPathParams(const std::vector<std::string> &patternParts,
     }
     if (patternParts[i][0] == '<' && patternParts[i].back() == '>') {
       auto paramKey = patternParts[i].substr(1, patternParts[i].size() - 2);
-      pathParams.emplace_back(percentDecode(paramKey),
-                              percentDecode(pathParts[i]));
+      pathParams.emplace_back(percentDecode(paramKey), percentDecode(pathParts[i]));
     }
   }
 
   return pathParams;
 }
 
-void Router::addRoute(const std::string &routePattern,
-                      const std::string &method, Handler &handler) {
+void Router::addRoute(const std::string &routePattern, const std::string &method, Handler &handler) {
   auto pattern = routePattern;
   normalizePath(pattern);
   auto patternParts = split(pattern, "/");
@@ -253,8 +234,7 @@ void Router::addRoute(const std::string &routePattern,
   registeredMethods_.insert(method);
 }
 
-void Router::validatePattern(const std::string &pattern,
-                             const std::vector<std::string> &parts) {
+void Router::validatePattern(const std::string &pattern, const std::vector<std::string> &parts) {
 
   std::unordered_set<std::string> params;
 
@@ -266,25 +246,20 @@ void Router::validatePattern(const std::string &pattern,
 
     bool isLast = (i == parts.size() - 1);
     if ((parts[i] == "*" || parts[i] == "**") && !isLast)
-      throw std::invalid_argument(
-          "Wildcard '" + parts[i] +
-          "' must be the last segment in pattern: " + pattern);
+      throw std::invalid_argument("Wildcard '" + parts[i] + "' must be the last segment in pattern: " + pattern);
 
     if (parts[i][0] == '<' && parts[i].back() == '>') {
       std::string param = parts[i].substr(1, parts[i].size() - 2);
 
       if (param.empty())
-        throw std::invalid_argument("Parameter name cannot be empty: " +
-                                    pattern);
+        throw std::invalid_argument("Parameter name cannot be empty: " + pattern);
 
       if (!std::ranges::all_of(param, isValidParamChar))
-        throw std::invalid_argument(
-            "Parameter name '" + param +
-            "' contains invalid characters in pattern: " + pattern);
+        throw std::invalid_argument("Parameter name '" + param +
+                                    "' contains invalid characters in pattern: " + pattern);
 
       if (params.contains(param))
-        throw std::invalid_argument("Duplicate parameter '" + param +
-                                    "' in pattern: " + pattern);
+        throw std::invalid_argument("Duplicate parameter '" + param + "' in pattern: " + pattern);
       params.insert(param);
     }
   }

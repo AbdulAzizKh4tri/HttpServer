@@ -2,7 +2,11 @@
 
 #include <expected>
 
+#include "Session.hpp"
+#include "Task.hpp"
 #include "serverConfig.hpp"
+
+struct SessionHandle;
 
 enum class ContentLengthError {
   NO_CONTENT_LENGTH_HEADER,
@@ -30,6 +34,8 @@ public:
 
   std::optional<std::string> getCookie(const std::string &name) const;
 
+  Task<Session *> getSession();
+
   std::expected<size_t, ContentLengthError> getContentLength() const;
 
   std::string getHeader(const std::string &name) const;
@@ -56,8 +62,7 @@ public:
 
   std::string getPathParam(const std::string &key) const;
 
-  void setPathParams(
-      const std::vector<std::pair<std::string, std::string>> &pathParams);
+  void setPathParams(const std::vector<std::pair<std::string, std::string>> &pathParams);
 
   std::vector<std::pair<std::string, std::string>> getAllPathParams() const;
 
@@ -76,12 +81,15 @@ public:
 
   void setIp(const std::string &ip);
   void setPort(uint16_t port);
+  void setSessionHandle(SessionHandle *sessionHandle);
 
 private:
   std::vector<std::pair<std::string, std::string>> headers_;
   std::vector<std::pair<std::string, std::string>> queryParams_;
   std::vector<std::pair<std::string, std::string>> attributes_;
   std::vector<std::pair<std::string, std::string>> pathParams_;
+
+  SessionHandle *sessionHandle_ = nullptr;
 
   std::string method_, rawPath_, path_, version_, body_, ip_;
   uint16_t port_ = 0;

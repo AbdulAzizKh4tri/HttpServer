@@ -1,0 +1,58 @@
+#pragma once
+
+#include <chrono>
+#include <openssl/rand.h>
+
+#include "ISessionStore.hpp"
+
+struct SessionEntry {
+  Session session;
+  std::chrono::time_point<std::chrono::system_clock> lastAccessed;
+};
+
+class InMemorySessionStore : public ISessionStore {
+public:
+  InMemorySessionStore(std::chrono::seconds ttl) : ttl_(ttl) {}
+
+  Task<std::optional<Session>> load(const std::string &id) override {
+    auto entryIt = sessions_.find(id);
+    if (entryIt == sessions_.end()) {
+      co_return std::nullopt;
+    }
+
+    const auto &entry = entryIt->second;
+    if (std::chrono::system_clock::now() - entry.lastAccessed > ttl_ || entry.session.isInvalidated()) {
+      sessions_.erase(entryIt);
+      co_return std::nullopt;
+    }
+
+    co_return entry.session;
+  };
+
+  Task<void> save(const std::string &id, const Session &session) override {
+    sessions_[id] = {session, std::chrono::system_clock::now()};
+    co_return;
+  };
+
+  Task<void> destroy(const std::string &id) override {
+    sessions_.erase(id);
+    co_return;
+  };
+
+  std::string generateId() override {
+    unsigned char buf[32];
+    if (RAND_bytes(buf, sizeof(buf)) != 1)
+      throw std::runtime_error("RAND_bytes failed");
+    std::string id(64, '\0');
+    static constexpr char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 32; i++) {
+      id[i * 2] = hex[buf[i] >> 4];
+      id[i * 2 + 1] = hex[buf[i] & 0xf];
+    }
+    return id;
+  }
+
+private:
+  std::unordered_map<std::string, SessionEntry> sessions_;
+  std::chrono::seconds ttl_;
+};

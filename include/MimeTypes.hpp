@@ -1,3 +1,5 @@
+#pragma once
+
 static const std::unordered_map<std::string, std::string> MIME_TYPES = {
     // Web / HTML / scripts / styles
     {".html", "text/html"},

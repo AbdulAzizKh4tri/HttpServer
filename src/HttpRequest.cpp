@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <string_view>
 
+#include "SessionHandle.hpp"
 #include "utils.hpp"
 
 HttpRequest::HttpRequest() {}
@@ -26,8 +27,7 @@ bool HttpRequest::parseRequestHeader(std::string_view headerView) {
   return true;
 }
 
-std::vector<std::pair<std::string, std::string>>
-HttpRequest::getCookies() const {
+std::vector<std::pair<std::string, std::string>> HttpRequest::getCookies() const {
   const std::string cookieHeader = getHeader("Cookie");
   if (cookieHeader == "")
     return {};
@@ -37,14 +37,11 @@ HttpRequest::getCookies() const {
 
   for (;;) {
     auto cookieDelim = cookieView.find(';');
-    auto cookiePair = cookieDelim == std::string_view::npos
-                          ? cookieView
-                          : cookieView.substr(0, cookieDelim);
+    auto cookiePair = cookieDelim == std::string_view::npos ? cookieView : cookieView.substr(0, cookieDelim);
     trim(cookiePair);
     auto eqpos = cookiePair.find('=');
     if (eqpos != std::string::npos) {
-      cookies.emplace_back(cookiePair.substr(0, eqpos),
-                           cookiePair.substr(eqpos + 1));
+      cookies.emplace_back(cookiePair.substr(0, eqpos), cookiePair.substr(eqpos + 1));
     }
 
     if (cookieDelim == std::string_view::npos)
@@ -56,8 +53,7 @@ HttpRequest::getCookies() const {
   return cookies;
 }
 
-std::optional<std::string>
-HttpRequest::getCookie(const std::string &name) const {
+std::optional<std::string> HttpRequest::getCookie(const std::string &name) const {
   for (const auto &cookie : getCookies()) {
     if (cookie.first == name)
       return cookie.second;
@@ -65,15 +61,19 @@ HttpRequest::getCookie(const std::string &name) const {
   return std::nullopt;
 }
 
-std::expected<size_t, ContentLengthError>
-HttpRequest::getContentLength() const {
+Task<Session *> HttpRequest::getSession() {
+  if (!sessionHandle_)
+    co_return nullptr;
+  co_return co_await sessionHandle_->get();
+}
+
+std::expected<size_t, ContentLengthError> HttpRequest::getContentLength() const {
   auto lenStr = getHeader("Content-Length");
   if (lenStr == "")
     return std::unexpected(ContentLengthError::NO_CONTENT_LENGTH_HEADER);
   size_t len;
 
-  auto [ptr, ec] =
-      std::from_chars(lenStr.data(), lenStr.data() + lenStr.size(), len);
+  auto [ptr, ec] = std::from_chars(lenStr.data(), lenStr.data() + lenStr.size(), len);
   if (ec != std::errc{})
     return std::unexpected(ContentLengthError::INVALID_CONTENT_LENGTH);
 
@@ -86,15 +86,11 @@ std::string HttpRequest::getHeader(const std::string &name) const {
   return getLastOrDefault(headers_, toLowerCase(name), "");
 }
 
-std::vector<std::string>
-HttpRequest::getHeaders(const std::string &name) const {
+std::vector<std::string> HttpRequest::getHeaders(const std::string &name) const {
   return getAllValues(headers_, toLowerCase(name));
 }
 
-std::vector<std::pair<std::string, std::string>>
-HttpRequest::getAllHeaders() const {
-  return headers_;
-}
+std::vector<std::pair<std::string, std::string>> HttpRequest::getAllHeaders() const { return headers_; }
 
 void HttpRequest::setHeader(const std::string &name, const std::string &value) {
   std::string key = toLowerCase(name);
@@ -105,9 +101,8 @@ void HttpRequest::setHeader(const std::string &name, const std::string &value) {
 void HttpRequest::addHeader(const std::string &name, const std::string &value) {
   auto key = toLowerCase(name);
   if (std::ranges::contains(singletonHeaders_, key)) {
-    if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) {
-          return p.first == key;
-        }) == headers_.end())
+    if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) { return p.first == key; }) ==
+        headers_.end())
       headers_.emplace_back(key, value);
     return;
   }
@@ -119,43 +114,28 @@ void HttpRequest::removeHeader(const std::string &name) {
   std::erase_if(headers_, [&key](const auto &p) { return p.first == key; });
 }
 
-void HttpRequest::setAttribute(const std::string &key,
-                               const std::string &value) {
+void HttpRequest::setAttribute(const std::string &key, const std::string &value) {
   std::erase_if(attributes_, [&key](const auto &p) { return p.first == key; });
   attributes_.emplace_back(key, value);
 }
 
-std::string HttpRequest::getAttribute(const std::string &key) const {
-  return getLastOrDefault(attributes_, key, "");
-}
+std::string HttpRequest::getAttribute(const std::string &key) const { return getLastOrDefault(attributes_, key, ""); }
 
-std::string HttpRequest::getQueryParam(const std::string &key) const {
-  return getLastOrDefault(queryParams_, key, "");
-}
+std::string HttpRequest::getQueryParam(const std::string &key) const { return getLastOrDefault(queryParams_, key, ""); }
 
-std::vector<std::string>
-HttpRequest::getQueryParams(const std::string &key) const {
+std::vector<std::string> HttpRequest::getQueryParams(const std::string &key) const {
   return getAllValues(queryParams_, key);
 }
 
-std::vector<std::pair<std::string, std::string>>
-HttpRequest::getAllQueryParams() const {
-  return queryParams_;
-}
+std::vector<std::pair<std::string, std::string>> HttpRequest::getAllQueryParams() const { return queryParams_; }
 
-std::string HttpRequest::getPathParam(const std::string &key) const {
-  return getLastOrDefault(pathParams_, key, "");
-}
+std::string HttpRequest::getPathParam(const std::string &key) const { return getLastOrDefault(pathParams_, key, ""); }
 
-void HttpRequest::setPathParams(
-    const std::vector<std::pair<std::string, std::string>> &pathParams) {
+void HttpRequest::setPathParams(const std::vector<std::pair<std::string, std::string>> &pathParams) {
   pathParams_ = pathParams;
 }
 
-std::vector<std::pair<std::string, std::string>>
-HttpRequest::getAllPathParams() const {
-  return pathParams_;
-}
+std::vector<std::pair<std::string, std::string>> HttpRequest::getAllPathParams() const { return pathParams_; }
 
 std::string HttpRequest::getPath() const { return path_; }
 std::string HttpRequest::getRawPath() const { return rawPath_; }
@@ -169,6 +149,8 @@ void HttpRequest::setBody(const std::string &body) { body_ = body; }
 
 std::string HttpRequest::getIp() const { return ip_; }
 uint16_t HttpRequest::getPort() const { return port_; }
+
+void HttpRequest::setSessionHandle(SessionHandle *sessionHandle) { sessionHandle_ = sessionHandle; }
 
 void HttpRequest::setIp(const std::string &ip) { ip_ = ip; }
 void HttpRequest::setPort(uint16_t port) { port_ = port; }
@@ -212,15 +194,12 @@ bool HttpRequest::parseRequestLine(std::string_view requestLine) {
 bool HttpRequest::parseRequestHeaders(std::string_view headerView) {
   while (not headerView.empty()) {
     auto lineEnd = headerView.find('\n');
-    auto line = lineEnd == std::string_view::npos
-                    ? headerView
-                    : headerView.substr(0, lineEnd);
+    auto line = lineEnd == std::string_view::npos ? headerView : headerView.substr(0, lineEnd);
 
     if (not line.empty() && (line.front() == ' ' || line.front() == '\t'))
       return false;
 
-    headerView.remove_prefix(
-        lineEnd == std::string_view::npos ? headerView.size() : lineEnd + 1);
+    headerView.remove_prefix(lineEnd == std::string_view::npos ? headerView.size() : lineEnd + 1);
 
     if (not line.empty() && line.back() == '\r')
       line.remove_suffix(1);
@@ -254,15 +233,12 @@ void HttpRequest::parsePathAndQueryParams(std::string_view rawPathView) {
 
     for (;;) {
       auto paramDelim = rawPathView.find('&');
-      auto pair = paramDelim == std::string_view::npos
-                      ? rawPathView
-                      : rawPathView.substr(0, paramDelim);
+      auto pair = paramDelim == std::string_view::npos ? rawPathView : rawPathView.substr(0, paramDelim);
 
       auto eqpos = pair.find('=');
       if (eqpos != std::string_view::npos) {
         const auto &val = percentDecode(pair.substr(eqpos + 1));
-        queryParams_.emplace_back(percentDecode(pair.substr(0, eqpos)),
-                                  val == "" ? "true" : val);
+        queryParams_.emplace_back(percentDecode(pair.substr(0, eqpos)), val == "" ? "true" : val);
       } else {
         queryParams_.emplace_back(percentDecode(pair), "true");
       }

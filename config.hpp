@@ -7,3 +7,6 @@
 #define TLS_CERT_PATH "cert.pem"
 #define TLS_KEY_PATH "key.pem"
 #define LISTEN_BACKLOG 20
+
+// ── Sessions ───────────────────────────────────────────────
+#define SESSION_TTL_S 120

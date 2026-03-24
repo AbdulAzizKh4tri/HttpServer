@@ -10,27 +10,25 @@ using json = nlohmann::json;
 
 void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
 
-  router.get(
-      "/", [&errorFactory](const HttpRequest &request) -> Task<Response> {
-        auto name = request.getQueryParam("name");
+  router.get("/", [&errorFactory](const HttpRequest &request) -> Task<Response> {
+    auto name = request.getQueryParam("name");
 
-        std::filesystem::path resolved = std::filesystem::weakly_canonical(
-            std::filesystem::path("./public/home/index.html"));
-        std::optional<AsyncFileReader> fileOpt =
-            AsyncFileReader::open(resolved);
+    std::filesystem::path resolved =
+        std::filesystem::weakly_canonical(std::filesystem::path("./public/home/index.html"));
+    std::optional<AsyncFileReader> fileOpt = AsyncFileReader::open(resolved);
 
-        if (not fileOpt.has_value())
-          co_return errorFactory.build(request, 403);
+    if (not fileOpt.has_value())
+      co_return errorFactory.build(request, 403);
 
-        AsyncFileReader &file = fileOpt.value();
+    AsyncFileReader &file = fileOpt.value();
 
-        std::string body = co_await file.readAll();
-        HttpResponse response(200, body);
-        response.setHeader("Content-Type", "text/html");
-        if (request.getMethod() == "HEAD")
-          response.stripBody();
-        co_return response;
-      });
+    std::string body = co_await file.readAll();
+    HttpResponse response(200, body);
+    response.setHeader("Content-Type", "text/html");
+    if (request.getMethod() == "HEAD")
+      response.stripBody();
+    co_return response;
+  });
 
   router.post("/", [](const HttpRequest &request) -> Task<Response> {
     json data = json::parse(request.getBody());
@@ -39,9 +37,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     co_return res;
   });
 
-  router.put("/", [](const HttpRequest &request) -> Task<Response> {
-    co_return HttpResponse(200, request.getBody());
-  });
+  router.put("/", [](const HttpRequest &request) -> Task<Response> { co_return HttpResponse(200, request.getBody()); });
 
   // WARNING: BLOCKS THE ENTIRE THREAD FOR 5 SECONDS!
   router.get("/tests/slow", [](const HttpRequest &) -> Task<Response> {
@@ -57,9 +53,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
 
   // GET /tests/ping
   // Simplest possible liveness check.
-  router.get("/tests/ping", [](const HttpRequest &) -> Task<Response> {
-    co_return HttpResponse(200, "pong");
-  });
+  router.get("/tests/ping", [](const HttpRequest &) -> Task<Response> { co_return HttpResponse(200, "pong"); });
 
   // GET|POST /tests/debug/request
   // Full request introspection -- returns every observable property of the
@@ -76,7 +70,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   //   "rawPath": "/tests/debug/request?foo=bar",
   //   "headers": { "host": "localhost:8080", ... },
   //   "query":   { "foo": "bar" },
-  //   "cookies": { "session": "abc123" },
+  //   "cookies": { "session_id": "abc123" },
   //   "body":    ""
   // }
   auto debugRequestHandler = [](const HttpRequest &request) -> Task<Response> {
@@ -127,9 +121,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // Deliberately throws a std::runtime_error to exercise the exception handler
   // in HttpConnection::generateResponse() -- should produce a 500 JSON
   // response with Connection: keep-alive (handler exceptions are non-fatal).
-  router.get("/tests/error/throw", [](const HttpRequest &) -> Task<Response> {
-    throw std::runtime_error("Deliberate test error");
-  });
+  router.get("/tests/error/throw",
+             [](const HttpRequest &) -> Task<Response> { throw std::runtime_error("Deliberate test error"); });
 
   // -- Cookie routes ----------------------------------------------------------
   // All live under /tests/cookies/*
@@ -148,53 +141,50 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   //
   // Also responds with a JSON body describing the cookie that was set, so
   // tests can assert both the Set-Cookie response header and the attributes.
-  router.get("/tests/cookies/set",
-             [](const HttpRequest &request) -> Task<Response> {
-               std::string name = request.getQueryParam("name");
-               std::string value = request.getQueryParam("value");
-               if (name.empty())
-                 name = "test";
-               if (value.empty())
-                 value = "hello";
+  router.get("/tests/cookies/set", [](const HttpRequest &request) -> Task<Response> {
+    std::string name = request.getQueryParam("name");
+    std::string value = request.getQueryParam("value");
+    if (name.empty())
+      name = "test";
+    if (value.empty())
+      value = "hello";
 
-               Cookie c;
-               c.name = name;
-               c.value = value;
+    Cookie c;
+    c.name = name;
+    c.value = value;
 
-               auto path = request.getQueryParam("path");
-               if (!path.empty())
-                 c.path = path;
+    auto path = request.getQueryParam("path");
+    if (!path.empty())
+      c.path = path;
 
-               auto domain = request.getQueryParam("domain");
-               if (!domain.empty())
-                 c.domain = domain;
+    auto domain = request.getQueryParam("domain");
+    if (!domain.empty())
+      c.domain = domain;
 
-               auto maxage = request.getQueryParam("maxage");
-               if (!maxage.empty())
-                 c.maxAge = std::stoi(maxage);
+    auto maxage = request.getQueryParam("maxage");
+    if (!maxage.empty())
+      c.maxAge = std::stoi(maxage);
 
-               auto samesite = request.getQueryParam("samesite");
-               if (!samesite.empty())
-                 c.sameSite = samesite;
+    auto samesite = request.getQueryParam("samesite");
+    if (!samesite.empty())
+      c.sameSite = samesite;
 
-               // key-only params arrive with value "true" -- presence is enough
-               if (!request.getQueryParam("httponly").empty())
-                 c.httpOnly = true;
-               if (!request.getQueryParam("secure").empty())
-                 c.secure = true;
+    // key-only params arrive with value "true" -- presence is enough
+    if (!request.getQueryParam("httponly").empty())
+      c.httpOnly = true;
+    if (!request.getQueryParam("secure").empty())
+      c.secure = true;
 
-               json body = {
-                   {"name", c.name},         {"value", c.value},
-                   {"path", c.path},         {"domain", c.domain},
-                   {"maxAge", c.maxAge},     {"sameSite", c.sameSite},
-                   {"httpOnly", c.httpOnly}, {"secure", c.secure},
-               };
+    json body = {
+        {"name", c.name},     {"value", c.value},       {"path", c.path},         {"domain", c.domain},
+        {"maxAge", c.maxAge}, {"sameSite", c.sameSite}, {"httpOnly", c.httpOnly}, {"secure", c.secure},
+    };
 
-               HttpResponse res(200, body.dump());
-               res.setHeader("Content-Type", "application/json");
-               res.setCookie(c);
-               co_return res;
-             });
+    HttpResponse res(200, body.dump());
+    res.setHeader("Content-Type", "application/json");
+    res.setCookie(c);
+    co_return res;
+  });
 
   // GET /tests/cookies/read
   // Echoes all cookies from the incoming Cookie request header as a JSON
@@ -202,17 +192,16 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // request, then send it back here to confirm the round-trip.
   //
   // Response: { "<name>": "<value>", ... }
-  router.get("/tests/cookies/read",
-             [](const HttpRequest &request) -> Task<Response> {
-               json j = json::object();
-               for (const auto &[name, value] : request.getCookies()) {
-                 SPDLOG_DEBUG("{}: {}", name, value);
-                 j[name] = value;
-               }
-               auto res = HttpResponse(200, j.dump());
-               res.setHeader("Content-Type", "application/json");
-               co_return res;
-             });
+  router.get("/tests/cookies/read", [](const HttpRequest &request) -> Task<Response> {
+    json j = json::object();
+    for (const auto &[name, value] : request.getCookies()) {
+      SPDLOG_DEBUG("{}: {}", name, value);
+      j[name] = value;
+    }
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    co_return res;
+  });
 
   // GET /tests/cookies/delete
   // Instructs the client to remove a named cookie by issuing a Set-Cookie
@@ -220,61 +209,128 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // Query param: name=<str> (default: "test")
   //
   // Response: { "removed": "<name>" }
-  router.get("/tests/cookies/delete",
-             [](const HttpRequest &request) -> Task<Response> {
-               std::string name = request.getQueryParam("name");
-               if (name.empty())
-                 name = "test";
-               HttpResponse res(200, json{{"removed", name}}.dump());
-               res.setHeader("Content-Type", "application/json");
-               res.deleteCookie(name);
-               co_return res;
-             });
+  router.get("/tests/cookies/delete", [](const HttpRequest &request) -> Task<Response> {
+    std::string name = request.getQueryParam("name");
+    if (name.empty())
+      name = "test";
+    HttpResponse res(200, json{{"removed", name}}.dump());
+    res.setHeader("Content-Type", "application/json");
+    res.deleteCookie(name);
+    co_return res;
+  });
+
+  // -- Session routes ----------------------------------------------------------
+
+  // GET /tests/session/set?key=foo&value=bar
+  router.get("/tests/session/set", [](HttpRequest &request) -> Task<Response> {
+    std::string key = request.getQueryParam("key");
+    if (key.empty())
+      key = "test";
+    std::string value = request.getQueryParam("value");
+    if (value.empty())
+      value = "hello";
+
+    auto session = co_await request.getSession();
+    session->set(key, value);
+
+    HttpResponse res(200, json{{"key", key}, {"value", value}}.dump());
+    co_return res;
+  });
+
+  // GET /tests/session/get?key=foo
+  router.get("/tests/session/get", [](HttpRequest &request) -> Task<Response> {
+    std::string key = request.getQueryParam("key");
+    if (key.empty())
+      key = "test";
+
+    auto session = co_await request.getSession();
+    auto val = session->get(key);
+
+    json body;
+    body["key"] = key;
+    if (val.has_value()) {
+      body["value"] = *val;
+      body["found"] = true;
+    } else {
+      body["value"] = nullptr;
+      body["found"] = false;
+    }
+
+    HttpResponse res(200, body.dump());
+    co_return res;
+  });
+
+  // GET /tests/session/all
+  router.get("/tests/session/all", [](HttpRequest &request) -> Task<Response> {
+    auto session = co_await request.getSession();
+    json body = json::object();
+    for (const auto &[k, v] : session->getAll()) {
+      body[k] = v;
+    }
+    HttpResponse res(200, body.dump());
+    co_return res;
+  });
+
+  // GET /tests/session/delete?key=foo
+  router.get("/tests/session/delete", [](HttpRequest &request) -> Task<Response> {
+    std::string key = request.getQueryParam("key");
+    if (key.empty())
+      key = "test";
+
+    auto session = co_await request.getSession();
+    bool existed = session->has(key);
+    session->remove(key);
+
+    HttpResponse res(200, json{{"removed", key}, {"existed", existed}}.dump());
+    co_return res;
+  });
+
+  // GET /tests/session/invalidate
+  router.get("/tests/session/invalidate", [](HttpRequest &request) -> Task<Response> {
+    auto session = co_await request.getSession();
+    session->invalidate();
+
+    HttpResponse res(200, json{{"invalidated", true}}.dump());
+    co_return res;
+  });
 
   // -- Path parameter routes --------------------------------------------------
 
   // GET /tests/users/<id>
-  router.get("/tests/users/<id>",
-             [](const HttpRequest &request) -> Task<Response> {
-               json j = {{"userId", request.getPathParam("id")}};
-               auto res = HttpResponse(200, j.dump());
-               res.setHeader("Content-Type", "application/json");
-               co_return res;
-             });
+  router.get("/tests/users/<id>", [](const HttpRequest &request) -> Task<Response> {
+    json j = {{"userId", request.getPathParam("id")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    co_return res;
+  });
 
   // GET /tests/users/<userId>/posts/<postId>
-  router.get("/tests/users/<userId>/posts/<postId>",
-             [](const HttpRequest &request) -> Task<Response> {
-               json j = {{"userId", request.getPathParam("userId")},
-                         {"postId", request.getPathParam("postId")}};
-               auto res = HttpResponse(200, j.dump());
-               res.setHeader("Content-Type", "application/json");
-               co_return res;
-             });
+  router.get("/tests/users/<userId>/posts/<postId>", [](const HttpRequest &request) -> Task<Response> {
+    json j = {{"userId", request.getPathParam("userId")}, {"postId", request.getPathParam("postId")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    co_return res;
+  });
 
   // DELETE /tests/items/<id>
   router.delete_("/tests/items/<id>",
-                 [](const HttpRequest &request) -> Task<Response> {
-                   co_return HttpResponse(200);
-                 });
+                 [](const HttpRequest &request) -> Task<Response> { co_return HttpResponse(200); });
 
   // GET /tests/wildcard/* -- single segment
-  router.get("/tests/wildcard/*",
-             [](const HttpRequest &request) -> Task<Response> {
-               json j = {{"path", request.getPathParam("*")}};
-               auto res = HttpResponse(200, j.dump());
-               res.setHeader("Content-Type", "application/json");
-               co_return res;
-             });
+  router.get("/tests/wildcard/*", [](const HttpRequest &request) -> Task<Response> {
+    json j = {{"path", request.getPathParam("*")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    co_return res;
+  });
 
   // GET /tests/deepwildcard/** -- greedy
-  router.get("/tests/deepwildcard/**",
-             [](const HttpRequest &request) -> Task<Response> {
-               json j = {{"path", request.getPathParam("**")}};
-               auto res = HttpResponse(200, j.dump());
-               res.setHeader("Content-Type", "application/json");
-               co_return res;
-             });
+  router.get("/tests/deepwildcard/**", [](const HttpRequest &request) -> Task<Response> {
+    json j = {{"path", request.getPathParam("**")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    co_return res;
+  });
 
   // -- URL decoding test routes -----------------------------------------------
 
@@ -286,13 +342,12 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // e.g. /tests/decode/path/John%20Doe  ->  {"name":"John Doe"}
   // e.g. /tests/decode/path/foo%2Fbar   ->  {"name":"foo/bar"}
   // e.g. /tests/decode/path/caf%C3%A9   ->  {"name":"cafe"} (UTF-8 bytes)
-  router.get("/tests/decode/path/<name>",
-             [](const HttpRequest &request) -> Task<Response> {
-               json j = {{"name", request.getPathParam("name")}};
-               auto res = HttpResponse(200, j.dump());
-               res.setHeader("Content-Type", "application/json");
-               co_return res;
-             });
+  router.get("/tests/decode/path/<name>", [](const HttpRequest &request) -> Task<Response> {
+    json j = {{"name", request.getPathParam("name")}};
+    auto res = HttpResponse(200, j.dump());
+    res.setHeader("Content-Type", "application/json");
+    co_return res;
+  });
 
   // -- Chunked / streaming response test routes -------------------------------
   // All live under /tests/stream/*
@@ -301,34 +356,30 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // A handful of small named chunks. Assembled body: "Hello, World!"
   // The canonical "does streaming work at all" check.
   router.get("/tests/stream/basic", [](const HttpRequest &) -> Task<Response> {
-    co_return HttpStreamResponse(
-        200, [i = 0]() mutable -> Task<std::optional<std::string>> {
-          static constexpr std::array chunks = {"Hello", ", ", "World", "!"};
-          if (i >= 4)
-            co_return std::nullopt;
-          co_return std::string(chunks[i++]);
-        });
+    co_return HttpStreamResponse(200, [i = 0]() mutable -> Task<std::optional<std::string>> {
+      static constexpr std::array chunks = {"Hello", ", ", "World", "!"};
+      if (i >= 4)
+        co_return std::nullopt;
+      co_return std::string(chunks[i++]);
+    });
   });
 
   // GET /tests/stream/single
   // Exactly one chunk, then done. Assembled body: "hello"
   router.get("/tests/stream/single", [](const HttpRequest &) -> Task<Response> {
-    co_return HttpStreamResponse(
-        200, [done = false]() mutable -> Task<std::optional<std::string>> {
-          if (done)
-            co_return std::nullopt;
-          done = true;
-          co_return std::string("hello");
-        });
+    co_return HttpStreamResponse(200, [done = false]() mutable -> Task<std::optional<std::string>> {
+      if (done)
+        co_return std::nullopt;
+      done = true;
+      co_return std::string("hello");
+    });
   });
 
   // GET /tests/stream/empty
   // Returns nullopt on the very first call -- terminal chunk immediately.
   // Assembled body is empty, status still 200.
   router.get("/tests/stream/empty", [](const HttpRequest &) -> Task<Response> {
-    co_return HttpStreamResponse(200, []() -> Task<std::optional<std::string>> {
-      co_return std::nullopt;
-    });
+    co_return HttpStreamResponse(200, []() -> Task<std::optional<std::string>> { co_return std::nullopt; });
   });
 
   // GET /tests/stream/count/<n>
@@ -337,19 +388,16 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // n<0  -> clamped to 0
   // non-numeric n -> std::stoi throws before the HttpStreamResponse is
   //   constructed, generateResponse() catches it -> plain 500 JSON response.
-  router.get("/tests/stream/count/<n>",
-             [](const HttpRequest &request) -> Task<Response> {
-               int n = std::stoi(request.getPathParam("n"));
-               if (n < 0)
-                 n = 0;
-               co_return HttpStreamResponse(
-                   200,
-                   [i = 0, n]() mutable -> Task<std::optional<std::string>> {
-                     if (i >= n)
-                       co_return std::nullopt;
-                     co_return "chunk-" + std::to_string(++i);
-                   });
-             });
+  router.get("/tests/stream/count/<n>", [](const HttpRequest &request) -> Task<Response> {
+    int n = std::stoi(request.getPathParam("n"));
+    if (n < 0)
+      n = 0;
+    co_return HttpStreamResponse(200, [i = 0, n]() mutable -> Task<std::optional<std::string>> {
+      if (i >= n)
+        co_return std::nullopt;
+      co_return "chunk-" + std::to_string(++i);
+    });
+  });
 
   // GET /tests/stream/throw
   // Emits two chunks successfully, then the lambda throws.
@@ -359,35 +407,31 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   // Assembled body: "chunk-1chunk-2Internal Server Error: Deliberate stream
   // error"
   router.get("/tests/stream/throw", [](const HttpRequest &) -> Task<Response> {
-    co_return HttpStreamResponse(
-        200, [i = 0]() mutable -> Task<std::optional<std::string>> {
-          if (i == 2)
-            throw std::runtime_error("Deliberate stream error");
-          co_return "chunk-" + std::to_string(++i);
-        });
+    co_return HttpStreamResponse(200, [i = 0]() mutable -> Task<std::optional<std::string>> {
+      if (i == 2)
+        throw std::runtime_error("Deliberate stream error");
+      co_return "chunk-" + std::to_string(++i);
+    });
   });
 
   // POST /tests/stream/echo
   // Reads the request body and streams it back in 4-byte chunks.
   // Empty body -> empty stream (terminal chunk only).
   // Mirrors Content-Type if provided.
-  router.post("/tests/stream/echo",
-              [](const HttpRequest &request) -> Task<Response> {
-                std::string body = request.getBody();
-                std::string ctype = request.getHeader("Content-Type");
-                auto res = HttpStreamResponse(
-                    200,
-                    [offset = size_t(0), body = std::move(body)]() mutable
-                        -> Task<std::optional<std::string>> {
-                      if (offset >= body.size())
-                        co_return std::nullopt;
-                      auto len = std::min(size_t(4), body.size() - offset);
-                      auto chunk = body.substr(offset, len);
-                      offset += len;
-                      co_return chunk;
-                    });
-                if (!ctype.empty())
-                  res.setHeader("Content-Type", ctype);
-                co_return res;
-              });
+  router.post("/tests/stream/echo", [](const HttpRequest &request) -> Task<Response> {
+    std::string body = request.getBody();
+    std::string ctype = request.getHeader("Content-Type");
+    auto res = HttpStreamResponse(
+        200, [offset = size_t(0), body = std::move(body)]() mutable -> Task<std::optional<std::string>> {
+          if (offset >= body.size())
+            co_return std::nullopt;
+          auto len = std::min(size_t(4), body.size() - offset);
+          auto chunk = body.substr(offset, len);
+          offset += len;
+          co_return chunk;
+        });
+    if (!ctype.empty())
+      res.setHeader("Content-Type", ctype);
+    co_return res;
+  });
 }
