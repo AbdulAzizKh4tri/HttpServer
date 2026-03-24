@@ -94,6 +94,7 @@ void HttpStreamResponse::deleteCookie(const std::string &name,
   c.value = "";
   c.path = path;
   c.maxAge = 0;
+  c.expires = std::chrono::system_clock::from_time_t(0);
   setCookie(c);
 }
 
