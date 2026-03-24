@@ -89,10 +89,20 @@ void HttpResponse::setCookie(Cookie cookie) {
   addHeader("Set-Cookie", cookieString);
 }
 
-void HttpResponse::removeCookie(const std::string &name) {
+void HttpResponse::unsetCookie(const std::string &name) {
   std::erase_if(headers_, [&name](const auto &p) {
     return p.first == "set-cookie" && p.second.starts_with(name + "=");
   });
+}
+
+void HttpResponse::deleteCookie(const std::string &name,
+                                const std::string &path) {
+  Cookie c;
+  c.name = name;
+  c.value = "";
+  c.path = path;
+  c.maxAge = 0;
+  setCookie(c);
 }
 
 std::vector<std::pair<std::string, std::string>>

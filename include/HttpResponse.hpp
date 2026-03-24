@@ -38,7 +38,9 @@ public:
 
   void setCookie(Cookie cookie);
 
-  void removeCookie(const std::string &name);
+  void unsetCookie(const std::string &name);
+
+  void deleteCookie(const std::string &name, const std::string &path = "/");
 
   std::vector<std::pair<std::string, std::string>> getCookies() const;
 

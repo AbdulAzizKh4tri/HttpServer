@@ -81,10 +81,20 @@ void HttpStreamResponse::setCookie(Cookie cookie) {
   addHeader("Set-Cookie", cookieString);
 }
 
-void HttpStreamResponse::removeCookie(const std::string &name) {
+void HttpStreamResponse::unsetCookie(const std::string &name) {
   std::erase_if(headers_, [&name](const auto &p) {
     return p.first == "set-cookie" && p.second.starts_with(name + "=");
   });
+}
+
+void HttpStreamResponse::deleteCookie(const std::string &name,
+                                      const std::string &path) {
+  Cookie c;
+  c.name = name;
+  c.value = "";
+  c.path = path;
+  c.maxAge = 0;
+  setCookie(c);
 }
 
 std::vector<std::pair<std::string, std::string>>
