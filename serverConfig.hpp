@@ -3,10 +3,13 @@
 // ── Server identity ───────────────────────────────────────
 #define SERVER_NAME "Azooz's Chad Compiled C++ Server"
 
+// ── Concurrency ───────────────────────────────────────────
+#define THREAD_COUNT 6
+
 // ── Timeouts (seconds) ────────────────────────────────────
 #define INACTIVITY_TIMEOUT_S 20
 #define FORMATION_TIMEOUT_S 120
-#define GRACEFUL_SHUTDOWN_TIMEOUT_S 10
+#define GRACEFUL_SHUTDOWN_TIMEOUT_S 20
 
 // ── Request limits ────────────────────────────────────────
 #define MAX_HEADER_BYTES (8 * 1024)

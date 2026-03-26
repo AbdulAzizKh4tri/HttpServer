@@ -197,8 +197,8 @@ inline std::string percentDecode(std::string_view s) {
 }
 
 inline const std::string &getCurrentHttpDate() {
-  static std::string cached;
-  static time_t lastTime = 0;
+  thread_local static std::string cached;
+  thread_local static time_t lastTime = 0;
 
   time_t now =
       std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());

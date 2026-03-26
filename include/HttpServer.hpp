@@ -4,16 +4,21 @@
 #include <openssl/ssl.h>
 #include <string>
 #include <vector>
+#include <atomic>
 
 #include "ErrorFactory.hpp"
-#include "Executor.hpp"
-#include "ExecutorContext.hpp"
 #include "ListenerSocket.hpp"
 #include "Router.hpp"
 
+struct ListenerConfig {
+  std::string host;
+  std::string port;
+  bool isTls;
+};
+
 class HttpServer {
 public:
-  static int shutdownEventFd;
+  static std::atomic<bool> shutdown_;
 
   HttpServer(ErrorFactory &errorFactory);
 
@@ -26,26 +31,22 @@ public:
 
   void setRouter(Router &router);
 
-  void run();
+  void run(int N);
 
   ErrorFactory &getErrorFactory();
 
 private:
-  bool shutdown_ = false;
-
   std::shared_ptr<SSL_CTX> tlsContext_ = nullptr;
-  std::vector<std::unique_ptr<ListenerSocket>> tcpListeners_, tlsListeners_;
-
-  Executor executor_;
+  std::vector<ListenerConfig> listenersConfigs_;
 
   Router *router_ = nullptr;
   ErrorFactory &errorFactory_;
+
+  void workerMain();
 
   Task<void> tcpAcceptLoop(ListenerSocket &listener);
 
   Task<void> tlsAcceptLoop(ListenerSocket &listener);
 
   Task<void> handleConnection(std::shared_ptr<IStream> stream);
-
-  Task<void> shutdownWatchdog();
 };

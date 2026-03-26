@@ -1,5 +1,6 @@
 #include "Executor.hpp"
 
+#include "serverConfig.hpp"
 #include "utils.hpp"
 
 Executor::Executor() {}
@@ -15,24 +16,21 @@ void Executor::unregister(int fd) {
   deadlines_.erase(fd);
 }
 
-void Executor::waitForRead(int fd, std::coroutine_handle<> caller,
-                           std::chrono::steady_clock::time_point deadline) {
+void Executor::waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
   suspendedTasks_[fd] = caller;
   if (deadline != std::chrono::steady_clock::time_point::max())
     deadlines_[fd] = deadline;
   epoll_.addOrModify(fd, EPOLLIN | EPOLLET, fd);
 }
 
-void Executor::waitForWrite(int fd, std::coroutine_handle<> caller,
-                            std::chrono::steady_clock::time_point deadline) {
+void Executor::waitForWrite(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
   suspendedTasks_[fd] = caller;
   if (deadline != std::chrono::steady_clock::time_point::max())
     deadlines_[fd] = deadline;
   epoll_.addOrModify(fd, EPOLLOUT | EPOLLET | EPOLLIN, fd);
 }
 
-void Executor::submitFileRead(int fd, void *buf, size_t len,
-                              std::coroutine_handle<> h, int *resultPtr,
+void Executor::submitFileRead(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
                               uint64_t offset) {
 
   pendingFileOps_[nextUserData_] = {h, resultPtr};
@@ -40,17 +38,33 @@ void Executor::submitFileRead(int fd, void *buf, size_t len,
   nextUserData_++;
 }
 
-void Executor::submitFileWrite(int fd, void *buf, size_t len,
-                               std::coroutine_handle<> h, int *resultPtr,
+void Executor::submitFileWrite(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
                                uint64_t offset) {
   pendingFileOps_[nextUserData_] = {h, resultPtr};
   ioUring_.prepWrite(fd, buf, len, nextUserData_, offset);
   nextUserData_++;
 }
 
-void Executor::run() {
+void Executor::run(std::atomic<bool> &shutdown) {
   tl_executor = this;
+  std::chrono::steady_clock::time_point shutdownDeadline = std::chrono::steady_clock::time_point::max();
+
   for (;;) {
+    if (shutdown) {
+      if (shutdownDeadline < now()) {
+        SPDLOG_DEBUG("Timeout on Shutdown");
+        return;
+      }
+      if (shutdownDeadline == std::chrono::steady_clock::time_point::max()) {
+        shutdownDeadline = now() + std::chrono::seconds(GRACEFUL_SHUTDOWN_TIMEOUT_S);
+      } else {
+        if (ownedTasks_.empty() || now() > shutdownDeadline) {
+          SPDLOG_DEBUG("Graceful Shutdown");
+          return;
+        }
+      }
+    }
+
     ioUring_.drainCompletions([this](uint64_t userData, int result) {
       auto it = pendingFileOps_.find(userData);
       if (it == pendingFileOps_.end())
@@ -104,5 +118,3 @@ void Executor::run() {
     ioUring_.ioSubmit();
   }
 }
-
-int Executor::getOwnedTaskCount() { return ownedTasks_.size(); }

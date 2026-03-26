@@ -84,7 +84,7 @@ int main() {
   server.setRouter(router);
   server.addListener(HTTP_HOST, HTTP_PORT);
   server.addTlsListener(HTTP_HOST, HTTPS_PORT);
-  server.run();
+  server.run(THREAD_COUNT);
 
   return 0;
 }

@@ -17,8 +17,8 @@
 
 class HttpConnection {
 public:
-  HttpConnection(std::shared_ptr<IStream> stream, Router &router,
-                 ErrorFactory &errorFactory, bool &shutdown);
+  HttpConnection(std::shared_ptr<IStream> stream, Router &router, ErrorFactory &errorFactory,
+                 std::atomic<bool> &shutdown);
 
   HttpConnection(const HttpConnection &) = delete;
   HttpConnection &operator=(const HttpConnection &) = delete;
@@ -38,13 +38,11 @@ private:
   ChunkedBodyParser chunkParser_;
 
   bool keepAlive_ = true;
-  bool &shutdown_;
+  std::atomic<bool> &shutdown_;
 
   bool formationArmed_ = false;
-  std::chrono::steady_clock::time_point inactivityDeadline_ =
-      std::chrono::steady_clock::time_point::max();
-  std::chrono::steady_clock::time_point formationDeadline_ =
-      std::chrono::steady_clock::time_point::max();
+  std::chrono::steady_clock::time_point inactivityDeadline_ = std::chrono::steady_clock::time_point::max();
+  std::chrono::steady_clock::time_point formationDeadline_ = std::chrono::steady_clock::time_point::max();
 
   void resetInactivity();
 
@@ -70,13 +68,11 @@ private:
 
   Task<bool> serializeAndSendResponse(HttpResponse response);
 
-  Task<void> sendErrorResponseAndClose(int statusCode,
-                                       const std::string &message = "");
+  Task<void> sendErrorResponseAndClose(int statusCode, const std::string &message = "");
 
   Task<Response> generateResponse();
 
-  HttpResponse buildErrorResponse(int statusCode,
-                                  const std::string &message = "");
+  HttpResponse buildErrorResponse(int statusCode, const std::string &message = "");
 
   void resetForNextRequest();
 };

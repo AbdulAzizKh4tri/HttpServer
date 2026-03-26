@@ -6,10 +6,9 @@
 #include "serverConfig.hpp"
 #include "utils.hpp"
 
-HttpConnection::HttpConnection(std::shared_ptr<IStream> stream, Router &router,
-                               ErrorFactory &errorFactory, bool &shutdown)
-    : io_(std::move(stream)), router_(router), errorFactory_(errorFactory),
-      shutdown_(shutdown) {
+HttpConnection::HttpConnection(std::shared_ptr<IStream> stream, Router &router, ErrorFactory &errorFactory,
+                               std::atomic<bool> &shutdown)
+    : io_(std::move(stream)), router_(router), errorFactory_(errorFactory), shutdown_(shutdown) {
 
   request_.setIp(io_.getIp());
   request_.setPort(io_.getPort());
@@ -56,9 +55,7 @@ int HttpConnection::getFd() const { return io_.getFd(); }
 std::string HttpConnection::getIp() const { return io_.getIp(); }
 uint16_t HttpConnection::getPort() const { return io_.getPort(); }
 
-void HttpConnection::resetInactivity() {
-  inactivityDeadline_ = now() + std::chrono::seconds(INACTIVITY_TIMEOUT_S);
-}
+void HttpConnection::resetInactivity() { inactivityDeadline_ = now() + std::chrono::seconds(INACTIVITY_TIMEOUT_S); }
 
 std::chrono::steady_clock::time_point HttpConnection::activeDeadline() const {
   return formationDeadline_ != std::chrono::steady_clock::time_point::max()
@@ -97,32 +94,27 @@ Task<bool> HttpConnection::handshake() {
 Task<bool> HttpConnection::readHeaders() {
   size_t headerSize = 0;
   while (headerSize == 0) {
-    while (io_.getReadBufferSize() >= 2 && *(io_.readBufferBegin()) == '\r' &&
-           *(io_.readBufferBegin() + 1) == '\n') {
+    while (io_.getReadBufferSize() >= 2 && *(io_.readBufferBegin()) == '\r' && *(io_.readBufferBegin() + 1) == '\n') {
       io_.eraseFromReadBuffer(2);
     }
 
-    auto it = std::search(io_.readBufferBegin(), io_.readBufferEnd(),
-                          crlf2.begin(), crlf2.end());
+    auto it = std::search(io_.readBufferBegin(), io_.readBufferEnd(), crlf2.begin(), crlf2.end());
 
     if (it != io_.readBufferEnd()) {
       headerSize = std::distance(io_.readBufferBegin(), it);
       break;
     }
 
-    auto readResult =
-        co_await io_.read(activeDeadline(), HttpRequest::MAX_HEADER_SIZE);
+    auto readResult = co_await io_.read(activeDeadline(), HttpRequest::MAX_HEADER_SIZE);
     if (readResult == ReadResult::DATA) {
       resetInactivity();
       if (!formationArmed_) {
         formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT_S);
         formationArmed_ = true;
       }
-    } else if (readResult == ReadResult::CLOSED ||
-               readResult == ReadResult::ERROR) {
+    } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
       co_return false;
-    } else if (it == io_.readBufferEnd() &&
-               readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+    } else if (it == io_.readBufferEnd() && readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
       co_await sendErrorResponseAndClose(431);
       co_return false;
     } else if (readResult == ReadResult::TIMED_OUT) {
@@ -136,14 +128,11 @@ Task<bool> HttpConnection::readHeaders() {
     co_return false;
   }
 
-  std::string_view headerView(
-      reinterpret_cast<const char *>(io_.readBufferData()), headerSize);
+  std::string_view headerView(reinterpret_cast<const char *>(io_.readBufferData()), headerSize);
 
   if (!request_.parseRequestHeader(headerView)) {
-    SPDLOG_DEBUG(
-        "PARSE ERROR... {}",
-        std::string_view(reinterpret_cast<const char *>(io_.readBufferData()),
-                         headerSize));
+    SPDLOG_DEBUG("PARSE ERROR... {}",
+                 std::string_view(reinterpret_cast<const char *>(io_.readBufferData()), headerSize));
     co_await sendErrorResponseAndClose(400, "Malformed Header");
     co_return false;
   }
@@ -168,8 +157,7 @@ Task<bool> HttpConnection::readHeaders() {
 Task<bool> HttpConnection::handleExpectHeader() {
   auto expect = toLowerCase(request_.getHeader("Expect"));
   if (expect == "100-continue") {
-    RouterResponse result =
-        router_.validate(request_.getPath(), request_.getMethod());
+    RouterResponse result = router_.validate(request_.getPath(), request_.getMethod());
     switch (result) {
     case RouterResponse::NOT_FOUND:
       co_await sendErrorResponseAndClose(404);
@@ -179,11 +167,9 @@ Task<bool> HttpConnection::handleExpectHeader() {
       co_return false;
     case RouterResponse::OK: {
       std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
-      auto responseBytes =
-          std::vector<unsigned char>(response.begin(), response.end());
+      auto responseBytes = std::vector<unsigned char>(response.begin(), response.end());
       io_.enqueue(responseBytes);
-      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S);
-          result != WriteResult::OK)
+      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
         co_return false;
       co_return true;
     }
@@ -197,14 +183,12 @@ Task<bool> HttpConnection::handleExpectHeader() {
 
 Task<bool> HttpConnection::readBody() {
   bool hasContentLengthHeader = request_.getHeader("Content-Length") != "";
-  auto transferEncodingHeader =
-      toLowerCase(request_.getHeader("Transfer-Encoding"));
+  auto transferEncodingHeader = toLowerCase(request_.getHeader("Transfer-Encoding"));
 
   if (hasContentLengthHeader && transferEncodingHeader != "") {
     SPDLOG_ERROR("Content-Length and Transfer-Encoding headers both found");
-    co_await sendErrorResponseAndClose(
-        400, "Request cannot contain both Content-Length "
-             "and Transfer-Encoding headers");
+    co_await sendErrorResponseAndClose(400, "Request cannot contain both Content-Length "
+                                            "and Transfer-Encoding headers");
     co_return false;
   }
 
@@ -245,8 +229,7 @@ Task<bool> HttpConnection::handleReadingBodyChunked() {
     } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
       co_await sendErrorResponseAndClose(413);
       co_return false;
-    } else if (readResult == ReadResult::CLOSED ||
-               readResult == ReadResult::ERROR) {
+    } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
       co_return false;
     } else if (readResult == ReadResult::TIMED_OUT) {
       co_await sendErrorResponseAndClose(408);
@@ -297,21 +280,16 @@ Task<bool> HttpConnection::handleReadingBodyContentLength() {
 Task<bool> HttpConnection::generateAndSendResponse() {
   auto response = co_await generateResponse();
   if (std::holds_alternative<HttpResponse>(response))
-    co_return co_await serializeAndSendResponse(
-        std::get<HttpResponse>(response));
+    co_return co_await serializeAndSendResponse(std::get<HttpResponse>(response));
   else
-    co_return co_await sendStreamResponse(
-        std::move(std::get<HttpStreamResponse>(response)));
+    co_return co_await sendStreamResponse(std::move(std::get<HttpStreamResponse>(response)));
 }
 
-Task<bool>
-HttpConnection::sendStreamResponse(HttpStreamResponse responseStream) {
-  std::vector<unsigned char> serializedHeader =
-      responseStream.getSerializedHeader();
+Task<bool> HttpConnection::sendStreamResponse(HttpStreamResponse responseStream) {
+  std::vector<unsigned char> serializedHeader = responseStream.getSerializedHeader();
   io_.enqueue(serializedHeader);
 
-  if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S);
-      result != WriteResult::OK)
+  if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
     co_return false;
 
   std::optional<std::string> chunkOpt = "init";
@@ -321,8 +299,7 @@ HttpConnection::sendStreamResponse(HttpStreamResponse responseStream) {
       chunkOpt = co_await responseStream.getNextChunk();
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Stream handler threw exception: {}", e.what());
-      io_.enqueue(HttpStreamResponse::serializeChunk("Internal Server Error: " +
-                                                     std::string(e.what())));
+      io_.enqueue(HttpStreamResponse::serializeChunk("Internal Server Error: " + std::string(e.what())));
       io_.enqueue(HttpStreamResponse::serializeChunk(""));
       error = true;
     } catch (...) {
@@ -342,16 +319,14 @@ HttpConnection::sendStreamResponse(HttpStreamResponse responseStream) {
     if (chunk.empty()) {
       io_.enqueue(HttpStreamResponse::serializeChunk(""));
       logRequest(request_, responseStream);
-      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S);
-          result != WriteResult::OK)
+      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
         co_return false;
       co_return true;
     } else {
       io_.enqueue(HttpStreamResponse::serializeChunk(chunk));
     }
 
-    if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S);
-        result != WriteResult::OK)
+    if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
       co_return false;
   }
   std::unreachable();
@@ -366,15 +341,12 @@ Task<bool> HttpConnection::serializeAndSendResponse(HttpResponse response) {
   std::vector<unsigned char> serialized = response.serialize();
   io_.enqueue(serialized);
   logRequest(request_, response);
-  if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S);
-      result != WriteResult::OK)
+  if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
     co_return false;
   co_return true;
 }
 
-Task<void>
-HttpConnection::sendErrorResponseAndClose(int statusCode,
-                                          const std::string &message) {
+Task<void> HttpConnection::sendErrorResponseAndClose(int statusCode, const std::string &message) {
   HttpResponse response = buildErrorResponse(statusCode, message);
   keepAlive_ = false;
   response.setHeader("Connection", "close");
@@ -399,8 +371,7 @@ Task<Response> HttpConnection::generateResponse() {
                  res.setHeader("Connection", "close");
                } else {
                  keepAlive_ = shouldKeepAlive();
-                 res.setHeader("Connection",
-                               keepAlive_ ? "keep-alive" : "close");
+                 res.setHeader("Connection", keepAlive_ ? "keep-alive" : "close");
                }
                res.setHeader("Date", getCurrentHttpDate());
              }},
@@ -409,14 +380,12 @@ Task<Response> HttpConnection::generateResponse() {
   co_return response;
 }
 
-HttpResponse HttpConnection::buildErrorResponse(int statusCode,
-                                                const std::string &message) {
+HttpResponse HttpConnection::buildErrorResponse(int statusCode, const std::string &message) {
   HttpResponse response = errorFactory_.build(request_, statusCode, message);
   if (request_.getMethod() == "HEAD")
     response.stripBody();
   if (statusCode == 405)
-    response.setHeader("Allow",
-                       router_.getAllowedMethodsString(request_.getPath()));
+    response.setHeader("Allow", router_.getAllowedMethodsString(request_.getPath()));
   return response;
 }
 

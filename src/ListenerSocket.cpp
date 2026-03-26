@@ -64,20 +64,17 @@ TcpStream ListenerSocket::accept() {
 int ListenerSocket::setSocketNonBlocking() { return socket_.setNonBlocking(); }
 int ListenerSocket::getFd() { return socket_.getFd(); }
 
-void ListenerSocket::bind_socket(
-    std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> &res) {
+void ListenerSocket::bind_socket(std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> &res) {
   int reuse = 1;
-  if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEADDR, &reuse,
-                 sizeof(int)) < 0) {
+  if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int)) < 0) {
     SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
     throw std::runtime_error("Failed to set reuse address");
   }
 
-  // if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEPORT, &reuse,
-  //                sizeof(int)) < 0) {
-  //   SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
-  //   throw std::runtime_error("Failed to set reuse port");
-  // }
+  if (setsockopt(socket_.getFd(), SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(int)) < 0) {
+    SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
+    throw std::runtime_error("Failed to set reuse port");
+  }
 
   if (bind(socket_.getFd(), res->ai_addr, res->ai_addrlen) < 0) {
     SPDLOG_ERROR("ERROR on binding {}", strerror(errno));
