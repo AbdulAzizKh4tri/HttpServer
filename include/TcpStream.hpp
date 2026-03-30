@@ -11,7 +11,7 @@ public:
 
   ssize_t send(const std::span<const unsigned char> &data) const override;
 
-  ReceiveResult receive(std::vector<unsigned char> &data) const override;
+  ReceiveResult receive(std::span<unsigned char> &data) const override;
 
   HandshakeResult handshake() override;
 

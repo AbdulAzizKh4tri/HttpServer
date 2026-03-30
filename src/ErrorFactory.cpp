@@ -12,16 +12,13 @@
 using json = nlohmann::json;
 
 ErrorFactory::ErrorFactory() {
-  auto fallbackFormatter = [](int statusCode,
-                              const std::string_view &message = "") {
+  auto fallbackFormatter = [](int statusCode, const std::string_view &message = "") {
     HttpResponse response(statusCode);
 
     json body = {{"errorCode", statusCode},
-                 {"errorMessage", message == ""
-                                      ? HttpResponse::statusText(statusCode)
-                                      : message}};
+                 {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
-    response.setHeader("Content-Type", "application/json");
+    response.setHeaderLower("content-type", "application/json");
     response.setBody(body.dump());
     return response;
   };
@@ -32,16 +29,13 @@ void ErrorFactory::setFallbackFormatter(std::string type, Formatter formatter) {
   fallbackFormatterPair_ = {type, formatter};
 }
 
-std::pair<std::string, Formatter> ErrorFactory::getFallbackFormatter() {
-  return fallbackFormatterPair_;
-}
+std::pair<std::string, Formatter> ErrorFactory::getFallbackFormatter() { return fallbackFormatterPair_; }
 
 void ErrorFactory::setFormatter(std::string type, Formatter formatter) {
   registeredFormatters_.emplace_back(toLowerCase(type), formatter);
 }
 
-HttpResponse ErrorFactory::build(const HttpRequest &req, int statusCode,
-                                 const std::string_view &message) const {
+HttpResponse ErrorFactory::build(const HttpRequest &req, int statusCode, const std::string_view &message) const {
   std::vector<std::pair<std::string, float>> typePrefs;
   std::vector<std::string> excluded;
 
@@ -82,25 +76,20 @@ HttpResponse ErrorFactory::build(const HttpRequest &req, int statusCode,
 
   if (typePrefs.empty()) {
     auto formatter =
-        std::find_if(registeredFormatters_.begin(), registeredFormatters_.end(),
-                     [&excluded](const auto &p) {
-                       return std::none_of(excluded.begin(), excluded.end(),
-                                           [&p](const auto &ex) {
-                                             return mime_match(ex, p.first);
-                                           });
-                     });
+        std::find_if(registeredFormatters_.begin(), registeredFormatters_.end(), [&excluded](const auto &p) {
+          return std::none_of(excluded.begin(), excluded.end(),
+                              [&p](const auto &ex) { return mime_match(ex, p.first); });
+        });
     if (formatter != registeredFormatters_.end())
       return formatter->second(statusCode, message);
     return fallbackFormatterPair_.second(406, "");
   }
 
-  std::sort(typePrefs.begin(), typePrefs.end(),
-            [](const auto &a, const auto &b) { return a.second > b.second; });
+  std::sort(typePrefs.begin(), typePrefs.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
 
   for (const auto &type : typePrefs) {
-    auto formatter = std::find_if(
-        registeredFormatters_.begin(), registeredFormatters_.end(),
-        [&type](const auto &p) { return mime_match(p.first, type.first); });
+    auto formatter = std::find_if(registeredFormatters_.begin(), registeredFormatters_.end(),
+                                  [&type](const auto &p) { return mime_match(p.first, type.first); });
     if (formatter != registeredFormatters_.end())
       return formatter->second(statusCode, message);
   }

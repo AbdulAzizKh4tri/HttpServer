@@ -12,13 +12,20 @@
 
 enum class RouterResponse { OK, NOT_FOUND, METHOD_NOT_ALLOWED };
 
+struct StringHash {
+  using is_transparent = void;
+  size_t operator()(std::string_view sv) const { return std::hash<std::string_view>{}(sv); }
+  size_t operator()(const std::string &s) const { return std::hash<std::string_view>{}(s); }
+};
+
 struct RouteNode {
-  std::unordered_map<std::string, RouteNode> children;
+  std::unordered_map<std::string, RouteNode, StringHash, std::equal_to<>> children;
   std::unique_ptr<RouteNode> paramChild;
   std::unique_ptr<RouteNode> wildcardChild;
   std::unique_ptr<RouteNode> deepWildcardChild;
   std::unordered_map<std::string, Handler> requestHandlers;
   std::vector<std::string> patternParts;
+  std::string allowedMethods;
 };
 
 class Router {
@@ -39,11 +46,11 @@ public:
 
   Task<Response> dispatch(HttpRequest &request);
 
-  RouterResponse validate(const std::string &path, const std::string &method);
+  RouterResponse validate(const HttpRequest &request);
 
-  std::string getAllowedMethodsString(const std::string &path);
+  std::string getAllowedMethodsString(const HttpRequest &request);
 
-  std::string getAllowedMethodsString(const RouteNode *pathNode);
+  std::string getAllowedMethodsString(RouteNode *pathNode);
 
 private:
   RouteNode pathTreeRoot_;
@@ -51,18 +58,14 @@ private:
   ErrorFactory &errorFactory_;
   std::unordered_set<std::string> registeredMethods_;
 
-  Task<Response> runChain(HttpRequest &request, Handler &handler,
-                          size_t startIndex);
+  Task<Response> runChain(HttpRequest &request, Handler &handler, size_t startIndex);
 
-  RouteNode *findMatchingRouteEntry(const std::vector<std::string> &pathParts);
+  RouteNode *findMatchingRouteEntry(const std::vector<std::string_view> &pathParts);
 
-  std::vector<std::pair<std::string, std::string>>
-  getPathParams(const std::vector<std::string> &patternParts,
-                const std::vector<std::string> &pathParts);
+  std::vector<std::pair<std::string, std::string>> getPathParams(const std::vector<std::string> &patternParts,
+                                                                 const std::vector<std::string_view> &pathParts);
 
-  void addRoute(const std::string &routePattern, const std::string &method,
-                Handler &handler);
+  void addRoute(const std::string &routePattern, const std::string &method, Handler &handler);
 
-  void validatePattern(const std::string &pattern,
-                       const std::vector<std::string> &parts);
+  void validatePattern(const std::string &pattern, const std::vector<std::string> &parts);
 };

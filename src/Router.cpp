@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
 #include "utils.hpp"
@@ -37,13 +38,11 @@ Task<Response> Router::dispatch(HttpRequest &request) {
     if (methods.contains("GET"))
       methods.insert("HEAD");
     HttpResponse response(204);
-    response.setHeader("Allow", getCommaSeparatedString({methods.begin(), methods.end()}));
+    response.setHeaderLower("allow", getCommaSeparatedString({methods.begin(), methods.end()}));
     co_return response;
   }
 
-  auto pathParts = split(requestPath, "/");
-
-  auto pathNode = findMatchingRouteEntry(pathParts);
+  auto pathNode = findMatchingRouteEntry(request.getPathParts());
   auto allowedMethods = getAllowedMethodsString(pathNode);
   request.setAttribute("allowedMethods", allowedMethods);
 
@@ -57,7 +56,7 @@ Task<Response> Router::dispatch(HttpRequest &request) {
 
     auto &definedMethods = pathNode->requestHandlers;
 
-    const auto &pathParams = getPathParams(pathNode->patternParts, pathParts);
+    const auto &pathParams = getPathParams(pathNode->patternParts, request.getPathParts());
     request.setPathParams(pathParams);
 
     auto lookupMethod = req.getMethod() == "HEAD" ? "GET" : req.getMethod();
@@ -81,27 +80,26 @@ Task<Response> Router::dispatch(HttpRequest &request) {
       co_return response;
     }
 
-    if (req.getMethod() == "OPTIONS" && req.getHeader("Origin") == "") {
+    if (req.getMethod() == "OPTIONS") {
       HttpResponse response(204);
-      response.setHeader("Allow", allowedMethods);
+      response.setHeaderLower("allow", allowedMethods);
       co_return response;
     }
 
     HttpResponse response = errorFactory_.build(req, 405);
     if (request.getMethod() == "HEAD")
       response.stripBody();
-    response.setHeader("Allow", allowedMethods);
+    response.setHeaderLower("allow", allowedMethods);
     co_return response;
   };
 
   co_return co_await runChain(request, terminal, 0);
 }
 
-RouterResponse Router::validate(const std::string &path, const std::string &method) {
-  auto lookupMethod = (method == "HEAD") ? "GET" : method;
+RouterResponse Router::validate(const HttpRequest &request) {
+  auto lookupMethod = (request.getMethod() == "HEAD") ? "GET" : request.getMethod();
 
-  auto pathParts = split(path, "/");
-  auto pathNode = findMatchingRouteEntry(pathParts);
+  auto pathNode = findMatchingRouteEntry(request.getPathParts());
   if (pathNode == nullptr)
     return RouterResponse::NOT_FOUND;
 
@@ -111,16 +109,17 @@ RouterResponse Router::validate(const std::string &path, const std::string &meth
   return RouterResponse::OK;
 }
 
-std::string Router::getAllowedMethodsString(const std::string &path) {
-
-  auto pathParts = split(path, "/");
-  auto pathNode = findMatchingRouteEntry(pathParts);
+std::string Router::getAllowedMethodsString(const HttpRequest &request) {
+  auto pathNode = findMatchingRouteEntry(request.getPathParts());
   return getAllowedMethodsString(pathNode);
 }
 
-std::string Router::getAllowedMethodsString(const RouteNode *pathNode) {
+std::string Router::getAllowedMethodsString(RouteNode *pathNode) {
   if (pathNode == nullptr)
     return "";
+
+  if (not pathNode->allowedMethods.empty())
+    return pathNode->allowedMethods;
 
   const auto &methods = pathNode->requestHandlers;
 
@@ -134,6 +133,8 @@ std::string Router::getAllowedMethodsString(const RouteNode *pathNode) {
   if (!result.empty()) {
     result += "OPTIONS";
   }
+
+  pathNode->allowedMethods = result;
   return result;
 }
 
@@ -147,12 +148,12 @@ Task<Response> Router::runChain(HttpRequest &request, Handler &handler, size_t s
   co_return co_await middleware(request, next);
 }
 
-RouteNode *Router::findMatchingRouteEntry(const std::vector<std::string> &pathParts) {
+RouteNode *Router::findMatchingRouteEntry(const std::vector<std::string_view> &pathParts) {
   RouteNode *node = &pathTreeRoot_;
 
-  for (const auto &part : pathParts) {
-    if (node->children.contains(part)) {
-      node = &node->children[part];
+  for (const auto &partView : pathParts) {
+    if (auto it = node->children.find(partView); it != node->children.end()) {
+      node = &it->second;
     } else if (node->paramChild) {
       node = node->paramChild.get();
     } else if (node->wildcardChild) {
@@ -170,15 +171,17 @@ RouteNode *Router::findMatchingRouteEntry(const std::vector<std::string> &pathPa
 }
 
 std::vector<std::pair<std::string, std::string>> Router::getPathParams(const std::vector<std::string> &patternParts,
-                                                                       const std::vector<std::string> &pathParts) {
+                                                                       const std::vector<std::string_view> &pathParts) {
 
   std::vector<std::pair<std::string, std::string>> pathParams;
 
   for (size_t i = 0; i < patternParts.size(); i++) {
     if (patternParts[i] == "**") {
       std::string captured;
-      for (size_t j = i; j < pathParts.size(); j++)
-        captured += pathParts[j] + "/";
+      for (size_t j = i; j < pathParts.size(); j++) {
+        captured += std::string(pathParts[j]);
+        captured += "/";
+      }
       if (!captured.empty())
         captured.pop_back();
       pathParams.emplace_back("**", captured);

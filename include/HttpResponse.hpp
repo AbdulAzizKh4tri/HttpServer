@@ -10,23 +10,13 @@
 class HttpResponse {
 public:
   static constexpr std::array singletonHeaders_ = {
-      std::string_view("content-length"),
-      std::string_view("content-type"),
-      std::string_view("transfer-encoding"),
-      std::string_view("date"),
-      std::string_view("server"),
-      std::string_view("location"),
+      std::string_view("content-length"), std::string_view("content-type"), std::string_view("transfer-encoding"),
+      std::string_view("date"),           std::string_view("server"),       std::string_view("location"),
   };
 
   static constexpr std::array noBody = {100, 101, 102, 103, 204, 304};
 
-  static std::string statusText(int statusCode) {
-    return getOrDefault(statusStrings_, statusCode, "Unknown");
-  };
-
-  static size_t headerLineSize(const std::string &k, const std::string &v) {
-    return k.size() + 2 + v.size() + 2; // "key: value\r\n"
-  }
+  static std::string statusText(int statusCode) { return getOrDefault(statusStrings_, statusCode, "Unknown"); };
 
   HttpResponse();
 
@@ -34,7 +24,7 @@ public:
 
   HttpResponse(int statusCode, std::string body);
 
-  std::vector<unsigned char> serialize() const;
+  void serializeInto(std::vector<unsigned char> &buf) const;
 
   void setCookie(Cookie cookie);
 
@@ -50,11 +40,15 @@ public:
 
   std::vector<std::string> getHeaders(const std::string &name) const;
 
-  std::vector<std::pair<std::string, std::string>> getAllHeaders() const;
+  std::vector<std::pair<std::string, std::string>> &getAllHeaders();
 
   void setHeader(const std::string &name, const std::string &value);
 
+  // Always use the Lower version of these whenever possible, avoids a string allocation
+  void setHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
+
   void addHeader(const std::string &name, const std::string &value);
+  void addHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
 
   void removeHeader(const std::string &name);
 

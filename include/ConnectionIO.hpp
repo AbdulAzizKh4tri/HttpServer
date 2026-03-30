@@ -35,8 +35,7 @@ public:
 
   bool flushFromWriteBuffer();
 
-  Task<ReadResult> read(std::chrono::steady_clock::time_point deadline =
-                            std::chrono::steady_clock::time_point::max(),
+  Task<ReadResult> read(std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::time_point::max(),
                         size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH);
 
   Task<WriteResult> write(int inactivitySeconds = 0);
@@ -60,6 +59,9 @@ public:
 
   size_t getReadBufferSize() const;
   size_t getWriteBufferSize() const;
+
+  std::vector<unsigned char> &getReadBuffer();
+  std::vector<unsigned char> &getWriteBuffer();
 
   std::string getIp() const;
   uint16_t getPort() const;

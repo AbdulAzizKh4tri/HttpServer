@@ -5,20 +5,17 @@
 #include "HttpResponse.hpp"
 #include "Task.hpp"
 #include "serverConfig.hpp"
+#include "utils.hpp"
 
-HttpStreamResponse::HttpStreamResponse() : statusCode_(-1) {
-  setHeader("Server", SERVER_NAME);
-}
+HttpStreamResponse::HttpStreamResponse() : statusCode_(-1) { setHeaderLower("server", SERVER_NAME); }
 
 HttpStreamResponse::HttpStreamResponse(int statusCode, NextChunkFn nextChunkFn)
     : statusCode_(statusCode), nextChunkFn(std::move(nextChunkFn)) {
-  setHeader("Server", SERVER_NAME);
-  setHeader("Transfer-Encoding", "chunked");
+  headers_.reserve(4);
+  setHeaderLower("transfer-encoding", "chunked");
 }
 
-Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() {
-  co_return co_await nextChunkFn();
-}
+Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() { co_return co_await nextChunkFn(); }
 
 std::vector<unsigned char> HttpStreamResponse::getSerializedHeader() const {
 
@@ -28,7 +25,12 @@ std::vector<unsigned char> HttpStreamResponse::getSerializedHeader() const {
 
   for (const auto &[k, v] : headers_)
     size += k.size() + 2 + v.size() + 2;
-  size += 2;
+
+  size += strlen("server") + strlen(SERVER_NAME) + 4;
+
+  const auto &date = getCurrentHttpDate();
+  size += strlen("date") + date.size() + 4;
+  size += 2; // final \r\n
 
   std::vector<unsigned char> serializedHeader(size);
   size_t offset = 0;
@@ -47,6 +49,14 @@ std::vector<unsigned char> HttpStreamResponse::getSerializedHeader() const {
   write(std::string_view(statusBuf, 3));
   writeChar(' ');
   write(statText);
+  write("\r\n");
+
+  write("server: ");
+  write(SERVER_NAME);
+  write("\r\n");
+
+  write("date: ");
+  write(date);
   write("\r\n");
 
   for (const auto &[k, v] : headers_) {
@@ -78,17 +88,15 @@ void HttpStreamResponse::setCookie(Cookie cookie) {
   if (cookie.maxAge != -1)
     cookieString += "; Max-Age=" + std::to_string(cookie.maxAge);
 
-  addHeader("Set-Cookie", cookieString);
+  addHeaderLower("set-cookie", cookieString);
 }
 
 void HttpStreamResponse::unsetCookie(const std::string &name) {
-  std::erase_if(headers_, [&name](const auto &p) {
-    return p.first == "set-cookie" && p.second.starts_with(name + "=");
-  });
+  std::erase_if(headers_,
+                [&name](const auto &p) { return p.first == "set-cookie" && p.second.starts_with(name + "="); });
 }
 
-void HttpStreamResponse::deleteCookie(const std::string &name,
-                                      const std::string &path) {
+void HttpStreamResponse::deleteCookie(const std::string &name, const std::string &path) {
   Cookie c;
   c.name = name;
   c.value = "";
@@ -98,15 +106,13 @@ void HttpStreamResponse::deleteCookie(const std::string &name,
   setCookie(c);
 }
 
-std::vector<std::pair<std::string, std::string>>
-HttpStreamResponse::getCookies() const {
+std::vector<std::pair<std::string, std::string>> HttpStreamResponse::getCookies() const {
   std::vector<std::pair<std::string, std::string>> cookies;
   for (const auto &[k, v] : headers_) {
     if (k != "set-cookie")
       continue;
     auto firstSemi = v.find(';');
-    auto nameValue =
-        firstSemi == std::string::npos ? v : v.substr(0, firstSemi);
+    auto nameValue = firstSemi == std::string::npos ? v : v.substr(0, firstSemi);
     auto eq = nameValue.find('=');
     if (eq == std::string::npos)
       continue;
@@ -115,8 +121,7 @@ HttpStreamResponse::getCookies() const {
   return cookies;
 }
 
-std::optional<std::string>
-HttpStreamResponse::getCookie(const std::string &name) const {
+std::optional<std::string> HttpStreamResponse::getCookie(const std::string &name) const {
   for (const auto &cookie : getCookies())
     if (cookie.first == name)
       return cookie.second;
@@ -127,35 +132,42 @@ std::string HttpStreamResponse::getHeader(const std::string &name) const {
   return getLastOrDefault(headers_, toLowerCase(name), "");
 }
 
-std::vector<std::string>
-HttpStreamResponse::getHeaders(const std::string &name) const {
+std::vector<std::string> HttpStreamResponse::getHeaders(const std::string &name) const {
   return getAllValues(headers_, toLowerCase(name));
 }
 
-std::vector<std::pair<std::string, std::string>>
-HttpStreamResponse::getAllHeaders() const {
-  return headers_;
-}
+std::vector<std::pair<std::string, std::string>> HttpStreamResponse::getAllHeaders() const { return headers_; }
 
-void HttpStreamResponse::setHeader(const std::string &name,
-                                   const std::string &value) {
+void HttpStreamResponse::setHeader(const std::string &name, const std::string &value) {
   std::string lowerKey = toLowerCase(name);
-  std::erase_if(headers_,
-                [&lowerKey](const auto &p) { return p.first == lowerKey; });
+  std::erase_if(headers_, [&lowerKey](const auto &p) { return p.first == lowerKey; });
   headers_.emplace_back(lowerKey, value);
 }
 
-void HttpStreamResponse::addHeader(const std::string &name,
-                                   const std::string &value) {
+void HttpStreamResponse::setHeaderLower(const std::string_view &lowercaseKey, const std::string &value) {
+  std::erase_if(headers_, [&lowercaseKey](const auto &p) { return p.first == lowercaseKey; });
+  headers_.emplace_back(lowercaseKey, value);
+}
+
+void HttpStreamResponse::addHeader(const std::string &name, const std::string &value) {
   auto key = toLowerCase(name);
   if (std::ranges::contains(HttpResponse::singletonHeaders_, key)) {
-    if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) {
-          return p.first == key;
-        }) == headers_.end())
+    if (std::find_if(headers_.begin(), headers_.end(), [&key](const auto &p) { return p.first == key; }) ==
+        headers_.end())
       headers_.emplace_back(key, value);
     return;
   }
   headers_.emplace_back(key, value);
+}
+
+void HttpStreamResponse::addHeaderLower(const std::string_view &lowercaseKey, const std::string &value) {
+  if (std::ranges::contains(HttpResponse::singletonHeaders_, lowercaseKey)) {
+    if (std::find_if(headers_.begin(), headers_.end(),
+                     [&lowercaseKey](const auto &p) { return p.first == lowercaseKey; }) == headers_.end())
+      headers_.emplace_back(lowercaseKey, value);
+    return;
+  }
+  headers_.emplace_back(lowercaseKey, value);
 }
 
 void HttpStreamResponse::removeHeader(const std::string &name) {

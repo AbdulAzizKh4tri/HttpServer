@@ -13,6 +13,7 @@ add_executable(server server.cpp routes.cpp ${SOURCES})
 target_compile_definitions(server PRIVATE
   $<IF:$<CONFIG:Debug>,SPDLOG_ACTIVE_LEVEL=0,SPDLOG_ACTIVE_LEVEL=2>
 )
+target_compile_options(server PRIVATE $<IF:$<CONFIG:Release>,-O3,-O0 -g>)
 
 target_include_directories(server PRIVATE 
     ${PROJECT_SOURCE_DIR}/include

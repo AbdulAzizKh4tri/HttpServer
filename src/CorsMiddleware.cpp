@@ -4,48 +4,44 @@
 #include "utils.hpp"
 
 CorsMiddleware::CorsMiddleware() {}
-CorsMiddleware::CorsMiddleware(CorsConfig corsConfig)
-    : corsConfig_(corsConfig) {}
+CorsMiddleware::CorsMiddleware(CorsConfig corsConfig) : corsConfig_(corsConfig) {}
 
-Task<Response> CorsMiddleware::operator()(const HttpRequest &request,
-                                          Next next) {
-  std::string origin = request.getHeader("Origin");
+Task<Response> CorsMiddleware::operator()(const HttpRequest &request, Next next) {
+  auto originView = request.getHeaderLower("origin");
 
-  if (request.getMethod() == "OPTIONS" && origin != "") {
+  if (request.getMethod() == "OPTIONS" && not originView.empty()) {
     HttpResponse response(204);
     std::string allowedMethods = request.getAttribute("allowedMethods");
 
+    std::string origin = std::string(originView);
     if (!isOriginAllowed(origin))
       co_return response;
 
-    response.addHeader("Vary", "origin");
-    response.setHeader("Access-Control-Allow-Origin", origin);
-    response.setHeader("Access-Control-Allow-Methods", allowedMethods);
-    response.setHeader("Access-Control-Allow-Headers",
-                       getCommaSeparatedString(corsConfig_.allowedHeaders));
-    response.setHeader("Access-Control-Max-Age",
-                       std::to_string(corsConfig_.maxAge));
+    response.addHeaderLower("vary", "origin");
+    response.setHeaderLower("access-control-allow-origin", origin);
+    response.setHeaderLower("access-control-allow-methods", allowedMethods);
+    response.setHeaderLower("access-control-allow-headers", getCommaSeparatedString(corsConfig_.allowedHeaders));
+    response.setHeaderLower("access-control-max-age", std::to_string(corsConfig_.maxAge));
     co_return response;
   }
 
   Response response = co_await next();
 
-  std::visit(overloaded{[&origin, this](auto &res) {
-               if (origin != "" && isOriginAllowed(origin))
-                 res.setHeader("Access-Control-Allow-Origin", origin);
+  std::visit(overloaded{[&originView, this](auto &res) {
+               if (not originView.empty()) {
+                 auto origin = std::string(originView);
+                 if (isOriginAllowed(origin))
+                   res.setHeaderLower("access-control-allow-origin", origin);
+               }
              }},
              response);
 
   co_return response;
 }
 
-void CorsMiddleware::setCorsOrigins(const std::vector<std::string> &origins) {
-  corsConfig_.allowedOrigins = origins;
-}
+void CorsMiddleware::setCorsOrigins(const std::vector<std::string> &origins) { corsConfig_.allowedOrigins = origins; }
 
-void CorsMiddleware::setCorsHeaders(const std::vector<std::string> &headers) {
-  corsConfig_.allowedHeaders = headers;
-}
+void CorsMiddleware::setCorsHeaders(const std::vector<std::string> &headers) { corsConfig_.allowedHeaders = headers; }
 
 void CorsMiddleware::setCorsMaxAge(int maxAge) { corsConfig_.maxAge = maxAge; }
 

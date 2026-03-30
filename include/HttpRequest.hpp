@@ -38,7 +38,9 @@ public:
 
   std::expected<size_t, ContentLengthError> getContentLength() const;
 
-  std::string getHeader(const std::string &name) const;
+  std::string_view getHeader(const std::string &name) const;
+
+  std::string_view getHeaderLower(const std::string &lowerKey) const;
 
   std::vector<std::string> getHeaders(const std::string &name) const;
 
@@ -46,42 +48,50 @@ public:
 
   void setHeader(const std::string &name, const std::string &value);
 
+  // Always use the Lower version of these whenever possible, avoids a string allocation.
+  // But be careful to only pass lowercased keys
+  void setHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
+
   void addHeader(const std::string &name, const std::string &value);
+  void addHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
 
   void removeHeader(const std::string &name);
 
   void setAttribute(const std::string &key, const std::string &value);
 
-  std::string getAttribute(const std::string &key) const;
+  std::string getAttribute(const std::string &key, std::string defaultValue = "") const;
 
-  std::string getQueryParam(const std::string &key) const;
+  std::string getQueryParam(const std::string &key, std::string defaultValue = "") const;
 
   std::vector<std::string> getQueryParams(const std::string &key) const;
 
   std::vector<std::pair<std::string, std::string>> getAllQueryParams() const;
 
-  std::string getPathParam(const std::string &key) const;
+  std::string getPathParam(const std::string &key, std::string defaultValue = "") const;
 
   void setPathParams(const std::vector<std::pair<std::string, std::string>> &pathParams);
 
   std::vector<std::pair<std::string, std::string>> getAllPathParams() const;
 
-  std::string getPath() const;
-  std::string getRawPath() const;
-  std::string getVersion() const;
+  const std::string &getPath() const;
+  const std::string &getRawPath() const;
+  const std::string &getVersion() const;
+  const std::vector<std::string_view> &getPathParts() const;
 
-  std::string getMethod() const;
+  const std::string &getMethod() const;
   void setMethod(const std::string &method);
 
-  std::string getBody() const;
+  const std::string &getBody() const;
   void setBody(const std::string &body);
 
-  std::string getIp() const;
+  const std::string &getIp() const;
   uint16_t getPort() const;
 
   void setIp(const std::string &ip);
   void setPort(uint16_t port);
   void setSessionHandle(SessionHandle *sessionHandle);
+
+  void reset(const std::string &ip, uint16_t port);
 
 private:
   std::vector<std::pair<std::string, std::string>> headers_;
@@ -93,6 +103,7 @@ private:
 
   std::string method_, rawPath_, path_, version_, body_, ip_;
   uint16_t port_ = 0;
+  std::vector<std::string_view> pathParts_;
 
   bool parseRequestLine(std::string_view requestLine);
 

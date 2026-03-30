@@ -13,8 +13,7 @@ class HttpStreamResponse {
 public:
   static std::vector<unsigned char> serializeChunk(std::string_view chunk) {
     char hexBuf[16];
-    auto [ptr, ec] =
-        std::to_chars(hexBuf, hexBuf + sizeof(hexBuf), chunk.size(), 16);
+    auto [ptr, ec] = std::to_chars(hexBuf, hexBuf + sizeof(hexBuf), chunk.size(), 16);
     size_t hexLen = ptr - hexBuf;
 
     std::vector<unsigned char> chunkBytes(chunk.size() + hexLen + 4);
@@ -57,7 +56,11 @@ public:
 
   void setHeader(const std::string &name, const std::string &value);
 
+  // Always use the Lower version of these whenever possible, avoids a string allocation
+  void setHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
+
   void addHeader(const std::string &name, const std::string &value);
+  void addHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
 
   void removeHeader(const std::string &name);
 

@@ -4,7 +4,6 @@
 #include <span>
 #include <string>
 #include <sys/types.h>
-#include <vector>
 
 enum class HandshakeResult { DONE, WANT_READ, WANT_WRITE, ERROR, NO_TLS };
 
@@ -20,7 +19,7 @@ struct ReceiveResult {
 
 class IStream {
 public:
-  virtual ReceiveResult receive(std::vector<unsigned char> &data) const = 0;
+  virtual ReceiveResult receive(std::span<unsigned char> &data) const = 0;
   virtual ssize_t send(const std::span<const unsigned char> &data) const = 0;
   virtual std::string getIp() const = 0;
   virtual uint16_t getPort() const = 0;

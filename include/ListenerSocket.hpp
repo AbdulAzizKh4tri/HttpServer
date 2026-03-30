@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <netdb.h>
+#include <optional>
 
 #include "Socket.hpp"
 #include "TcpStream.hpp"
@@ -13,9 +14,9 @@ public:
 
   void listen(int backlog);
 
-  TlsStream acceptTls(SSL_CTX *ctx);
+  std::optional<TlsStream> acceptTls(SSL_CTX *ctx);
 
-  TcpStream accept();
+  std::optional<TcpStream> accept();
 
   int setSocketNonBlocking();
   int getFd();

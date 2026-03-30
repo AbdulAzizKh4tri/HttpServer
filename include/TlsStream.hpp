@@ -6,7 +6,6 @@
 #include <openssl/ssl.h>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
-#include <vector>
 
 #include "IStream.hpp"
 #include "Socket.hpp"
@@ -26,7 +25,7 @@ public:
 
   HandshakeResult handshake() override;
 
-  ReceiveResult receive(std::vector<unsigned char> &buf) const override;
+  ReceiveResult receive(std::span<unsigned char> &buf) const override;
 
   ssize_t send(const std::span<const unsigned char> &data) const override;
 

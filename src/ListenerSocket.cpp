@@ -39,22 +39,26 @@ void ListenerSocket::listen(int backlog) {
   SPDLOG_INFO("Listening on {}:{}", host_, port_);
 }
 
-TlsStream ListenerSocket::acceptTls(SSL_CTX *ctx) {
+std::optional<TlsStream> ListenerSocket::acceptTls(SSL_CTX *ctx) {
   sockaddr_storage addr{};
   socklen_t len = sizeof(addr);
-  int newSocket_fd = ::accept(socket_.getFd(), (sockaddr *)&addr, &len);
+  int newSocket_fd = ::accept4(socket_.getFd(), (sockaddr *)&addr, &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
   if (newSocket_fd < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return std::nullopt;
     SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
     throw std::runtime_error("Failed to accept connection");
   }
   return TlsStream(newSocket_fd, ctx, addr, len);
 }
 
-TcpStream ListenerSocket::accept() {
+std::optional<TcpStream> ListenerSocket::accept() {
   sockaddr_storage addr{};
   socklen_t len = sizeof(addr);
-  int newSocket_fd = ::accept(socket_.getFd(), (sockaddr *)&addr, &len);
+  int newSocket_fd = ::accept4(socket_.getFd(), (sockaddr *)&addr, &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
   if (newSocket_fd < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return std::nullopt;
     SPDLOG_ERROR("ERROR on accepting: {}", strerror(errno));
     throw std::runtime_error("Failed to accept connection");
   }

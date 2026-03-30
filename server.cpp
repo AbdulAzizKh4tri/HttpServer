@@ -1,4 +1,5 @@
 #include <chrono>
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
@@ -20,7 +21,16 @@ thread_local Executor *tl_executor = nullptr;
 thread_local bool tl_timed_out = false;
 
 int main() {
-  configureLog(true, "");
+
+  int N;
+  std::string logging;
+
+  std::cout << "Do we want logging? (y/n)" << std::endl;
+  std::cin >> logging;
+  std::cout << "How many threads?" << std::endl;
+  std::cin >> N;
+
+  configureLog(logging.contains('y'), "");
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
   ErrorFactory errorFactory;
@@ -30,7 +40,7 @@ int main() {
     json body = {{"errorCode", statusCode},
                  {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
-    response.setHeader("Content-Type", "application/json");
+    response.setHeaderLower("content-type", "application/json");
     response.setBody(body.dump());
     return response;
   };
@@ -51,7 +61,7 @@ int main() {
                        msg +
                        "</p>"
                        "</body></html>";
-    response.setHeader("Content-Type", "text/html");
+    response.setHeaderLower("content-type", "text/html");
     response.setBody(body);
     return response;
   };
@@ -72,10 +82,10 @@ int main() {
   InMemorySessionStore sessionStore(ttl);
   SessionMiddleware sessionMiddleware(sessionConfig, sessionStore);
 
-  router.use(sessionMiddleware);
-
-  router.use(corsMiddleware);
-  router.use(staticMiddleware);
+  // router.use(sessionMiddleware);
+  //
+  // router.use(corsMiddleware);
+  // router.use(staticMiddleware);
 
   registerRoutes(router, errorFactory);
 
@@ -84,7 +94,7 @@ int main() {
   server.setRouter(router);
   server.addListener(HTTP_HOST, HTTP_PORT);
   server.addTlsListener(HTTP_HOST, HTTPS_PORT);
-  server.run(THREAD_COUNT);
+  server.run(N);
 
   return 0;
 }

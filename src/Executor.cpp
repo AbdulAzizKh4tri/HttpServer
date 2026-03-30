@@ -16,18 +16,20 @@ void Executor::unregister(int fd) {
   deadlines_.erase(fd);
 }
 
+void Executor::registerReadOnlyFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLET, fd); }
+void Executor::registerFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLOUT | EPOLLET, fd); }
+
 void Executor::waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
-  suspendedTasks_[fd] = caller;
+  suspendedTasks_[fd] = {caller, false};
+  ;
   if (deadline != std::chrono::steady_clock::time_point::max())
     deadlines_[fd] = deadline;
-  epoll_.addOrModify(fd, EPOLLIN | EPOLLET, fd);
 }
 
 void Executor::waitForWrite(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
-  suspendedTasks_[fd] = caller;
+  suspendedTasks_[fd] = {caller, true};
   if (deadline != std::chrono::steady_clock::time_point::max())
     deadlines_[fd] = deadline;
-  epoll_.addOrModify(fd, EPOLLOUT | EPOLLET | EPOLLIN, fd);
 }
 
 void Executor::submitFileRead(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
@@ -52,14 +54,14 @@ void Executor::run(std::atomic<bool> &shutdown) {
   for (;;) {
     if (shutdown) {
       if (shutdownDeadline < now()) {
-        SPDLOG_DEBUG("Timeout on Shutdown");
+        SPDLOG_INFO("Timeout on Shutdown");
         return;
       }
       if (shutdownDeadline == std::chrono::steady_clock::time_point::max()) {
         shutdownDeadline = now() + std::chrono::seconds(GRACEFUL_SHUTDOWN_TIMEOUT_S);
       } else {
         if (ownedTasks_.empty() || now() > shutdownDeadline) {
-          SPDLOG_DEBUG("Graceful Shutdown");
+          SPDLOG_INFO("Graceful Shutdown");
           return;
         }
       }
@@ -94,19 +96,29 @@ void Executor::run(std::atomic<bool> &shutdown) {
     for (auto &event : events) {
       int fd = event.data.fd;
       auto it = suspendedTasks_.find(fd);
-      if (it != suspendedTasks_.end()) {
-        auto &task = it->second;
-        readyQueue_.push({task, false});
-        suspendedTasks_.erase(it);
-        deadlines_.erase(fd);
-      }
+      if (it == suspendedTasks_.end())
+        continue;
+
+      bool isError = event.events & (EPOLLERR | EPOLLHUP);
+      bool readReady = event.events & EPOLLIN;
+      bool writeReady = event.events & EPOLLOUT;
+
+      bool shouldWake =
+          isError || (it->second.waitingForWrite && writeReady) || (!it->second.waitingForWrite && readReady);
+
+      if (not shouldWake)
+        continue;
+
+      readyQueue_.push({it->second.handle, false});
+      suspendedTasks_.erase(it);
+      deadlines_.erase(fd);
     }
 
     for (auto it = deadlines_.begin(); it != deadlines_.end();) {
       if (it->second <= now()) {
         auto taskIt = suspendedTasks_.find(it->first);
         if (taskIt != suspendedTasks_.end()) {
-          readyQueue_.push({taskIt->second, true});
+          readyQueue_.push({taskIt->second.handle, true});
           suspendedTasks_.erase(taskIt);
         }
         it = deadlines_.erase(it);

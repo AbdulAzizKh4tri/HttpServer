@@ -43,8 +43,14 @@ std::atomic<bool> HttpServer::shutdown_ = false;
 void HttpServer::run(int N) {
   signal(SIGPIPE, SIG_IGN);
 
-  signal(SIGINT, [](int) { HttpServer::shutdown_ = true; });
-  signal(SIGTERM, [](int) { HttpServer::shutdown_ = true; });
+  signal(SIGINT, [](int) {
+    SPDLOG_INFO("Shutting down...");
+    HttpServer::shutdown_ = true;
+  });
+  signal(SIGTERM, [](int) {
+    SPDLOG_INFO("Shutting down...");
+    HttpServer::shutdown_ = true;
+  });
 
   if (!router_)
     throw std::runtime_error("Call setRouter() before run()");
@@ -52,10 +58,10 @@ void HttpServer::run(int N) {
   if (N <= 0)
     N = std::thread::hardware_concurrency();
 
-  SPDLOG_DEBUG("N: {}", N);
-
   std::vector<std::thread> threads;
 
+  if (N > 1)
+    SPDLOG_INFO("KAGE BUNSHIN NO JUTSU");
   for (int i = 0; i < N; i++)
     threads.emplace_back([this] { workerMain(); });
   for (auto &t : threads)
@@ -97,6 +103,7 @@ void HttpServer::workerMain() {
 ErrorFactory &HttpServer::getErrorFactory() { return errorFactory_; }
 
 Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
+  tl_executor->registerReadOnlyFd(listener.getFd());
   for (;;) {
     co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(2)};
     if (tl_timed_out) {
@@ -105,13 +112,18 @@ Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
         co_return;
       continue;
     }
-    auto stream = std::make_shared<TcpStream>(listener.accept());
-    stream->setSocketNonBlocking();
-    tl_executor->spawn(handleConnection(std::move(stream)));
+    for (;;) {
+      auto streamOpt = listener.accept();
+      if (!streamOpt)
+        break;
+      auto stream = std::make_shared<TcpStream>(std::move(*streamOpt));
+      tl_executor->spawn(handleConnection(std::move(stream)));
+    }
   }
 }
 
 Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
+  tl_executor->registerReadOnlyFd(listener.getFd());
   for (;;) {
     co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(2)};
     if (tl_timed_out) {
@@ -120,14 +132,20 @@ Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
         co_return;
       continue;
     }
-    auto stream = std::make_shared<TlsStream>(listener.acceptTls(tlsContext_.get()));
-    stream->setSocketNonBlocking();
-    tl_executor->spawn(handleConnection(std::move(stream)));
+    for (;;) {
+      auto streamOpt = listener.acceptTls(tlsContext_.get());
+      if (!streamOpt)
+        break;
+      auto stream = std::make_shared<TlsStream>(std::move(*streamOpt));
+      tl_executor->spawn(handleConnection(std::move(stream)));
+    }
   }
 }
 
 Task<void> HttpServer::handleConnection(std::shared_ptr<IStream> stream) {
   int fd = stream->getFd();
+  tl_executor->registerFd(fd);
+
   HttpConnection conn(stream, *router_, errorFactory_, shutdown_);
   co_await conn.run();
   tl_executor->unregister(fd);

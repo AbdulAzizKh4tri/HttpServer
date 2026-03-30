@@ -1,7 +1,7 @@
 #pragma once
 
 // ── Server identity ───────────────────────────────────────
-#define SERVER_NAME "Azooz's Chad Compiled C++ Server"
+#define SERVER_NAME "Azooz"
 
 // ── Concurrency ───────────────────────────────────────────
 #define THREAD_COUNT 6

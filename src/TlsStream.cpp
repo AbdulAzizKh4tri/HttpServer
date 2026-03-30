@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <spdlog/spdlog.h>
@@ -9,8 +10,7 @@
 
 #include "utils.hpp"
 
-TlsStream::TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len)
-    : socket_(fd) {
+TlsStream::TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len) : socket_(fd) {
   ssl_ = SSL_new(ctx);
   if (!ssl_)
     throw std::runtime_error("Failed to create SSL object");
@@ -18,12 +18,17 @@ TlsStream::TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len)
   auto [ip, port] = resolvePeerAddress(addr, len);
   ip_ = ip;
   port_ = port;
+
+  int flag = 1;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) < 0) {
+    SPDLOG_ERROR("ERROR on setsockopt {}", strerror(errno));
+    throw std::runtime_error("Failed to set TCP_NODELAY");
+  };
 }
 
 // move constructor — transfer ownership, null out source
 TlsStream::TlsStream(TlsStream &&other) noexcept
-    : socket_(std::move(other.socket_)), ssl_(other.ssl_),
-      ip_(std::move(other.ip_)), port_(other.port_) {
+    : socket_(std::move(other.socket_)), ssl_(other.ssl_), ip_(std::move(other.ip_)), port_(other.port_) {
   other.ssl_ = nullptr; // prevent double-free in destructor
 }
 
@@ -61,13 +66,12 @@ HandshakeResult TlsStream::handshake() {
   case SSL_ERROR_WANT_WRITE:
     return HandshakeResult::WANT_WRITE;
   default:
-    SPDLOG_DEBUG("TLS handshake error for {}:{} — SSL error code {}", ip_,
-                 port_, err);
+    SPDLOG_DEBUG("TLS handshake error for {}:{} — SSL error code {}", ip_, port_, err);
     return HandshakeResult::ERROR;
   }
 }
 
-ReceiveResult TlsStream::receive(std::vector<unsigned char> &buf) const {
+ReceiveResult TlsStream::receive(std::span<unsigned char> &buf) const {
   int n = SSL_read(ssl_, buf.data(), buf.size());
   if (n > 0)
     return ReceiveResult::data(n);

@@ -9,6 +9,11 @@
 #include "IoUringInstance.hpp"
 #include "Task.hpp"
 
+struct SuspendedTask {
+  std::coroutine_handle<> handle;
+  bool waitingForWrite;
+};
+
 class Executor {
 
   struct ReadyTask {
@@ -26,6 +31,9 @@ public:
 
   void unregister(int fd);
 
+  void registerReadOnlyFd(int fd);
+  void registerFd(int fd);
+
   void waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline);
 
   void waitForWrite(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline);
@@ -42,7 +50,7 @@ private:
   uint64_t nextUserData_ = 0;
   std::vector<Task<void>> ownedTasks_;
   std::queue<ReadyTask> readyQueue_;
-  std::unordered_map<int, std::coroutine_handle<>> suspendedTasks_;
+  std::unordered_map<int, SuspendedTask> suspendedTasks_;
   std::unordered_map<int, std::chrono::steady_clock::time_point> deadlines_;
   std::unordered_map<uint64_t, std::pair<std::coroutine_handle<>, int *>> pendingFileOps_;
 };
