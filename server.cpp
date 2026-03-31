@@ -40,7 +40,7 @@ int main() {
     json body = {{"errorCode", statusCode},
                  {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
-    response.setHeaderLower("content-type", "application/json");
+    response.headers.setHeaderLower("content-type", "application/json");
     response.setBody(body.dump());
     return response;
   };
@@ -61,7 +61,7 @@ int main() {
                        msg +
                        "</p>"
                        "</body></html>";
-    response.setHeaderLower("content-type", "text/html");
+    response.headers.setHeaderLower("content-type", "text/html");
     response.setBody(body);
     return response;
   };
@@ -82,10 +82,10 @@ int main() {
   InMemorySessionStore sessionStore(ttl);
   SessionMiddleware sessionMiddleware(sessionConfig, sessionStore);
 
-  // router.use(sessionMiddleware);
-  //
-  // router.use(corsMiddleware);
-  // router.use(staticMiddleware);
+  router.use(sessionMiddleware);
+
+  router.use(corsMiddleware);
+  router.use(staticMiddleware);
 
   registerRoutes(router, errorFactory);
 

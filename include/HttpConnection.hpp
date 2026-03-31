@@ -10,8 +10,6 @@
 #include "ErrorFactory.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "HttpStreamResponse.hpp"
-#include "HttpTypes.hpp"
 #include "IStream.hpp"
 #include "Router.hpp"
 
@@ -50,27 +48,7 @@ private:
 
   bool shouldKeepAlive() const;
 
-  Task<bool> handshake();
-
-  Task<bool> readHeaders();
-
-  Task<bool> handleExpectHeader();
-
-  Task<bool> readBody();
-
-  Task<bool> handleReadingBodyChunked();
-
-  Task<bool> handleReadingBodyContentLength();
-
-  Task<bool> generateAndSendResponse();
-
-  Task<bool> sendStreamResponse(HttpStreamResponse responseStream);
-
-  Task<bool> serializeAndSendResponse(HttpResponse response);
-
   Task<void> sendErrorResponseAndClose(int statusCode, const std::string &message = "");
-
-  Task<Response> generateResponse();
 
   HttpResponse buildErrorResponse(int statusCode, const std::string &message = "");
 

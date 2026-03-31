@@ -73,7 +73,6 @@ Task<ReadResult> ConnectionIO::read(std::chrono::steady_clock::time_point deadli
   if (result == ReadResult::WOULD_BLOCK) {
     co_await ReadAwaitable{getFd(), deadline};
     if (tl_timed_out) {
-      tl_timed_out = false;
       co_return ReadResult::TIMED_OUT;
     }
     result = drainIntoReadBuffer(maxBufferSize);
@@ -92,7 +91,6 @@ Task<WriteResult> ConnectionIO::write(int inactivitySeconds) {
                                                            : std::chrono::steady_clock::time_point::max();
       co_await WriteAwaitable{getFd(), deadline};
       if (tl_timed_out) {
-        tl_timed_out = false;
         co_return WriteResult::TIMED_OUT;
       }
     }

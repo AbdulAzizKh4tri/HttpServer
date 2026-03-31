@@ -38,7 +38,7 @@ Task<Response> Router::dispatch(HttpRequest &request) {
     if (methods.contains("GET"))
       methods.insert("HEAD");
     HttpResponse response(204);
-    response.setHeaderLower("allow", getCommaSeparatedString({methods.begin(), methods.end()}));
+    response.headers.setHeaderLower("allow", getCommaSeparatedString({methods.begin(), methods.end()}));
     co_return response;
   }
 
@@ -46,18 +46,18 @@ Task<Response> Router::dispatch(HttpRequest &request) {
   auto allowedMethods = getAllowedMethodsString(pathNode);
   request.setAttribute("allowedMethods", allowedMethods);
 
-  Handler terminal = [&](HttpRequest &req) -> Task<Response> {
+  Handler terminal = [this, &pathNode, &allowedMethods](HttpRequest &req) -> Task<Response> {
     if (pathNode == nullptr) {
-      auto response = errorFactory_.build(request, 404);
-      if (request.getMethod() == "HEAD")
+      auto response = errorFactory_.build(req, 404);
+      if (req.getMethod() == "HEAD")
         response.stripBody();
       co_return response;
     }
 
     auto &definedMethods = pathNode->requestHandlers;
 
-    const auto &pathParams = getPathParams(pathNode->patternParts, request.getPathParts());
-    request.setPathParams(pathParams);
+    const auto &pathParams = getPathParams(pathNode->patternParts, req.getPathParts());
+    req.setPathParams(pathParams);
 
     auto lookupMethod = req.getMethod() == "HEAD" ? "GET" : req.getMethod();
     auto methodIt = definedMethods.find(lookupMethod);
@@ -71,8 +71,8 @@ Task<Response> Router::dispatch(HttpRequest &request) {
         } else {
           auto &stream = std::get<HttpStreamResponse>(response);
           HttpResponse res(stream.getStatusCode());
-          for (auto &[k, v] : stream.getAllHeaders())
-            res.setHeader(k, v);
+          for (auto &[k, v] : stream.headers.getAllHeaders())
+            res.headers.setHeader(k, v);
           res.stripBody();
           response = res;
         }
@@ -82,14 +82,14 @@ Task<Response> Router::dispatch(HttpRequest &request) {
 
     if (req.getMethod() == "OPTIONS") {
       HttpResponse response(204);
-      response.setHeaderLower("allow", allowedMethods);
+      response.headers.setHeaderLower("allow", allowedMethods);
       co_return response;
     }
 
     HttpResponse response = errorFactory_.build(req, 405);
-    if (request.getMethod() == "HEAD")
+    if (req.getMethod() == "HEAD")
       response.stripBody();
-    response.setHeaderLower("allow", allowedMethods);
+    response.headers.setHeaderLower("allow", allowedMethods);
     co_return response;
   };
 

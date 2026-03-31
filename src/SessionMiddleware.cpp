@@ -28,7 +28,7 @@ Task<Response> SessionMiddleware::operator()(HttpRequest &request, Next next) {
     if (not sessionHandle.id.empty())
       co_await sessionStore_.destroy(sessionHandle.id);
 
-    std::visit(overloaded{[](auto &res) { res.deleteCookie("session_id"); }}, response);
+    std::visit(overloaded{[](auto &res) { res.cookies.deleteCookie("session_id"); }}, response);
     co_return response;
   }
 
@@ -39,8 +39,9 @@ Task<Response> SessionMiddleware::operator()(HttpRequest &request, Next next) {
     sessionHandle.id = sessionStore_.generateId();
 
   co_await sessionStore_.save(sessionHandle.id, session);
-  std::visit(overloaded{[this, &sessionHandle](auto &res) { res.setCookie(Cookie{"session_id", sessionHandle.id}); }},
-             response);
+  std::visit(
+      overloaded{[this, &sessionHandle](auto &res) { res.cookies.setCookie(Cookie("session_id", sessionHandle.id)); }},
+      response);
 
   co_return response;
 }

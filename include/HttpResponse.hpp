@@ -4,15 +4,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Cookie.hpp"
-#include "utils.hpp"
+#include "CookieStore.hpp"
+#include "HeaderStore.hpp"
 
 class HttpResponse {
 public:
-  static constexpr std::array singletonHeaders_ = {
-      std::string_view("content-length"), std::string_view("content-type"), std::string_view("transfer-encoding"),
-      std::string_view("date"),           std::string_view("server"),       std::string_view("location"),
-  };
+  HeaderStore headers;
+  CookieStore cookies;
 
   static constexpr std::array noBody = {100, 101, 102, 103, 204, 304};
 
@@ -25,32 +23,6 @@ public:
   HttpResponse(int statusCode, std::string body);
 
   void serializeInto(std::vector<unsigned char> &buf) const;
-
-  void setCookie(Cookie cookie);
-
-  void unsetCookie(const std::string &name);
-
-  void deleteCookie(const std::string &name, const std::string &path = "/");
-
-  std::vector<std::pair<std::string, std::string>> getCookies() const;
-
-  std::optional<std::string> getCookie(const std::string &name) const;
-
-  std::string getHeader(const std::string &name) const;
-
-  std::vector<std::string> getHeaders(const std::string &name) const;
-
-  std::vector<std::pair<std::string, std::string>> &getAllHeaders();
-
-  void setHeader(const std::string &name, const std::string &value);
-
-  // Always use the Lower version of these whenever possible, avoids a string allocation
-  void setHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
-
-  void addHeader(const std::string &name, const std::string &value);
-  void addHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
-
-  void removeHeader(const std::string &name);
 
   void setBody(const std::string &body);
 
@@ -68,7 +40,6 @@ public:
 private:
   std::string body_, version_ = "HTTP/1.1";
   int statusCode_;
-  std::vector<std::pair<std::string, std::string>> headers_;
 
   inline static const std::unordered_map<int, std::string> statusStrings_ = {
       // 1xx Informational

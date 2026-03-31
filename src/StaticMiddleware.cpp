@@ -22,7 +22,7 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   const std::string &path = request.getPath();
 
-  if (not path.starts_with(prefix_))
+  if (not(path == prefix_ || path.starts_with(prefix_ + "/")))
     co_return co_await next();
 
   std::string relative = path.substr(prefix_.size());
@@ -57,23 +57,23 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   if (fileSize <= STATIC_STREAM_THRESHOLD_BYTES) {
     std::string body = co_await file.readAll();
-    HttpResponse response(200, body);
-    response.setHeaderLower("content-type", mime);
+    HttpResponse response(200, std::move(body));
+    response.headers.setHeaderLower("content-type", mime);
     if (method == "HEAD")
       response.stripBody();
     co_return response;
   } else {
     if (method == "HEAD") {
       HttpResponse response(200);
-      response.setHeaderLower("content-type", mime);
-      response.setHeaderLower("content-length", std::to_string(fileSize));
+      response.headers.setHeaderLower("content-type", mime);
+      response.headers.setHeaderLower("content-length", std::to_string(fileSize));
       co_return response;
     }
 
     HttpStreamResponse response(200, [file = std::move(file)]() mutable -> Task<std::optional<std::string>> {
       co_return co_await file.readChunk(STATIC_STREAM_CHUNK_SIZE);
     });
-    response.setHeaderLower("content-type", mime);
+    response.headers.setHeaderLower("content-type", mime);
     co_return response;
   }
 }

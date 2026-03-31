@@ -1,8 +1,8 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -23,7 +23,7 @@ struct RouteNode {
   std::unique_ptr<RouteNode> paramChild;
   std::unique_ptr<RouteNode> wildcardChild;
   std::unique_ptr<RouteNode> deepWildcardChild;
-  std::unordered_map<std::string, Handler> requestHandlers;
+  std::map<std::string, Handler> requestHandlers;
   std::vector<std::string> patternParts;
   std::string allowedMethods;
 };

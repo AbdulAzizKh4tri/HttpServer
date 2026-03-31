@@ -1,5 +1,6 @@
 #include "routes.hpp"
 
+#include <cstdlib>
 #include <nlohmann/json.hpp>
 
 #include "AsyncFileReader.hpp"
@@ -23,8 +24,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     AsyncFileReader &file = fileOpt.value();
 
     std::string body = co_await file.readAll();
-    HttpResponse response(200, body);
-    response.setHeaderLower("content-type", "text/html");
+    HttpResponse response(200, std::move(body));
+    response.headers.setHeaderLower("content-type", "text/html");
     if (request.getMethod() == "HEAD")
       response.stripBody();
     co_return response;
@@ -33,7 +34,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.post("/", [](const HttpRequest &request) -> Task<Response> {
     json data = json::parse(request.getBody());
     auto res = HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
-    res.setHeaderLower("content-type", "text/plain");
+    res.headers.setHeaderLower("content-type", "text/plain");
     co_return res;
   });
 
@@ -88,7 +89,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
         {"body", request.getBody()},
     };
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   };
 
@@ -103,7 +104,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     auto res = HttpResponse(200, request.getBody());
     auto ct = request.getHeader("Content-Type");
     if (not ct.empty())
-      res.setHeaderLower("content-type", std::string(ct));
+      res.headers.setHeaderLower("content-type", std::string(ct));
     co_return res;
   });
 
@@ -113,7 +114,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     auto res = HttpResponse(200, request.getBody());
     auto ct = request.getHeader("Content-Type");
     if (not ct.empty())
-      res.setHeaderLower("content-type", std::string(ct));
+      res.headers.setHeaderLower("content-type", std::string(ct));
     co_return res;
   });
 
@@ -181,8 +182,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     };
 
     HttpResponse res(200, body.dump());
-    res.setHeaderLower("content-type", "application/json");
-    res.setCookie(c);
+    res.headers.setHeaderLower("content-type", "application/json");
+    res.cookies.setCookie(c);
     co_return res;
   });
 
@@ -195,11 +196,10 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.get("/tests/cookies/read", [](const HttpRequest &request) -> Task<Response> {
     json j = json::object();
     for (const auto &[name, value] : request.getCookies()) {
-      SPDLOG_DEBUG("{}: {}", name, value);
       j[name] = value;
     }
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
 
@@ -214,8 +214,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     if (name.empty())
       name = "test";
     HttpResponse res(200, json{{"removed", name}}.dump());
-    res.setHeaderLower("content-type", "application/json");
-    res.deleteCookie(name);
+    res.headers.setHeaderLower("content-type", "application/json");
+    res.cookies.deleteCookie(name);
     co_return res;
   });
 
@@ -300,7 +300,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.get("/tests/users/<id>", [](const HttpRequest &request) -> Task<Response> {
     json j = {{"userId", request.getPathParam("id")}};
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
 
@@ -308,7 +308,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.get("/tests/users/<userId>/posts/<postId>", [](const HttpRequest &request) -> Task<Response> {
     json j = {{"userId", request.getPathParam("userId")}, {"postId", request.getPathParam("postId")}};
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
 
@@ -320,7 +320,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.get("/tests/wildcard/*", [](const HttpRequest &request) -> Task<Response> {
     json j = {{"path", request.getPathParam("*")}};
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
 
@@ -328,7 +328,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.get("/tests/deepwildcard/**", [](const HttpRequest &request) -> Task<Response> {
     json j = {{"path", request.getPathParam("**")}};
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
 
@@ -345,7 +345,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
   router.get("/tests/decode/path/<name>", [](const HttpRequest &request) -> Task<Response> {
     json j = {{"name", request.getPathParam("name")}};
     auto res = HttpResponse(200, j.dump());
-    res.setHeaderLower("content-type", "application/json");
+    res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
 
@@ -431,7 +431,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
           co_return chunk;
         });
     if (not ct.empty())
-      res.setHeaderLower("content-type", std::string(ct));
+      res.headers.setHeaderLower("content-type", std::string(ct));
     co_return res;
   });
 }

@@ -29,14 +29,12 @@ inline PeerAddress resolvePeerAddress(sockaddr_storage addr, socklen_t len) {
   PeerAddress result;
   if (addr.ss_family == AF_INET) {
     char ipstr[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &((sockaddr_in *)&addr)->sin_addr, ipstr,
-              INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &((sockaddr_in *)&addr)->sin_addr, ipstr, INET_ADDRSTRLEN);
     result.ip = ipstr;
     result.port = ntohs(((sockaddr_in *)&addr)->sin_port);
   } else if (addr.ss_family == AF_INET6) {
     char ipstr[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &((sockaddr_in6 *)&addr)->sin6_addr, ipstr,
-              INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &((sockaddr_in6 *)&addr)->sin6_addr, ipstr, INET6_ADDRSTRLEN);
     result.ip = ipstr;
     result.port = ntohs(((sockaddr_in6 *)&addr)->sin6_port);
   } else {
@@ -45,8 +43,7 @@ inline PeerAddress resolvePeerAddress(sockaddr_storage addr, socklen_t len) {
   return result;
 }
 
-inline std::string
-getCommaSeparatedString(const std::vector<std::string> &strings) {
+inline std::string getCommaSeparatedString(const std::vector<std::string> &strings) {
 
   if (strings.empty())
     return {};
@@ -69,35 +66,25 @@ getCommaSeparatedString(const std::vector<std::string> &strings) {
 inline std::string toLowerCase(std::string_view s) {
   char buf[64];
   if (s.size() < sizeof(buf)) {
-    std::transform(s.begin(), s.end(), buf,
-                   [](unsigned char c) { return std::tolower(c); });
+    std::transform(s.begin(), s.end(), buf, [](unsigned char c) { return std::tolower(c); });
     return std::string(buf, s.size());
   }
   std::string result(s);
-  std::ranges::transform(result, result.begin(),
-                         [](unsigned char c) { return std::tolower(c); });
+  std::ranges::transform(result, result.begin(), [](unsigned char c) { return std::tolower(c); });
   return result;
 }
 
-inline std::vector<std::string> split(std::string_view s,
-                                      std::string_view delim = " ") {
+inline std::vector<std::string> split(std::string_view s, std::string_view delim = " ") {
   auto parts =
-      s | std::views::split(delim) | std::views::transform([](auto &&r) {
-        return std::string(r.begin(), r.end());
-      });
+      s | std::views::split(delim) | std::views::transform([](auto &&r) { return std::string(r.begin(), r.end()); });
 
   return {parts.begin(), parts.end()};
 }
 
 inline void trim(std::string &s) {
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
-            return !std::isspace(ch);
-          }));
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
 
-  s.erase(std::find_if(s.rbegin(), s.rend(),
-                       [](unsigned char ch) { return !std::isspace(ch); })
-              .base(),
-          s.end());
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
 }
 
 inline void trim(std::string_view &s) {
@@ -108,8 +95,7 @@ inline void trim(std::string_view &s) {
 }
 
 template <typename Map>
-inline auto getOrDefault(const Map &map, const typename Map::key_type &key,
-                         typename Map::mapped_type defaultValue) ->
+inline auto getOrDefault(const Map &map, const typename Map::key_type &key, typename Map::mapped_type defaultValue) ->
     typename Map::mapped_type {
 
   if (const auto it = map.find(key); it != map.end()) {
@@ -118,21 +104,17 @@ inline auto getOrDefault(const Map &map, const typename Map::key_type &key,
   return defaultValue;
 }
 
-inline auto
-getLastOrDefault(const std::vector<std::pair<std::string, std::string>> &mp,
-                 const std::string &key, std::string defaultValue)
-    -> std::string {
+inline auto getLastOrDefault(const std::vector<std::pair<std::string, std::string>> &mp, const std::string &key,
+                             std::string defaultValue) -> std::string {
 
-  auto it = std::find_if(mp.rbegin(), mp.rend(),
-                         [&key](const auto &p) { return p.first == key; });
+  auto it = std::find_if(mp.rbegin(), mp.rend(), [&key](const auto &p) { return p.first == key; });
   if (it != mp.rend())
     return it->second;
   return "";
 }
 
-inline auto
-getAllValues(const std::vector<std::pair<std::string, std::string>> &mp,
-             const std::string &key) -> std::vector<std::string> {
+inline auto getAllValues(const std::vector<std::pair<std::string, std::string>> &mp, const std::string &key)
+    -> std::vector<std::string> {
   std::vector<std::string> values;
   for (auto &[k, v] : mp) {
     if (k == key)
@@ -141,8 +123,7 @@ getAllValues(const std::vector<std::pair<std::string, std::string>> &mp,
   return values;
 }
 
-inline auto
-toJsonObject(const std::vector<std::pair<std::string, std::string>> &pairs) {
+inline auto toJsonObject(const std::vector<std::pair<std::string, std::string>> &pairs) {
   nlohmann::json j = nlohmann::json::object();
   for (const auto &[k, v] : pairs)
     j[k] = v;
@@ -150,9 +131,7 @@ toJsonObject(const std::vector<std::pair<std::string, std::string>> &pairs) {
 }
 
 inline void normalizePath(std::string &path) {
-  auto newEnd = std::unique(path.begin(), path.end(), [](char a, char b) {
-    return a == '/' && b == '/';
-  });
+  auto newEnd = std::unique(path.begin(), path.end(), [](char a, char b) { return a == '/' && b == '/'; });
   path.erase(newEnd, path.end());
 
   if (!path.empty() && path.front() == '/')
@@ -200,8 +179,7 @@ inline const std::string &getCurrentHttpDate() {
   thread_local static std::string cached;
   thread_local static time_t lastTime = 0;
 
-  time_t now =
-      std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
   if (now != lastTime) {
     std::tm tm{};
@@ -223,6 +201,29 @@ inline std::string toHttpDate(std::chrono::system_clock::time_point tp) {
   return buf;
 }
 
+inline int digit_count(int x) {
+  unsigned int v = (x < 0) ? -static_cast<unsigned int>(x) : static_cast<unsigned int>(x);
+
+  if (v >= 1000000000u)
+    return 10;
+  if (v >= 100000000u)
+    return 9;
+  if (v >= 10000000u)
+    return 8;
+  if (v >= 1000000u)
+    return 7;
+  if (v >= 100000u)
+    return 6;
+  if (v >= 10000u)
+    return 5;
+  if (v >= 1000u)
+    return 4;
+  if (v >= 100u)
+    return 3;
+  if (v >= 10u)
+    return 2;
+  return 1;
+}
 inline bool mime_match(std::string_view p, std::string_view v) {
   if (p == "*/*")
     return true;
@@ -230,10 +231,7 @@ inline bool mime_match(std::string_view p, std::string_view v) {
   if (ps == std::string_view::npos || vs == std::string_view::npos)
     return false;
   return (p[0] == '*' || v[0] == '*' || p.substr(0, ps) == v.substr(0, vs)) &&
-         (p[ps + 1] == '*' || v[vs + 1] == '*' ||
-          p.substr(ps + 1) == v.substr(vs + 1));
+         (p[ps + 1] == '*' || v[vs + 1] == '*' || p.substr(ps + 1) == v.substr(vs + 1));
 }
 
-inline std::chrono::steady_clock::time_point now() {
-  return std::chrono::steady_clock::now();
-}
+inline std::chrono::steady_clock::time_point now() { return std::chrono::steady_clock::now(); }

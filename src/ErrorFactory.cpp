@@ -18,7 +18,7 @@ ErrorFactory::ErrorFactory() {
     json body = {{"errorCode", statusCode},
                  {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
-    response.setHeaderLower("content-type", "application/json");
+    response.headers.setHeaderLower("content-type", "application/json");
     response.setBody(body.dump());
     return response;
   };
