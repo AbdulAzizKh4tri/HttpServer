@@ -304,6 +304,13 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory) {
     co_return res;
   });
 
+  router.get("/tests/users/me/posts/", [](const HttpRequest &request) -> Task<Response> {
+    json j = {{"user", "me"}, {"posts", {"post1", "post2", "post3"}}};
+    auto res = HttpResponse(200, j.dump());
+    res.headers.setHeaderLower("content-type", "application/json");
+    co_return res;
+  });
+
   // GET /tests/users/<userId>/posts/<postId>
   router.get("/tests/users/<userId>/posts/<postId>", [](const HttpRequest &request) -> Task<Response> {
     json j = {{"userId", request.getPathParam("userId")}, {"postId", request.getPathParam("postId")}};

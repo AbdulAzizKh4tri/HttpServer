@@ -62,6 +62,9 @@ private:
 
   RouteNode *findMatchingRouteEntry(const std::vector<std::string_view> &pathParts);
 
+  RouteNode *backtrack(RouteNode *node, std::vector<std::string_view>::const_iterator first,
+                       std::vector<std::string_view>::const_iterator last);
+
   std::vector<std::pair<std::string, std::string>> getPathParams(const std::vector<std::string> &patternParts,
                                                                  const std::vector<std::string_view> &pathParts);
 

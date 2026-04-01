@@ -149,25 +149,36 @@ Task<Response> Router::runChain(HttpRequest &request, Handler &handler, size_t s
 }
 
 RouteNode *Router::findMatchingRouteEntry(const std::vector<std::string_view> &pathParts) {
-  RouteNode *node = &pathTreeRoot_;
+  RouteNode *result = backtrack(&pathTreeRoot_, pathParts.begin(), pathParts.end());
+  return (result && not result->requestHandlers.empty()) ? result : nullptr;
+}
 
-  for (const auto &partView : pathParts) {
-    if (auto it = node->children.find(partView); it != node->children.end()) {
-      node = &it->second;
-    } else if (node->paramChild) {
-      node = node->paramChild.get();
-    } else if (node->wildcardChild) {
-      node = node->wildcardChild.get();
-    } else if (node->deepWildcardChild) {
-      node = node->deepWildcardChild.get();
-      break;
-    } else {
-      return nullptr;
-    }
-  }
-  if (node->requestHandlers.empty())
+RouteNode *Router::backtrack(RouteNode *node, std::vector<std::string_view>::const_iterator first,
+                     std::vector<std::string_view>::const_iterator last) {
+  if (node == nullptr)
     return nullptr;
-  return node;
+  if (first == last)
+    return node;
+
+  auto part = *first;
+
+  if (auto it = node->children.find(part); it != node->children.end()) {
+    if (auto *result = backtrack(&it->second, std::next(first), last))
+      return result;
+  }
+  if (node->paramChild) {
+    if (auto *result = backtrack(node->paramChild.get(), std::next(first), last))
+      return result;
+  }
+  if (node->wildcardChild) {
+    if (auto *result = backtrack(node->wildcardChild.get(), std::next(first), last))
+      return result;
+  }
+  if (node->deepWildcardChild) {
+    return backtrack(node->deepWildcardChild.get(), last, last);
+  }
+
+  return nullptr;
 }
 
 std::vector<std::pair<std::string, std::string>> Router::getPathParams(const std::vector<std::string> &patternParts,
