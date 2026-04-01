@@ -235,3 +235,27 @@ inline bool mime_match(std::string_view p, std::string_view v) {
 }
 
 inline std::chrono::steady_clock::time_point now() { return std::chrono::steady_clock::now(); }
+
+inline bool etagMatches(std::string_view ifNoneMatch, const std::string &etag) {
+  while (!ifNoneMatch.empty()) {
+    auto end = ifNoneMatch.find(',');
+    std::string_view token = ifNoneMatch.substr(0, end);
+    trim(token);
+    if (token == etag)
+      return true;
+    if (end == std::string_view::npos)
+      break;
+    ifNoneMatch.remove_prefix(end + 1);
+  }
+  return false;
+}
+
+// If-Modified-Since: Wed, 01 Jan 2025 12:00:00 GMT
+inline std::optional<std::chrono::system_clock::time_point> parseHttpDate(const std::string &date) {
+  std::tm tm{};
+  std::istringstream ss(date);
+  ss >> std::get_time(&tm, "%a, %d %b %Y %H:%M:%S GMT");
+  if (ss.fail())
+    return std::nullopt;
+  return std::chrono::system_clock::from_time_t(timegm(&tm));
+}

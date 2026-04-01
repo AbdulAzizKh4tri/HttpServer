@@ -9,9 +9,33 @@
 
 #include <filesystem>
 
-StaticMiddleware::StaticMiddleware(const std::string root, const std::string prefix, ErrorFactory &errorFactory)
-    : root_(root), prefix_(prefix), errorFactory_(errorFactory) {
-  canonical_root_ = std::filesystem::weakly_canonical(root_);
+StaticMiddleware::StaticMiddleware(ErrorFactory &errorFactory, StaticConfig config)
+    : config_(config), errorFactory_(errorFactory) {
+  canonical_root_ = std::filesystem::weakly_canonical(config_.root);
+}
+
+StaticMiddleware::StaticMiddleware(ErrorFactory &errorFactory, const std::string &root, const std::string &prefix)
+    : errorFactory_(errorFactory) {
+  config_.root = root;
+  config_.prefix = prefix;
+  canonical_root_ = std::filesystem::weakly_canonical(root);
+}
+
+std::string generateETag(const std::filesystem::directory_entry &entry) {
+  auto mtime = entry.last_write_time().time_since_epoch().count();
+  auto size = entry.file_size();
+  return '"' + std::to_string(mtime) + '-' + std::to_string(size) + '"';
+}
+
+template <typename Res>
+void addCacheHeaders(Res &response, const std::string &etag, const std::filesystem::file_time_type last_write,
+                     const std::string &cacheControl) {
+  response.headers.setCacheControl(cacheControl);
+  if (cacheControl.contains("no-store"))
+    return;
+
+  response.headers.setHeaderLower("etag", etag);
+  response.headers.setHeaderLower("last-modified", toHttpDate(std::chrono::file_clock::to_sys(last_write)));
 }
 
 Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next next) {
@@ -22,14 +46,14 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   const std::string &path = request.getPath();
 
-  if (not(path == prefix_ || path.starts_with(prefix_ + "/")))
+  if (not(path == config_.prefix || path.starts_with(config_.prefix + "/")))
     co_return co_await next();
 
-  std::string relative = path.substr(prefix_.size());
+  std::string relative = path.substr(config_.prefix.size());
   if (!relative.empty() && relative.front() == '/')
     relative.erase(0, 1);
 
-  std::filesystem::path resolved = std::filesystem::weakly_canonical(std::filesystem::path(root_) / relative);
+  std::filesystem::path resolved = canonical_root_ / relative;
 
   if (not resolved.native().starts_with(canonical_root_.native())) {
     co_return buildErrorResponse(request, 403);
@@ -47,18 +71,49 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   auto fileSize = entry.file_size();
 
-  std::string ext = resolved.extension().string(); // e.g. ".html"
-  std::string mime = getOrDefault(MIME_TYPES, ext, "application/octet-stream");
+  std::string extension = resolved.extension().string(); // e.g. ".html"
+  std::string mime = getOrDefault(MIME_TYPES, extension, "application/octet-stream");
 
   std::optional<AsyncFileReader> fileOpt = AsyncFileReader::open(resolved, fileSize);
   if (not fileOpt.has_value())
     co_return buildErrorResponse(request, 403);
+
+  // Design decision: checking for 304 AFTER the open in case permissions change.
+  auto cacheControl = getOrDefault(config_.mimeCacheControl, mime, config_.defaultCacheControl);
+  auto lastWrite = entry.last_write_time();
+  std::string eTag = "";
+
+  if (not cacheControl.contains("no-store")) {
+    eTag = generateETag(entry);
+
+    auto ifNoneMatch = request.getHeaderLower("if-none-match");
+    if (not ifNoneMatch.empty() && etagMatches(ifNoneMatch, eTag)) {
+      HttpResponse response(304);
+      addCacheHeaders(response, eTag, lastWrite, cacheControl);
+      co_return response;
+    }
+
+    std::string ifModifiedSince = std::string(request.getHeaderLower("if-modified-since"));
+    if (not ifModifiedSince.empty()) {
+      auto dateOpt = parseHttpDate(ifModifiedSince);
+      if (not dateOpt.has_value())
+        co_return buildErrorResponse(request, 400);
+
+      if (lastWrite <= std::chrono::file_clock::from_sys(*dateOpt)) {
+        HttpResponse response(304);
+        addCacheHeaders(response, eTag, lastWrite, cacheControl);
+        co_return response;
+      }
+    }
+  }
+
   AsyncFileReader &file = fileOpt.value();
 
   if (fileSize <= STATIC_STREAM_THRESHOLD_BYTES) {
     std::string body = co_await file.readAll();
     HttpResponse response(200, std::move(body));
     response.headers.setHeaderLower("content-type", mime);
+    addCacheHeaders(response, eTag, lastWrite, cacheControl);
     if (method == "HEAD")
       response.stripBody();
     co_return response;
@@ -67,6 +122,7 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
       HttpResponse response(200);
       response.headers.setHeaderLower("content-type", mime);
       response.headers.setHeaderLower("content-length", std::to_string(fileSize));
+      addCacheHeaders(response, eTag, lastWrite, cacheControl);
       co_return response;
     }
 
@@ -74,8 +130,24 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
       co_return co_await file.readChunk(STATIC_STREAM_CHUNK_SIZE);
     });
     response.headers.setHeaderLower("content-type", mime);
+    addCacheHeaders(response, eTag, lastWrite, cacheControl);
     co_return response;
   }
+}
+
+void StaticMiddleware::setRoot(const std::string &root) {
+  config_.root = root;
+  canonical_root_ = std::filesystem::weakly_canonical(root);
+}
+
+void StaticMiddleware::setPrefix(const std::string &prefix) { config_.prefix = prefix; }
+
+void StaticMiddleware::setMimeCacheControl(const std::string &mimeType, const std::string &cacheControlHeader) {
+  config_.mimeCacheControl[mimeType] = cacheControlHeader;
+};
+
+void StaticMiddleware::setDefaultCacheControl(const std::string &cacheControlHeader) {
+  config_.defaultCacheControl = cacheControlHeader;
 }
 
 HttpResponse StaticMiddleware::buildErrorResponse(const HttpRequest &request, const int statusCode,

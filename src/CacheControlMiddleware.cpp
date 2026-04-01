@@ -1,0 +1,80 @@
+#include "CacheControlMiddleware.hpp"
+
+CacheControlMiddleware::CacheControlMiddleware() {}
+CacheControlMiddleware::CacheControlMiddleware(CacheControlConfig config) : config_(config) {}
+
+Task<Response> CacheControlMiddleware::operator()(const HttpRequest &request, Next next) {
+  Response response = co_await next();
+
+  std::visit(
+      [this, &request](auto &res) {
+        if (res.headers.getHeaderLower("cache-control") != "")
+          return;
+
+        if (res.getStatusCode() >= 400) {
+          SPDLOG_DEBUG("Error status without cache control");
+          res.headers.setCacheControl("no-store");
+          return;
+        }
+
+        auto pathParts = request.getPathParts();
+        auto routeCache = std::find_if(config_.routeCacheControl.begin(), config_.routeCacheControl.end(),
+                                       [&pathParts, &request](const auto &p) {
+                                         std::string_view pattern = p.first;
+                                         if (pattern[0] == '/')
+                                           pattern.remove_prefix(1);
+                                         auto curr = pathParts.begin();
+
+                                         while (!pattern.empty() && curr != pathParts.end()) {
+                                           auto end = pattern.find('/');
+                                           std::string_view part = pattern.substr(0, end);
+                                           if (part == "*")
+                                             return true;
+                                           if (*curr != part)
+                                             return false;
+                                           curr = std::next(curr);
+                                           if (end == std::string_view::npos)
+                                             break;
+                                           pattern.remove_prefix(end + 1);
+                                         }
+
+                                         if (curr == pathParts.end())
+                                           return (pattern == "/" or pattern == "") ? true : false;
+
+                                         return false;
+                                       });
+
+        if (routeCache != config_.routeCacheControl.end()) {
+          res.headers.setCacheControl(routeCache->second);
+          return;
+        }
+
+        auto mimeType = res.headers.getHeaderLower("content-type");
+        if (mimeType != "" && config_.mimeCacheControl.contains(mimeType)) {
+          res.headers.setCacheControl(config_.mimeCacheControl[mimeType]);
+          return;
+        }
+
+        res.headers.setCacheControl(config_.defaultCacheControl);
+      },
+      response);
+
+  co_return response;
+}
+
+void CacheControlMiddleware::setRouteCacheControl(const std::string &routePattern,
+                                                  const std::string &cacheControlHeader) {
+  if (std::find_if(config_.routeCacheControl.begin(), config_.routeCacheControl.end(), [&routePattern](const auto &p) {
+        return p.first == routePattern;
+      }) != config_.routeCacheControl.end())
+    throw std::runtime_error("Pattern already exists in route cache control");
+  config_.routeCacheControl.emplace_back(routePattern, cacheControlHeader);
+};
+
+void CacheControlMiddleware::setMimeCacheControl(const std::string &mimeType, const std::string &cacheControlHeader) {
+  config_.mimeCacheControl[mimeType] = cacheControlHeader;
+};
+
+void CacheControlMiddleware::setDefaultCacheControl(const std::string &cacheControlHeader) {
+  config_.defaultCacheControl = cacheControlHeader;
+}

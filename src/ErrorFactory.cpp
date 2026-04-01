@@ -19,6 +19,7 @@ ErrorFactory::ErrorFactory() {
                  {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
     response.headers.setHeaderLower("content-type", "application/json");
+    response.headers.setCacheControl("no-store");
     response.setBody(body.dump());
     return response;
   };

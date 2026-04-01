@@ -32,16 +32,14 @@ public:
   AsyncFileReader(AsyncFileReader const &) = delete;
   AsyncFileReader &operator=(AsyncFileReader const &) = delete;
 
-  static std::optional<AsyncFileReader>
-  open(const std::filesystem::path &path) {
+  static std::optional<AsyncFileReader> open(const std::filesystem::path &path) {
     int fd = ::open(path.c_str(), O_RDONLY);
     if (fd == -1)
       return std::nullopt;
     return AsyncFileReader(fd, std::filesystem::file_size(path));
   }
 
-  static std::optional<AsyncFileReader> open(const std::filesystem::path &path,
-                                             const uintmax_t fileSize) {
+  static std::optional<AsyncFileReader> open(const std::filesystem::path &path, const uintmax_t fileSize) {
     int fd = ::open(path.c_str(), O_RDONLY);
     if (fd == -1)
       return std::nullopt;
@@ -50,8 +48,7 @@ public:
 
   Task<std::string> readAll() {
     std::string buf(fileSize_, '\0');
-    int n = co_await FileReadAwaitable{
-        .fd = fd_, .buf = buf.data(), .len = fileSize_};
+    int n = co_await FileReadAwaitable{.fd = fd_, .buf = buf.data(), .len = fileSize_};
     if (n < 0)
       throw std::runtime_error("File Read Awaitable failed");
     buf.resize(n);
@@ -60,8 +57,7 @@ public:
 
   Task<std::optional<std::string>> readChunk(size_t size) {
     std::string buf(size, '\0');
-    int n = co_await FileReadAwaitable{
-        .fd = fd_, .buf = buf.data(), .len = size, .offset = offset_};
+    int n = co_await FileReadAwaitable{.fd = fd_, .buf = buf.data(), .len = size, .offset = offset_};
     if (n < 0)
       throw std::runtime_error("File Read Awaitable failed");
     if (n == 0)

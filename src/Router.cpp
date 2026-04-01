@@ -154,7 +154,7 @@ RouteNode *Router::findMatchingRouteEntry(const std::vector<std::string_view> &p
 }
 
 RouteNode *Router::backtrack(RouteNode *node, std::vector<std::string_view>::const_iterator first,
-                     std::vector<std::string_view>::const_iterator last) {
+                             std::vector<std::string_view>::const_iterator last) {
   if (node == nullptr)
     return nullptr;
   if (first == last)

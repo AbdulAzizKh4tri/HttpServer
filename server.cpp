@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include "CacheControlMiddleware.hpp"
 #include "CorsMiddleware.hpp"
 #include "ErrorFactory.hpp"
 #include "ExecutorContext.hpp"
@@ -41,6 +42,7 @@ int main() {
                  {"errorMessage", message == "" ? HttpResponse::statusText(statusCode) : message}};
 
     response.headers.setHeaderLower("content-type", "application/json");
+    response.headers.setCacheControl("no-store");
     response.setBody(body.dump());
     return response;
   };
@@ -62,6 +64,7 @@ int main() {
                        "</p>"
                        "</body></html>";
     response.headers.setHeaderLower("content-type", "text/html");
+    response.headers.setCacheControl("no-store");
     response.setBody(body);
     return response;
   };
@@ -75,17 +78,23 @@ int main() {
   corsMiddleware.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
   corsMiddleware.setCorsMaxAge(10);
 
-  StaticMiddleware staticMiddleware("./public", "static", errorFactory);
+  StaticMiddleware staticMiddleware(errorFactory, "./public", "static");
+  staticMiddleware.setMimeCacheControl("text/css", "no-cache, no-store"); // just for testing
 
   SessionConfig sessionConfig;
   auto ttl = std::chrono::seconds(std::stoi(std::to_string(SESSION_TTL_S)));
   InMemorySessionStore sessionStore(ttl);
   SessionMiddleware sessionMiddleware(sessionConfig, sessionStore);
 
-  router.use(sessionMiddleware);
+  CacheControlMiddleware cacheControlMiddleware;
+  cacheControlMiddleware.setRouteCacheControl("/tests/debug/*", "max-age=5, public");
+  cacheControlMiddleware.setMimeCacheControl("text/html", "max-age=5, public");
+  cacheControlMiddleware.setDefaultCacheControl("no-cache, no-store");
 
+  router.use(sessionMiddleware);
   router.use(corsMiddleware);
   router.use(staticMiddleware);
+  router.use(cacheControlMiddleware);
 
   registerRoutes(router, errorFactory);
 

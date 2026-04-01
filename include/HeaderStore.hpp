@@ -9,10 +9,12 @@ public:
   HeaderStore() { headers_.reserve(4); }
 
   std::string getHeader(const std::string &name) const { return getLastOrDefault(headers_, toLowerCase(name), ""); }
+  std::string getHeaderLower(const std::string &name) const { return getLastOrDefault(headers_, name, ""); }
 
   std::vector<std::string> getHeaders(const std::string &name) const {
     return getAllValues(headers_, toLowerCase(name));
   }
+  std::vector<std::string> getHeadersLower(const std::string &name) const { return getAllValues(headers_, name); }
 
   std::vector<std::pair<std::string, std::string>> &getAllHeaders() { return headers_; }
   const std::vector<std::pair<std::string, std::string>> &getAllHeaders() const { return headers_; }
@@ -27,6 +29,8 @@ public:
     std::erase_if(headers_, [&lowercaseKey](const auto &p) { return p.first == lowercaseKey; });
     headers_.emplace_back(lowercaseKey, value);
   }
+
+  void setCacheControl(const std::string &cacheControlHeader) { setHeaderLower("cache-control", cacheControlHeader); }
 
   void addHeader(const std::string &name, const std::string &value) {
     auto key = toLowerCase(name);
