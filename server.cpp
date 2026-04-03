@@ -14,7 +14,6 @@
 #include "SessionMiddleware.hpp"
 #include "StaticMiddleware.hpp"
 #include "ThreadPool.hpp"
-#include "config.hpp"
 #include "logUtils.hpp"
 #include "routes.hpp"
 
@@ -83,7 +82,7 @@ int main() {
   staticMiddleware.setMimeCacheControl("text/css", "no-cache, no-store"); // just for testing
 
   SessionConfig sessionConfig;
-  auto ttl = std::chrono::seconds(std::stoi(std::to_string(SESSION_TTL_S)));
+  auto ttl = std::chrono::seconds(std::stoi(std::to_string(120)));
   InMemorySessionStore sessionStore(ttl);
   SessionMiddleware sessionMiddleware(sessionConfig, sessionStore);
 
@@ -102,10 +101,10 @@ int main() {
   ThreadPool threadPool(N * 2);
   registerRoutes(router, errorFactory, &threadPool);
 
-  server.setTlsContext(TLS_CERT_PATH, TLS_KEY_PATH);
+  server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);
-  server.addListener(HTTP_HOST, HTTP_PORT);
-  server.addTlsListener(HTTP_HOST, HTTPS_PORT);
+  server.addListener("localhost", "8080");
+  server.addTlsListener("localhost", "8443");
 
   server.run(N);
 

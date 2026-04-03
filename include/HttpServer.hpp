@@ -9,7 +9,6 @@
 #include "ErrorFactory.hpp"
 #include "ListenerSocket.hpp"
 #include "Router.hpp"
-#include "ThreadPool.hpp"
 
 struct ListenerConfig {
   std::string host;
@@ -36,7 +35,10 @@ public:
 
   ErrorFactory &getErrorFactory();
 
+  void setListenBacklog(int backlog) { listenBacklog_ = backlog; }
+
 private:
+  int listenBacklog_ = 100;
   std::shared_ptr<SSL_CTX> tlsContext_ = nullptr;
   std::vector<ListenerConfig> listenersConfigs_;
 

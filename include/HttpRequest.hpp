@@ -2,9 +2,9 @@
 
 #include <expected>
 
+#include "ServerConfig.hpp"
 #include "Session.hpp"
 #include "Task.hpp"
-#include "serverConfig.hpp"
 
 struct SessionHandle;
 
@@ -17,8 +17,8 @@ enum class ContentLengthError {
 class HttpRequest {
 
 public:
-  static constexpr size_t MAX_HEADER_SIZE = MAX_HEADER_BYTES;
-  static constexpr size_t MAX_CONTENT_LENGTH = MAX_BODY_BYTES;
+  static constexpr size_t MAX_HEADER_SIZE = ServerConfig::MAX_HEADER_BYTES;
+  static constexpr size_t MAX_CONTENT_LENGTH = ServerConfig::MAX_CONTENT_LENGTH;
 
   static constexpr std::array singletonHeaders_ = {
       std::string_view("host"),          std::string_view("content-length"),

@@ -6,8 +6,9 @@
 #include "ExecutorContext.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
+#include "ServerConfig.hpp"
+#include "ThreadPoolFullException.hpp"
 #include "logUtils.hpp"
-#include "serverConfig.hpp"
 #include "utils.hpp"
 
 HttpConnection::HttpConnection(std::shared_ptr<IStream> stream, Router &router, ErrorFactory &errorFactory,
@@ -53,7 +54,7 @@ Task<void> HttpConnection::run() {
     if (not keepAlive_)
       co_return;
 
-    formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT_S);
+    formationDeadline_ = now() + std::chrono::seconds(ServerConfig::FORMATION_TIMEOUT_S);
 
     //=== Read headers ===
     {
@@ -80,7 +81,7 @@ Task<void> HttpConnection::run() {
           resetInactivity();
           // Arm the formation timer on first byte received — counts from here, not from accept
           if (!formationArmed_) {
-            formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT_S);
+            formationDeadline_ = now() + std::chrono::seconds(ServerConfig::FORMATION_TIMEOUT_S);
             formationArmed_ = true;
           }
         } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
@@ -128,7 +129,7 @@ Task<void> HttpConnection::run() {
     // If we had data buffered from a previous read (no suspension occurred),
     // the formation timer still needs to be armed
     if (not formationArmed_) {
-      formationDeadline_ = now() + std::chrono::seconds(FORMATION_TIMEOUT_S);
+      formationDeadline_ = now() + std::chrono::seconds(ServerConfig::FORMATION_TIMEOUT_S);
       formationArmed_ = true;
     }
 
@@ -150,7 +151,7 @@ Task<void> HttpConnection::run() {
         case RouterResponse::OK: {
           std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
           io_.enqueue(std::vector<unsigned char>(response.begin(), response.end()));
-          if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
+          if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
             co_return;
         }
         }
@@ -256,6 +257,9 @@ Task<void> HttpConnection::run() {
 
     try {
       response = co_await router_.dispatch(request_);
+    } catch (ThreadPoolFullException &e) {
+      SPDLOG_ERROR("Thread Pool Full!\n {}", e.what());
+      response = buildErrorResponse(503, e.what());
     } catch (const std::exception &e) {
       SPDLOG_ERROR("Handler threw exception: {}", e.what());
       response = buildErrorResponse(500, e.what());
@@ -284,7 +288,7 @@ Task<void> HttpConnection::run() {
 
       res->serializeInto(io_.getWriteBuffer());
       logRequest(request_, *res);
-      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
+      if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
         co_return;
       resetForNextRequest();
       continue;
@@ -294,7 +298,7 @@ Task<void> HttpConnection::run() {
       // Send headers immediately — chunked body follows as chunks become available
       responseStream->serializeHeaderInto(io_.getWriteBuffer());
 
-      if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
+      if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
         co_return;
 
       std::optional<std::string> chunkOpt = "init";
@@ -316,7 +320,7 @@ Task<void> HttpConnection::run() {
         }
 
         if (error) {
-          co_await io_.write(INACTIVITY_TIMEOUT_S);
+          co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S);
           co_return;
         }
 
@@ -326,14 +330,14 @@ Task<void> HttpConnection::run() {
           // nullopt returned — send the terminal zero-length chunk to close the stream
           HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer());
           logRequest(request_, *responseStream);
-          if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
+          if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
             co_return;
           break;
         } else {
           HttpStreamResponse::serializeChunkInto(chunk, io_.getWriteBuffer());
         }
 
-        if (const auto result = co_await io_.write(INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
+        if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
           co_return;
       }
     }
@@ -346,7 +350,9 @@ int HttpConnection::getFd() const { return io_.getFd(); }
 std::string HttpConnection::getIp() const { return io_.getIp(); }
 uint16_t HttpConnection::getPort() const { return io_.getPort(); }
 
-void HttpConnection::resetInactivity() { inactivityDeadline_ = now() + std::chrono::seconds(INACTIVITY_TIMEOUT_S); }
+void HttpConnection::resetInactivity() {
+  inactivityDeadline_ = now() + std::chrono::seconds(ServerConfig::INACTIVITY_TIMEOUT_S);
+}
 
 std::chrono::steady_clock::time_point HttpConnection::activeDeadline() const {
   return formationDeadline_ != std::chrono::steady_clock::time_point::max()
@@ -370,7 +376,7 @@ Task<void> HttpConnection::sendErrorResponseAndClose(int statusCode, const std::
 
   response.serializeInto(io_.getWriteBuffer());
   logRequest(request_, response);
-  co_await io_.write(INACTIVITY_TIMEOUT_S);
+  co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S);
 }
 
 HttpResponse HttpConnection::buildErrorResponse(int statusCode, const std::string &message) {

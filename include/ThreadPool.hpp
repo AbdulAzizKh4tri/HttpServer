@@ -5,6 +5,7 @@
 #include "IPoolTask.hpp"
 #include "PoolTask.hpp"
 #include "PoolTaskAwaitable.hpp"
+#include "ThreadPoolFullException.hpp"
 
 class ThreadPool {
 public:
@@ -27,6 +28,8 @@ public:
   void enqueue(IPoolTask *task) {
     {
       std::unique_lock<std::mutex> lock(mutex_);
+      if (taskQueue_.size() >= maxQueueSize_)
+        throw ThreadPoolFullException("Thread pool queue is full");
       taskQueue_.push(task);
     }
     cv_.notify_one();
@@ -55,8 +58,14 @@ public:
     auto task = std::make_shared<Task>(std::move(callable), std::move(state));
     task->self = task;
 
-    enqueue(task.get());
+    try {
+      enqueue(task.get());
+    } catch (ThreadPoolFullException &e) {
+      SPDLOG_ERROR(e.what());
+    }
   }
+
+  void setMaxQueueSize(size_t maxQueueSize) { maxQueueSize_ = maxQueueSize; }
 
   size_t getThreadCount() const { return workerThreads_.size(); }
 
@@ -64,6 +73,7 @@ private:
   std::vector<std::thread> workerThreads_;
 
   bool shutdown_ = false;
+  size_t maxQueueSize_ = 1024;
   std::condition_variable cv_;
   std::mutex mutex_;
   std::queue<IPoolTask *> taskQueue_;

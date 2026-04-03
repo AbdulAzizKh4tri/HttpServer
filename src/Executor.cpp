@@ -3,7 +3,7 @@
 #include <sys/eventfd.h>
 
 #include "ExecutorContext.hpp"
-#include "serverConfig.hpp"
+#include "ServerConfig.hpp"
 #include "utils.hpp"
 
 Executor::Executor() {
@@ -74,7 +74,7 @@ void Executor::run(std::atomic<bool> &shutdown) {
         return;
       }
       if (shutdownDeadline == std::chrono::steady_clock::time_point::max()) {
-        shutdownDeadline = now() + std::chrono::seconds(GRACEFUL_SHUTDOWN_TIMEOUT_S);
+        shutdownDeadline = now() + std::chrono::seconds(ServerConfig::GRACEFUL_SHUTDOWN_TIMEOUT_S);
       } else {
         if (ownedTasks_.empty() || now() > shutdownDeadline) {
           SPDLOG_INFO("Graceful Shutdown");

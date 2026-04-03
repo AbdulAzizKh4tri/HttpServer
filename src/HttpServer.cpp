@@ -7,7 +7,6 @@
 #include "Executor.hpp"
 #include "ExecutorContext.hpp"
 #include "HttpConnection.hpp"
-#include "config.hpp"
 
 HttpServer::HttpServer(ErrorFactory &errorFactory) : errorFactory_(errorFactory) {}
 
@@ -88,12 +87,12 @@ void HttpServer::workerMain() {
   }
 
   for (auto &listener : tcpListeners) {
-    listener->listen(LISTEN_BACKLOG);
+    listener->listen(listenBacklog_);
     tl_executor->spawn(tcpAcceptLoop(*listener));
   }
 
   for (auto &listener : tlsListeners) {
-    listener->listen(LISTEN_BACKLOG);
+    listener->listen(listenBacklog_);
     tl_executor->spawn(tlsAcceptLoop(*listener));
   }
 

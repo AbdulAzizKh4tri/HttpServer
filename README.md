@@ -243,8 +243,7 @@ include/        — all headers (framework is header + .cpp pairs)
 src/            — implementations
 server.cpp      — entry point, wires everything together
 routes.cpp      — route definitions
-serverConfig.hpp — tuning constants (timeouts, limits, thread count)
-config.hpp      — network config (host, port, TLS paths)
+ServerConfig.hpp — tuning constants (timeouts, limits, thread count)
 external/       — vendored headers (spdlog, nlohmann/json)
 ```
 

@@ -1,6 +1,6 @@
 #include "HttpResponse.hpp"
 
-#include "serverConfig.hpp"
+#include "ServerConfig.hpp"
 
 HttpResponse::HttpResponse() : statusCode_(-1) {}
 
@@ -24,7 +24,7 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
     size += k.size() + 2 + v.size() + 2;
   }
 
-  size += strlen("server") + strlen(SERVER_NAME) + 4;
+  size += strlen("server") + strlen(ServerConfig::SERVER_NAME) + 4;
 
   const auto &date = getCurrentHttpDate();
   size += strlen("date") + date.size() + 4;
@@ -55,7 +55,7 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
   write("\r\n");
 
   write("server: ");
-  write(SERVER_NAME);
+  write(ServerConfig::SERVER_NAME);
   write("\r\n");
 
   write("date: ");

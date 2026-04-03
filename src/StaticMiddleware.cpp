@@ -1,13 +1,13 @@
 #include "StaticMiddleware.hpp"
 
+#include <filesystem>
+
 #include "AsyncFileReader.hpp"
 #include "ErrorFactory.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
 #include "MimeTypes.hpp"
 #include "utils.hpp"
-
-#include <filesystem>
 
 StaticMiddleware::StaticMiddleware(ErrorFactory &errorFactory, StaticConfig config)
     : config_(config), errorFactory_(errorFactory) {
@@ -109,7 +109,7 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   AsyncFileReader &file = fileOpt.value();
 
-  if (fileSize <= STATIC_STREAM_THRESHOLD_BYTES) {
+  if (fileSize <= ServerConfig::STATIC_STREAM_THRESHOLD_BYTES) {
     std::string body = co_await file.readAll();
     HttpResponse response(200, std::move(body));
     response.headers.setHeaderLower("content-type", mime);
@@ -127,7 +127,7 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
     }
 
     HttpStreamResponse response(200, [file = std::move(file)]() mutable -> Task<std::optional<std::string>> {
-      co_return co_await file.readChunk(STATIC_STREAM_CHUNK_SIZE);
+      co_return co_await file.readChunk(ServerConfig::STATIC_STREAM_CHUNK_SIZE);
     });
     response.headers.setHeaderLower("content-type", mime);
     addCacheHeaders(response, eTag, lastWrite, cacheControl);

@@ -3,8 +3,8 @@
 #include <spdlog/spdlog.h>
 
 #include "HttpResponse.hpp"
+#include "ServerConfig.hpp"
 #include "Task.hpp"
-#include "serverConfig.hpp"
 #include "utils.hpp"
 
 HttpStreamResponse::HttpStreamResponse() : statusCode_(-1) {}
@@ -25,7 +25,7 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
   for (const auto &[k, v] : headers.getAllHeaders())
     size += k.size() + 2 + v.size() + 2;
 
-  size += strlen("server") + strlen(SERVER_NAME) + 4;
+  size += strlen("server") + strlen(ServerConfig::SERVER_NAME) + 4;
 
   const auto &date = getCurrentHttpDate();
   size += strlen("date") + date.size() + 4;
@@ -55,7 +55,7 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
   write("\r\n");
 
   write("server: ");
-  write(SERVER_NAME);
+  write(ServerConfig::SERVER_NAME);
   write("\r\n");
 
   write("date: ");

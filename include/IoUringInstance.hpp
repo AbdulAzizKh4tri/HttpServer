@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <liburing.h>
 
-#include "serverConfig.hpp"
+#include "ServerConfig.hpp"
 
 class IoUringInstance {
 public:
-  IoUringInstance(int depth = IO_URING_RING_SIZE) {
+  IoUringInstance(int depth = ServerConfig::IO_URING_RING_SIZE) {
     if (io_uring_queue_init(depth, &ring_, 0) < 0)
       throw std::runtime_error("io_uring_queue_init failed");
   }
