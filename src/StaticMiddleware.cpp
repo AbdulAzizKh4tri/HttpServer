@@ -17,7 +17,7 @@ StaticMiddleware::StaticMiddleware(ErrorFactory &errorFactory, StaticConfig conf
 StaticMiddleware::StaticMiddleware(ErrorFactory &errorFactory, const std::string &root, const std::string &prefix)
     : errorFactory_(errorFactory) {
   config_.root = root;
-  config_.prefix = prefix;
+  config_.prefix = getNormalizedPath(prefix);
   canonical_root_ = std::filesystem::weakly_canonical(root);
 }
 

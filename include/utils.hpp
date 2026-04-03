@@ -141,6 +141,19 @@ inline void normalizePath(std::string &path) {
     path.pop_back();
 }
 
+inline std::string getNormalizedPath(std::string path) {
+  auto newEnd = std::unique(path.begin(), path.end(), [](char a, char b) { return a == '/' && b == '/'; });
+  path.erase(newEnd, path.end());
+
+  if (!path.empty() && path.front() == '/')
+    path.erase(0, 1);
+
+  if (!path.empty() && path.back() == '/')
+    path.pop_back();
+
+  return path;
+}
+
 inline std::string percentDecode(std::string_view s) {
   std::string result;
   result.reserve(s.size());

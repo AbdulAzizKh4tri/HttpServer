@@ -8,7 +8,7 @@ SessionMiddleware::SessionMiddleware(SessionConfig SessionConfig, ISessionStore 
 
 Task<Response> SessionMiddleware::operator()(HttpRequest &request, Next next) {
   auto sessionCookieOpt = request.getCookie("session_id");
-  std::string sessionCookie = "";
+  std::string sessionCookie;
 
   if (sessionCookieOpt.has_value()) {
     sessionCookie = *sessionCookieOpt;

@@ -9,7 +9,7 @@
 struct CorsConfig {
   std::vector<std::string> allowedOrigins;
   std::vector<std::string> allowedHeaders = {"Authorization", "Content-Type"};
-  int maxAge = 86400;
+  std::string maxAge = "86400";
 };
 
 class CorsMiddleware {
@@ -27,6 +27,7 @@ public:
 
 private:
   CorsConfig corsConfig_;
+  std::string allowedHeaders_;
 
   bool isOriginAllowed(const std::string &origin);
 };

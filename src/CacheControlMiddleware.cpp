@@ -17,7 +17,7 @@ Task<Response> CacheControlMiddleware::operator()(const HttpRequest &request, Ne
           return;
         }
 
-        auto pathParts = request.getPathParts();
+        const auto &pathParts = request.getPathParts();
         auto routeCache = std::find_if(config_.routeCacheControl.begin(), config_.routeCacheControl.end(),
                                        [&pathParts, &request](const auto &p) {
                                          std::string_view pattern = p.first;
@@ -50,8 +50,11 @@ Task<Response> CacheControlMiddleware::operator()(const HttpRequest &request, Ne
         }
 
         auto mimeType = res.headers.getHeaderLower("content-type");
-        if (mimeType != "" && config_.mimeCacheControl.contains(mimeType)) {
-          res.headers.setCacheControl(config_.mimeCacheControl[mimeType]);
+
+        if (mimeType != "") {
+          auto it = config_.mimeCacheControl.find(mimeType);
+          if (it != config_.mimeCacheControl.end())
+            res.headers.setCacheControl(it->second);
           return;
         }
 
