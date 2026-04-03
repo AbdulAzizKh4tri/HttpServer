@@ -1,9 +1,17 @@
 #include "Executor.hpp"
 
+#include <sys/eventfd.h>
+
+#include "ExecutorContext.hpp"
 #include "serverConfig.hpp"
 #include "utils.hpp"
 
-Executor::Executor() {}
+Executor::Executor() {
+  eventFd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+  if (eventFd_ < 0)
+    throw std::runtime_error("eventfd failed");
+  registerReadOnlyFd(eventFd_);
+}
 
 void Executor::spawn(Task<void> task) {
   readyQueue_.push({task.handle(), false});
@@ -16,12 +24,20 @@ void Executor::unregister(int fd) {
   deadlines_.erase(fd);
 }
 
+void Executor::post(std::coroutine_handle<> h) {
+  {
+    std::unique_lock lock(poolResumeQueueMutex_);
+    poolResumeQueue_.push(h);
+  }
+  uint64_t one = 1;
+  ::write(eventFd_, &one, sizeof(one));
+}
+
 void Executor::registerReadOnlyFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLET, fd); }
 void Executor::registerFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLOUT | EPOLLET, fd); }
 
 void Executor::waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
   suspendedTasks_[fd] = {caller, false};
-  ;
   if (deadline != std::chrono::steady_clock::time_point::max())
     deadlines_[fd] = deadline;
 }
@@ -79,7 +95,7 @@ void Executor::run(std::atomic<bool> &shutdown) {
       return;
     });
 
-    while (!readyQueue_.empty()) {
+    while (not readyQueue_.empty()) {
       auto [task, timed_out] = readyQueue_.front();
       readyQueue_.pop();
       tl_timed_out = timed_out;
@@ -95,6 +111,18 @@ void Executor::run(std::atomic<bool> &shutdown) {
     auto events = epoll_.wait(64, timeout);
     for (auto &event : events) {
       int fd = event.data.fd;
+
+      if (fd == eventFd_) {
+        uint64_t val;
+        ::read(eventFd_, &val, sizeof(val));
+        std::unique_lock lock(poolResumeQueueMutex_);
+        while (!poolResumeQueue_.empty()) {
+          readyQueue_.push({poolResumeQueue_.front(), false});
+          poolResumeQueue_.pop();
+        }
+        continue;
+      }
+
       auto it = suspendedTasks_.find(fd);
       if (it == suspendedTasks_.end())
         continue;

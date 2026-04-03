@@ -58,13 +58,13 @@ void HttpServer::run(int N) {
   if (N <= 0)
     N = std::thread::hardware_concurrency();
 
-  std::vector<std::thread> threads;
+  std::vector<std::thread> executorThreads;
 
   if (N > 1)
     SPDLOG_INFO("KAGE BUNSHIN NO JUTSU");
   for (int i = 0; i < N; i++)
-    threads.emplace_back([this] { workerMain(); });
-  for (auto &t : threads)
+    executorThreads.emplace_back([this] { workerMain(); });
+  for (auto &t : executorThreads)
     t.join();
 
   spdlog::shutdown();

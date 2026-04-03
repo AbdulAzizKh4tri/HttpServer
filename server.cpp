@@ -13,6 +13,7 @@
 #include "Router.hpp"
 #include "SessionMiddleware.hpp"
 #include "StaticMiddleware.hpp"
+#include "ThreadPool.hpp"
 #include "config.hpp"
 #include "logUtils.hpp"
 #include "routes.hpp"
@@ -96,13 +97,16 @@ int main() {
   router.use(staticMiddleware);
   router.use(cacheControlMiddleware);
 
-  registerRoutes(router, errorFactory);
-
   HttpServer server(errorFactory);
+
+  ThreadPool threadPool(N * 2);
+  registerRoutes(router, errorFactory, &threadPool);
+
   server.setTlsContext(TLS_CERT_PATH, TLS_KEY_PATH);
   server.setRouter(router);
   server.addListener(HTTP_HOST, HTTP_PORT);
   server.addTlsListener(HTTP_HOST, HTTPS_PORT);
+
   server.run(N);
 
   return 0;

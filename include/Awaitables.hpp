@@ -8,9 +8,7 @@ struct ReadAwaitable {
 
   bool await_ready() const noexcept { return false; }
 
-  void await_suspend(std::coroutine_handle<> h) const noexcept {
-    tl_executor->waitForRead(fd, h, deadline);
-  }
+  void await_suspend(std::coroutine_handle<> h) const noexcept { tl_executor->waitForRead(fd, h, deadline); }
 
   void await_resume() const noexcept {}
 };
@@ -21,9 +19,7 @@ struct WriteAwaitable {
 
   bool await_ready() const noexcept { return false; }
 
-  void await_suspend(std::coroutine_handle<> h) const noexcept {
-    tl_executor->waitForWrite(fd, h, deadline);
-  }
+  void await_suspend(std::coroutine_handle<> h) const noexcept { tl_executor->waitForWrite(fd, h, deadline); }
 
   void await_resume() const noexcept {}
 };
