@@ -37,6 +37,8 @@ public:
 
   HttpStreamResponse(int statusCode, NextChunkFn nextChunkFn);
 
+  HttpStreamResponse(int statusCode, const std::string &contentType, NextChunkFn nextChunkFn);
+
   Task<std::optional<std::string>> getNextChunk();
 
   void serializeHeaderInto(std::vector<unsigned char> &buf) const;

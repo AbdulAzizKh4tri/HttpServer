@@ -7,10 +7,10 @@
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
 
-#include "IStream.hpp"
+#include "StreamResults.hpp"
 #include "Socket.hpp"
 
-class TlsStream : public IStream {
+class TlsStream {
 public:
   TlsStream(int fd, SSL_CTX *ctx, sockaddr_storage addr, socklen_t len);
 
@@ -23,16 +23,16 @@ public:
 
   ~TlsStream();
 
-  HandshakeResult handshake() override;
+  HandshakeResult handshake();
 
-  ReceiveResult receive(std::span<unsigned char> &buf) const override;
+  ReceiveResult receive(std::span<unsigned char> &buf) const;
 
-  ssize_t send(const std::span<const unsigned char> &data) const override;
+  ssize_t send(const std::span<const unsigned char> &data) const;
 
-  std::string getIp() const override;
-  uint16_t getPort() const override;
+  std::string getIp() const;
+  uint16_t getPort() const;
 
-  int getFd() const override;
+  int getFd() const;
 
   int setSocketNonBlocking();
 

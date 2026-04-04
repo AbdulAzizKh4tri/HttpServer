@@ -20,7 +20,9 @@ public:
 
   HttpResponse(int statusCode);
 
-  HttpResponse(int statusCode, std::string body);
+  HttpResponse(int statusCode, const std::string &body);
+
+  HttpResponse(int statusCode, const std::string &contentType, const std::string &body);
 
   void serializeInto(std::vector<unsigned char> &buf) const;
 

@@ -69,14 +69,15 @@ void Executor::run(std::atomic<bool> &shutdown) {
 
   for (;;) {
     if (shutdown) {
-      if (shutdownDeadline < now()) {
+      auto timeNow = now();
+      if (shutdownDeadline < timeNow) {
         SPDLOG_INFO("Timeout on Shutdown");
         return;
       }
       if (shutdownDeadline == std::chrono::steady_clock::time_point::max()) {
-        shutdownDeadline = now() + std::chrono::seconds(ServerConfig::GRACEFUL_SHUTDOWN_TIMEOUT_S);
+        shutdownDeadline = timeNow + std::chrono::seconds(ServerConfig::GRACEFUL_SHUTDOWN_TIMEOUT_S);
       } else {
-        if (ownedTasks_.empty() || now() > shutdownDeadline) {
+        if (ownedTasks_.empty() || timeNow > shutdownDeadline) {
           SPDLOG_INFO("Graceful Shutdown");
           return;
         }
@@ -143,7 +144,8 @@ void Executor::run(std::atomic<bool> &shutdown) {
     }
 
     for (auto it = deadlines_.begin(); it != deadlines_.end();) {
-      if (it->second <= now()) {
+      auto timeNow = now();
+      if (it->second <= timeNow) {
         auto taskIt = suspendedTasks_.find(it->first);
         if (taskIt != suspendedTasks_.end()) {
           readyQueue_.push({taskIt->second.handle, true});

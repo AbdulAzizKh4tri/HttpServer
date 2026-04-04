@@ -115,7 +115,7 @@ Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
       auto streamOpt = listener.accept();
       if (!streamOpt)
         break;
-      auto stream = std::make_shared<TcpStream>(std::move(*streamOpt));
+      auto stream = std::make_unique<TcpStream>(std::move(*streamOpt));
       tl_executor->spawn(handleConnection(std::move(stream)));
     }
   }
@@ -135,17 +135,17 @@ Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
       auto streamOpt = listener.acceptTls(tlsContext_.get());
       if (!streamOpt)
         break;
-      auto stream = std::make_shared<TlsStream>(std::move(*streamOpt));
+      auto stream = std::make_unique<TlsStream>(std::move(*streamOpt));
       tl_executor->spawn(handleConnection(std::move(stream)));
     }
   }
 }
 
-Task<void> HttpServer::handleConnection(std::shared_ptr<IStream> stream) {
+template <typename Stream> Task<void> HttpServer::handleConnection(std::unique_ptr<Stream> stream) {
   int fd = stream->getFd();
   tl_executor->registerFd(fd);
 
-  HttpConnection conn(stream, *router_, errorFactory_, shutdown_);
+  HttpConnection<Stream> conn(std::move(stream), *router_, errorFactory_, shutdown_);
   co_await conn.run();
   tl_executor->unregister(fd);
 }

@@ -2,25 +2,25 @@
 
 #include <sys/socket.h>
 
-#include "IStream.hpp"
 #include "Socket.hpp"
+#include "StreamResults.hpp"
 
-class TcpStream : public IStream {
+class TcpStream {
 public:
   TcpStream(int fd, sockaddr_storage addr, socklen_t len);
 
-  ssize_t send(const std::span<const unsigned char> &data) const override;
+  ssize_t send(const std::span<const unsigned char> &data) const;
 
-  ReceiveResult receive(std::span<unsigned char> &data) const override;
+  ReceiveResult receive(std::span<unsigned char> &data) const;
 
-  HandshakeResult handshake() override;
+  HandshakeResult handshake();
 
   int setSocketNonBlocking();
 
-  std::string getIp() const override;
-  uint16_t getPort() const override;
+  std::string getIp() const;
+  uint16_t getPort() const;
 
-  int getFd() const override;
+  int getFd() const;
 
 private:
   Socket socket_;

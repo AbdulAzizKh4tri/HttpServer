@@ -14,6 +14,12 @@ HttpStreamResponse::HttpStreamResponse(int statusCode, NextChunkFn nextChunkFn)
   headers.setHeaderLower("transfer-encoding", "chunked");
 }
 
+HttpStreamResponse::HttpStreamResponse(int statusCode, const std::string &contentType, NextChunkFn nextChunkFn)
+    : statusCode_(statusCode), nextChunkFn(std::move(nextChunkFn)) {
+  headers.setHeaderLower("transfer-encoding", "chunked");
+  headers.setHeaderLower("content-type", contentType);
+}
+
 Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() { co_return co_await nextChunkFn(); }
 
 void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) const {

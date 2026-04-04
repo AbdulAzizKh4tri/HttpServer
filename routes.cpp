@@ -65,7 +65,9 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
 
   // GET /tests/ping
   // Simplest possible liveness check.
-  router.get("/tests/ping", [](const HttpRequest &) -> Task<Response> { co_return HttpResponse(200, "pong"); });
+  router.get("/tests/ping", [](const HttpRequest &) -> Task<Response> {
+    co_return HttpResponse(200, "text/html; charset=utf-8", "pong");
+  });
 
   // GET|POST /tests/debug/request
   // Full request introspection -- returns every observable property of the

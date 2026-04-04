@@ -51,5 +51,5 @@ private:
 
   Task<void> tlsAcceptLoop(ListenerSocket &listener);
 
-  Task<void> handleConnection(std::shared_ptr<IStream> stream);
+  template <typename Stream> Task<void> handleConnection(std::unique_ptr<Stream> stream);
 };

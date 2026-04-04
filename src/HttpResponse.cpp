@@ -8,8 +8,14 @@ HttpResponse::HttpResponse(int statusCode) : statusCode_(statusCode) {
   headers.setHeaderLower("content-length", std::to_string(body_.size()));
 }
 
-HttpResponse::HttpResponse(int statusCode, std::string body) : statusCode_(statusCode), body_(body) {
+HttpResponse::HttpResponse(int statusCode, const std::string &body) : statusCode_(statusCode), body_(body) {
   headers.setHeaderLower("content-length", std::to_string(body_.size()));
+}
+
+HttpResponse::HttpResponse(int statusCode, const std::string &contentType, const std::string &body)
+    : statusCode_(statusCode), body_(body) {
+  headers.setHeaderLower("content-length", std::to_string(body_.size()));
+  headers.setHeaderLower("content-type", contentType);
 }
 
 void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
@@ -54,14 +60,6 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
   write(statusTxt);
   write("\r\n");
 
-  write("server: ");
-  write(ServerConfig::SERVER_NAME);
-  write("\r\n");
-
-  write("date: ");
-  write(date);
-  write("\r\n");
-
   for (auto &[k, v] : headers.getAllHeaders()) {
     if (!hasBody && k == "content-length")
       continue;
@@ -70,6 +68,14 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
     write(v);
     write("\r\n");
   }
+
+  write("server: ");
+  write(ServerConfig::SERVER_NAME);
+  write("\r\n");
+
+  write("date: ");
+  write(date);
+  write("\r\n");
 
   cookies.serializeUsing(write);
 
