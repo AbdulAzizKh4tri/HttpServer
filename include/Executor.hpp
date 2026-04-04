@@ -13,6 +13,7 @@ class Executor {
   struct SuspendedTask {
     std::coroutine_handle<> handle;
     bool waitingForWrite;
+    std::chrono::steady_clock::time_point deadline;
   };
 
   struct ReadyTask {
@@ -50,7 +51,6 @@ private:
   std::vector<Task<void>> ownedTasks_;
   std::queue<ReadyTask> readyQueue_;
   std::unordered_map<int, SuspendedTask> suspendedTasks_;
-  std::unordered_map<int, std::chrono::steady_clock::time_point> deadlines_;
 
   IoUringInstance ioUring_;
   uint64_t nextUserData_ = 0;

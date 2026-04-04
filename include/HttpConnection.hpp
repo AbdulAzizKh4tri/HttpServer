@@ -164,8 +164,10 @@ public:
           case RouterResponse::OK: {
             std::string response = "HTTP/1.1 100 Continue\r\n\r\n";
             io_.enqueue(std::vector<unsigned char>(response.begin(), response.end()));
-            if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
-              co_return;
+            while (io_.hasPendingWrites()) {
+              if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+                co_return;
+            }
           }
           }
         } else {
@@ -302,8 +304,10 @@ public:
 
         res->serializeInto(io_.getWriteBuffer());
         logRequest(request_, *res);
-        if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
-          co_return;
+        while (io_.hasPendingWrites()) {
+          if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+            co_return;
+        }
         resetForNextRequest();
         continue;
 
@@ -312,8 +316,10 @@ public:
         // Send headers immediately — chunked body follows as chunks become available
         responseStream->serializeHeaderInto(io_.getWriteBuffer());
 
-        if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
-          co_return;
+        while (io_.hasPendingWrites()) {
+          if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+            co_return;
+        }
 
         std::optional<std::string> chunkOpt = "init";
         bool error = false;
@@ -334,7 +340,10 @@ public:
           }
 
           if (error) {
-            co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S);
+            while (io_.hasPendingWrites()) {
+              if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+                co_return;
+            }
             co_return;
           }
 
@@ -344,15 +353,19 @@ public:
             // nullopt returned — send the terminal zero-length chunk to close the stream
             HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer());
             logRequest(request_, *responseStream);
-            if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
-              co_return;
+            while (io_.hasPendingWrites()) {
+              if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+                co_return;
+            }
             break;
           } else {
             HttpStreamResponse::serializeChunkInto(chunk, io_.getWriteBuffer());
           }
 
-          if (const auto result = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); result != WriteResult::OK)
-            co_return;
+          while (io_.hasPendingWrites()) {
+            if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+              co_return;
+          }
         }
       }
 
@@ -389,10 +402,7 @@ private:
                : inactivityDeadline_;
   }
 
-  bool shouldKeepAlive() const {
-    const std::string &connection = toLowerCase(request_.getHeaderLower("connection"));
-    return connection.find("close") == std::string::npos;
-  }
+  bool shouldKeepAlive() const { return not icontains(request_.getHeaderLower("connection"), "close"); }
 
   Task<void> sendErrorResponseAndClose(int statusCode, const std::string &message = "") {
     HttpResponse response = buildErrorResponse(statusCode, message);
@@ -405,7 +415,10 @@ private:
 
     response.serializeInto(io_.getWriteBuffer());
     logRequest(request_, response);
-    co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S);
+    do {
+      if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+        co_return;
+    } while (io_.hasPendingWrites());
   }
 
   HttpResponse buildErrorResponse(int statusCode, const std::string &message = "") {

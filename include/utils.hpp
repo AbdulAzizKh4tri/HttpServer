@@ -63,6 +63,17 @@ inline std::string getCommaSeparatedString(const std::vector<std::string> &strin
   return result;
 }
 
+inline bool icontains(std::string_view haystack, std::string_view needle) {
+  if (needle.empty())
+    return true;
+  if (needle.size() > haystack.size())
+    return false;
+
+  auto it = std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end(),
+                        [](unsigned char a, unsigned char b) { return std::tolower(a) == std::tolower(b); });
+  return it != haystack.end();
+}
+
 inline std::string toLowerCase(std::string_view s) {
   char buf[64];
   if (s.size() < sizeof(buf)) {
@@ -131,6 +142,15 @@ inline auto toJsonObject(const std::vector<std::pair<std::string, std::string>> 
 }
 
 inline void normalizePath(std::string &path) {
+
+  if (path.find("//") == std::string::npos) {
+    if (!path.empty() && path.front() == '/')
+      path.erase(0, 1);
+    if (!path.empty() && path.back() == '/')
+      path.pop_back();
+    return;
+  }
+
   auto newEnd = std::unique(path.begin(), path.end(), [](char a, char b) { return a == '/' && b == '/'; });
   path.erase(newEnd, path.end());
 
@@ -192,15 +212,16 @@ inline const std::string &getCurrentHttpDate() {
   thread_local static std::string cached;
   thread_local static time_t lastTime = 0;
 
-  time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  struct timespec ts;
+  clock_gettime(CLOCK_REALTIME_COARSE, &ts);
 
-  if (now != lastTime) {
+  if (ts.tv_sec != lastTime) {
     std::tm tm{};
-    gmtime_r(&now, &tm);
+    gmtime_r(&ts.tv_sec, &tm);
     char buf[32];
     strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
     cached = buf;
-    lastTime = now;
+    lastTime = ts.tv_sec;
   }
   return cached;
 }
@@ -247,7 +268,11 @@ inline bool mime_match(std::string_view p, std::string_view v) {
          (p[ps + 1] == '*' || v[vs + 1] == '*' || p.substr(ps + 1) == v.substr(vs + 1));
 }
 
-inline std::chrono::steady_clock::time_point now() { return std::chrono::steady_clock::now(); }
+inline std::chrono::steady_clock::time_point now() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
+  return std::chrono::steady_clock::time_point(std::chrono::seconds(ts.tv_sec) + std::chrono::nanoseconds(ts.tv_nsec));
+}
 
 inline bool etagMatches(std::string_view ifNoneMatch, const std::string &etag) {
   while (!ifNoneMatch.empty()) {

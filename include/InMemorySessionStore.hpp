@@ -24,8 +24,12 @@ public:
         co_return std::nullopt;
       }
 
+      struct timespec ts;
+      clock_gettime(CLOCK_REALTIME_COARSE, &ts);
+
       const auto &entry = entryIt->second;
-      if (not(std::chrono::system_clock::now() - entry.lastAccessed > ttl_ || entry.session.isInvalidated())) {
+      if (not(std::chrono::system_clock::from_time_t(ts.tv_sec) - entry.lastAccessed > ttl_ ||
+              entry.session.isInvalidated())) {
         co_return entry.session;
       }
     }
@@ -38,7 +42,10 @@ public:
 
   Task<void> save(const std::string &id, const Session &session) override {
     std::unique_lock writeLock(mutex_);
-    sessions_[id] = {session, std::chrono::system_clock::now()};
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME_COARSE, &ts);
+    sessions_[id] = {session, std::chrono::system_clock::from_time_t(ts.tv_sec)};
     co_return;
   };
 
