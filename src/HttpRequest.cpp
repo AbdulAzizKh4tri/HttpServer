@@ -303,7 +303,7 @@ void HttpRequest::reset(const std::string &ip, uint16_t port) {
   queryParams_.clear();
   attributes_.clear();
   pathParams_.clear();
-  method_.clear(); // keeps capacity
+  method_.clear();
   rawPath_.clear();
   path_.clear();
   version_.clear();

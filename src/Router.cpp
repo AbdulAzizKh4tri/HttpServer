@@ -43,10 +43,10 @@ Task<Response> Router::dispatch(HttpRequest &request) {
   }
 
   auto pathNode = findMatchingRouteEntry(request.getPathParts());
-  auto allowedMethods = getAllowedMethodsString(pathNode);
-  request.setAttribute("allowedMethods", allowedMethods);
+  if (pathNode)
+    request.setAttribute("allowedMethods", pathNode->allowedMethods);
 
-  Handler terminal = [this, &pathNode, &allowedMethods](HttpRequest &req) -> Task<Response> {
+  Handler terminal = [this, &pathNode](HttpRequest &req) -> Task<Response> {
     if (pathNode == nullptr) {
       auto response = errorFactory_.build(req, 404);
       if (req.getMethod() == "HEAD")
@@ -82,14 +82,14 @@ Task<Response> Router::dispatch(HttpRequest &request) {
 
     if (req.getMethod() == "OPTIONS") {
       HttpResponse response(204);
-      response.headers.setHeaderLower("allow", allowedMethods);
+      response.headers.setHeaderLower("allow", pathNode->allowedMethods);
       co_return response;
     }
 
     HttpResponse response = errorFactory_.build(req, 405);
     if (req.getMethod() == "HEAD")
       response.stripBody();
-    response.headers.setHeaderLower("allow", allowedMethods);
+    response.headers.setHeaderLower("allow", pathNode->allowedMethods);
     co_return response;
   };
 
@@ -117,25 +117,7 @@ std::string Router::getAllowedMethodsString(const HttpRequest &request) {
 std::string Router::getAllowedMethodsString(RouteNode *pathNode) {
   if (pathNode == nullptr)
     return "";
-
-  if (not pathNode->allowedMethods.empty())
-    return pathNode->allowedMethods;
-
-  const auto &methods = pathNode->requestHandlers;
-
-  std::string result;
-  for (const auto &[method, _] : methods) {
-    result += method;
-    result += ", ";
-    if (method == "GET")
-      result += "HEAD, ";
-  }
-  if (!result.empty()) {
-    result += "OPTIONS";
-  }
-
-  pathNode->allowedMethods = result;
-  return result;
+  return pathNode->allowedMethods;
 }
 
 Task<Response> Router::runChain(HttpRequest &request, Handler &handler, size_t startIndex) {
@@ -244,6 +226,15 @@ void Router::addRoute(const std::string &routePattern, const std::string &method
     throw std::invalid_argument("Duplicate route: " + pattern);
   node->requestHandlers.emplace(method, std::move(handler));
   node->patternParts = std::move(patternParts);
+  if (node->allowedMethods.empty()) {
+    node->allowedMethods = method;
+    node->allowedMethods += ", OPTIONS";
+  } else {
+    node->allowedMethods += ", " + method;
+  }
+
+  if (method == "GET")
+    node->allowedMethods += ", HEAD";
 
   registeredMethods_.insert(method);
 }

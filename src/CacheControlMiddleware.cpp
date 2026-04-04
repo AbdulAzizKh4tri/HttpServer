@@ -53,9 +53,10 @@ Task<Response> CacheControlMiddleware::operator()(const HttpRequest &request, Ne
 
         if (mimeType != "") {
           auto it = config_.mimeCacheControl.find(mimeType);
-          if (it != config_.mimeCacheControl.end())
+          if (it != config_.mimeCacheControl.end()) {
             res.headers.setCacheControl(it->second);
-          return;
+            return;
+          }
         }
 
         res.headers.setCacheControl(config_.defaultCacheControl);
