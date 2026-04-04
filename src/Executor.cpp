@@ -21,7 +21,6 @@ void Executor::spawn(Task<void> task) {
 void Executor::unregister(int fd) {
   epoll_.remove(fd);
   suspendedTasks_.erase(fd);
-  deadlines_.erase(fd);
 }
 
 void Executor::post(std::coroutine_handle<> h) {
@@ -37,15 +36,11 @@ void Executor::registerReadOnlyFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLET, fd
 void Executor::registerFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLOUT | EPOLLET, fd); }
 
 void Executor::waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
-  suspendedTasks_[fd] = {caller, false};
-  if (deadline != std::chrono::steady_clock::time_point::max())
-    deadlines_[fd] = deadline;
+  suspendedTasks_[fd] = {caller, false, deadline};
 }
 
 void Executor::waitForWrite(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
-  suspendedTasks_[fd] = {caller, true};
-  if (deadline != std::chrono::steady_clock::time_point::max())
-    deadlines_[fd] = deadline;
+  suspendedTasks_[fd] = {caller, true, deadline};
 }
 
 void Executor::submitFileRead(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
@@ -140,19 +135,13 @@ void Executor::run(std::atomic<bool> &shutdown) {
 
       readyQueue_.push({it->second.handle, false});
       suspendedTasks_.erase(it);
-      deadlines_.erase(fd);
     }
 
-    for (auto it = deadlines_.begin(); it != deadlines_.end();) {
-      auto timeNow = now();
-      if (it->second <= timeNow) {
-        auto taskIt = suspendedTasks_.find(it->first);
-        if (taskIt != suspendedTasks_.end()) {
-          readyQueue_.push({taskIt->second.handle, true});
-          suspendedTasks_.erase(taskIt);
-        }
-        it = deadlines_.erase(it);
-
+    auto timeNow = now();
+    for (auto it = suspendedTasks_.begin(); it != suspendedTasks_.end();) {
+      if (it->second.deadline <= timeNow) {
+        readyQueue_.push({it->second.handle, true});
+        it = suspendedTasks_.erase(it);
       } else {
         ++it;
       }

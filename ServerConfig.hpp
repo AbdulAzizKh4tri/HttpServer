@@ -3,6 +3,7 @@
 namespace ServerConfig {
 // ── Server identity ───────────────────────────────────────
 static constexpr const char *SERVER_NAME = "Azooz";
+static constexpr std::string SERVER_LINE = "server: " + std::string(SERVER_NAME) + "\r\n";
 
 // ── Timeouts (seconds) ────────────────────────────────────
 static constexpr int INACTIVITY_TIMEOUT_S = 20;

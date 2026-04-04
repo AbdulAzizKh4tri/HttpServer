@@ -54,6 +54,7 @@ public:
 
   void addHeader(const std::string &name, const std::string &value);
   void addHeaderLower(const std::string_view &lowercaseKey, const std::string &value);
+  void addHeaderLower(const std::string_view &lowercaseKey, const std::string_view &value);
 
   void removeHeader(const std::string &name);
 

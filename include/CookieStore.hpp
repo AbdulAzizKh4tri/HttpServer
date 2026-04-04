@@ -54,7 +54,9 @@ public:
       }
       if (cookie.maxAge > -1) {
         write("; Max-Age=");
-        write(std::to_string(cookie.maxAge));
+        char tmp[20];
+        auto [ptr, ec] = std::to_chars(tmp, tmp + 20, cookie.maxAge);
+        write({tmp, ptr - tmp});
       }
       write("\r\n");
     }
@@ -63,26 +65,26 @@ public:
   size_t getSerializedSize() const {
     size_t total = 0;
     for (const auto &cookie : cookies_) {
-      total += strlen("Set-Cookie: ");
+      total += (sizeof("Set-Cookie: ") - 1);
 
-      total += cookie.name.size() + strlen("1") + cookie.value.size() + strlen("; Path=") + cookie.path.size() +
-               strlen("; SameSite=") + cookie.sameSite.size();
+      total += cookie.name.size() + (sizeof("=") - 1) + cookie.value.size() + (sizeof("; Path=") - 1) +
+               cookie.path.size() + (sizeof("; SameSite=") - 1) + cookie.sameSite.size();
 
       if (cookie.httpOnly)
-        total += strlen("; HttpOnly");
+        total += (sizeof("; HttpOnly") - 1);
       if (cookie.secure)
-        total += strlen("; Secure");
+        total += (sizeof("; Secure") - 1);
 
       if (cookie.domain != "")
-        total += strlen("; Domain=") + cookie.domain.size();
+        total += (sizeof("; Domain=") - 1) + cookie.domain.size();
 
       if (cookie.expires != std::chrono::system_clock::time_point::max())
-        total += strlen("; Expires=") + toHttpDate(cookie.expires).size();
+        total += (sizeof("; Expires=") - 1) + toHttpDate(cookie.expires).size();
       if (cookie.maxAge > -1) {
-        total += strlen("; Max-Age=") + digit_count(cookie.maxAge);
+        total += (sizeof("; Max-Age=") - 1) + digit_count(cookie.maxAge);
       }
 
-      total += strlen("\r\n");
+      total += (sizeof("\r\n") - 1);
     }
     return total;
   }

@@ -126,6 +126,16 @@ void HttpRequest::addHeader(const std::string &name, const std::string &value) {
   headers_.emplace_back(key, value);
 }
 
+void HttpRequest::addHeaderLower(const std::string_view &lowercaseKey, const std::string_view &value) {
+  if (std::ranges::contains(singletonHeaders_, lowercaseKey)) {
+    if (std::find_if(headers_.begin(), headers_.end(),
+                     [&lowercaseKey](const auto &p) { return p.first == lowercaseKey; }) == headers_.end())
+      headers_.emplace_back(lowercaseKey, value);
+    return;
+  }
+  headers_.emplace_back(lowercaseKey, value);
+}
+
 void HttpRequest::addHeaderLower(const std::string_view &lowercaseKey, const std::string &value) {
   if (std::ranges::contains(singletonHeaders_, lowercaseKey)) {
     if (std::find_if(headers_.begin(), headers_.end(),
@@ -246,7 +256,9 @@ bool HttpRequest::parseRequestHeaders(std::string_view headerView) {
     auto key = line.substr(0, pos);
     auto value = line.substr(pos + 1);
     trim(value);
-    addHeader(std::string(key), std::string(value));
+    std::string lowerKey(key.size(), '\0');
+    std::transform(key.begin(), key.end(), lowerKey.begin(), [](unsigned char c) { return std::tolower(c); });
+    addHeaderLower(lowerKey, value);
   }
   return true;
 }

@@ -19,10 +19,10 @@ HttpResponse::HttpResponse(int statusCode, const std::string &contentType, const
 }
 
 void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
-  const std::string &statusTxt = HttpResponse::statusText(statusCode_);
   bool hasBody = !std::ranges::contains(noBody, statusCode_);
 
-  size_t size = version_.size() + 1 + 3 + 1 + statusTxt.size() + 2;
+  const std::string_view statusLine = getStatusLine(statusCode_);
+  size_t size = statusLine.size();
 
   for (auto &[k, v] : headers.getAllHeaders()) {
     if (!hasBody && k == "content-length")
@@ -30,35 +30,26 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
     size += k.size() + 2 + v.size() + 2;
   }
 
-  size += strlen("server") + strlen(ServerConfig::SERVER_NAME) + 4;
+  size += ServerConfig::SERVER_LINE.size();
 
   const auto &date = getCurrentHttpDate();
-  size += strlen("date") + date.size() + 4;
+  size += (sizeof("date") - 1) + date.size() + 4;
 
   size += cookies.getSerializedSize();
   size += 2; // final \r\n
 
-  if (hasBody)
-    size += body_.size();
+  size += hasBody ? body_.size() : 0;
 
   size_t oldSize = buf.size();
   buf.resize(oldSize + size);
+  unsigned char *out = buf.data() + oldSize;
 
-  auto write = [&](std::string_view s) {
-    std::memcpy(buf.data() + oldSize, s.data(), s.size());
-    oldSize += s.size();
+  auto write = [&out](std::string_view s) {
+    std::memcpy(out, s.data(), s.size());
+    out += s.size();
   };
-  auto writeChar = [&](char c) { buf[oldSize++] = c; };
 
-  char statusBuf[3];
-  std::to_chars(statusBuf, statusBuf + 3, statusCode_);
-
-  write(version_);
-  writeChar(' ');
-  write(std::string_view(statusBuf, 3));
-  writeChar(' ');
-  write(statusTxt);
-  write("\r\n");
+  write(statusLine);
 
   for (auto &[k, v] : headers.getAllHeaders()) {
     if (!hasBody && k == "content-length")
@@ -69,9 +60,7 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
     write("\r\n");
   }
 
-  write("server: ");
-  write(ServerConfig::SERVER_NAME);
-  write("\r\n");
+  write(ServerConfig::SERVER_LINE);
 
   write("date: ");
   write(date);

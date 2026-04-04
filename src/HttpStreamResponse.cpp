@@ -24,17 +24,17 @@ Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() { co_return 
 
 void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) const {
 
-  const std::string &statText = HttpResponse::statusText(statusCode_);
+  const std::string_view statusLine = HttpResponse::getStatusLine(statusCode_);
 
-  size_t size = version_.size() + 1 + 3 + 1 + statText.size() + 2;
+  size_t size = statusLine.size();
 
   for (const auto &[k, v] : headers.getAllHeaders())
     size += k.size() + 2 + v.size() + 2;
 
-  size += strlen("server") + strlen(ServerConfig::SERVER_NAME) + 4;
+  size += ServerConfig::SERVER_LINE.size();
 
   const auto &date = getCurrentHttpDate();
-  size += strlen("date") + date.size() + 4;
+  size += (sizeof("date") - 1) + date.size() + 4;
 
   size += cookies.getSerializedSize();
 
@@ -42,27 +42,16 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
 
   size_t oldSize = buf.size();
   buf.resize(oldSize + size);
-  size_t offset = oldSize;
+  unsigned char *out = buf.data() + oldSize;
 
-  auto write = [&](std::string_view s) {
-    std::memcpy(buf.data() + offset, s.data(), s.size());
-    offset += s.size();
+  auto write = [&out](std::string_view s) {
+    std::memcpy(out, s.data(), s.size());
+    out += s.size();
   };
-  auto writeChar = [&](char c) { buf[offset++] = c; };
 
-  char statusBuf[3];
-  std::to_chars(statusBuf, statusBuf + 3, statusCode_);
+  write(statusLine);
 
-  write(version_);
-  writeChar(' ');
-  write(std::string_view(statusBuf, 3));
-  writeChar(' ');
-  write(statText);
-  write("\r\n");
-
-  write("server: ");
-  write(ServerConfig::SERVER_NAME);
-  write("\r\n");
+  write(ServerConfig::SERVER_LINE);
 
   write("date: ");
   write(date);

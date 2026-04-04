@@ -39,6 +39,49 @@ public:
   std::string getVersion() const;
   int getStatusCode() const;
 
+  static std::string_view getStatusLine(int code) noexcept {
+    switch (code) {
+    case 200:
+      return "HTTP/1.1 200 OK\r\n";
+    case 201:
+      return "HTTP/1.1 201 Created\r\n";
+    case 204:
+      return "HTTP/1.1 204 No Content\r\n";
+    case 301:
+      return "HTTP/1.1 301 Moved Permanently\r\n";
+    case 302:
+      return "HTTP/1.1 302 Found\r\n";
+    case 304:
+      return "HTTP/1.1 304 Not Modified\r\n";
+    case 400:
+      return "HTTP/1.1 400 Bad Request\r\n";
+    case 401:
+      return "HTTP/1.1 401 Unauthorized\r\n";
+    case 403:
+      return "HTTP/1.1 403 Forbidden\r\n";
+    case 404:
+      return "HTTP/1.1 404 Not Found\r\n";
+    case 405:
+      return "HTTP/1.1 405 Method Not Allowed\r\n";
+    case 408:
+      return "HTTP/1.1 408 Request Timeout\r\n";
+    case 413:
+      return "HTTP/1.1 413 Content Too Large\r\n";
+    case 429:
+      return "HTTP/1.1 429 Too Many Requests\r\n";
+    case 500:
+      return "HTTP/1.1 500 Internal Server Error\r\n";
+    case 503:
+      return "HTTP/1.1 503 Service Unavailable\r\n";
+    // fallback for anything not in the fast path:
+    default: {
+      static thread_local std::string fallback;
+      fallback = "HTTP/1.1 " + std::to_string(code) + " " + std::string(HttpResponse::statusText(code)) + "\r\n";
+      return fallback;
+    }
+    }
+  }
+
 private:
   std::string body_, version_ = "HTTP/1.1";
   int statusCode_;
