@@ -43,6 +43,11 @@ public:
 
   void serializeHeaderInto(std::vector<unsigned char> &buf) const;
 
+  std::string getContentType() const;
+
+  NextChunkFn takeNextChunkFn();
+  void setNextChunkFn(NextChunkFn nextChunkFn);
+
   std::string getVersion() const;
   int getStatusCode() const;
 
@@ -50,5 +55,5 @@ private:
   int statusCode_;
   std::string version_ = "HTTP/1.1";
 
-  NextChunkFn nextChunkFn;
+  NextChunkFn nextChunkFn_;
 };

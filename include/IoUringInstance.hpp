@@ -19,8 +19,7 @@ public:
   IoUringInstance(IoUringInstance &&) = delete;
   IoUringInstance &operator=(IoUringInstance &&) = delete;
 
-  bool prepRead(int fd, void *buf, size_t len, uint64_t userData,
-                uint64_t offset) {
+  bool prepRead(int fd, void *buf, size_t len, uint64_t userData, uint64_t offset) {
     auto *sqe = io_uring_get_sqe(&ring_);
     if (not sqe)
       return false;
@@ -29,8 +28,7 @@ public:
     return true;
   }
 
-  bool prepWrite(int fd, void *buf, size_t len, uint64_t userData,
-                 uint64_t offset) {
+  bool prepWrite(int fd, const void *buf, size_t len, uint64_t userData, uint64_t offset) {
     auto *sqe = io_uring_get_sqe(&ring_);
     if (not sqe)
       return false;

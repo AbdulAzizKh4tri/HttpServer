@@ -40,7 +40,7 @@ public:
 
   void submitFileRead(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr, uint64_t offset);
 
-  void submitFileWrite(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr, uint64_t offset);
+  void submitFileWrite(int fd,const void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr, uint64_t offset);
 
   void run(std::atomic<bool> &shutdown);
 

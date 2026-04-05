@@ -38,6 +38,8 @@ public:
 
   std::expected<size_t, ContentLengthError> getContentLength() const;
 
+  std::string_view getContentType() const; 
+
   std::string_view getHeader(const std::string &name) const;
 
   std::string_view getHeaderLower(const std::string &lowerKey) const;

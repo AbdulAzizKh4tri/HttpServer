@@ -258,6 +258,7 @@ inline int digit_count(int x) {
     return 2;
   return 1;
 }
+
 inline bool mime_match(std::string_view p, std::string_view v) {
   if (p == "*/*")
     return true;
@@ -298,7 +299,7 @@ inline std::optional<std::chrono::system_clock::time_point> parseHttpDate(const 
   return std::chrono::system_clock::from_time_t(timegm(&tm));
 }
 
-inline void parseQValues(const std::string &acceptString, std::vector<std::pair<std::string, float>> &typePrefs,
+inline void parseQValues(const std::string_view acceptString, std::vector<std::pair<std::string, float>> &typePrefs,
                          std::vector<std::string> &excluded) {
   for (auto typeQ : split(acceptString, ",")) {
     trim(typeQ);

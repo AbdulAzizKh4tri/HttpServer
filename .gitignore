@@ -4,3 +4,4 @@ cmake-source-cache/
 *.key
 *.pem
 *.log
+.server_cache/

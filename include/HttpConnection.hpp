@@ -347,9 +347,7 @@ public:
             co_return;
           }
 
-          std::string chunk = chunkOpt.value_or("");
-
-          if (chunk.empty()) {
+          if (not chunkOpt.has_value()) {
             // nullopt returned — send the terminal zero-length chunk to close the stream
             HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer());
             logRequest(request_, *responseStream);
@@ -359,7 +357,7 @@ public:
             }
             break;
           } else {
-            HttpStreamResponse::serializeChunkInto(chunk, io_.getWriteBuffer());
+            HttpStreamResponse::serializeChunkInto(*chunkOpt, io_.getWriteBuffer());
           }
 
           while (io_.hasPendingWrites()) {

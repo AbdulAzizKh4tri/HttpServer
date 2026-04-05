@@ -82,6 +82,15 @@ std::expected<size_t, ContentLengthError> HttpRequest::getContentLength() const 
   return len;
 }
 
+std::string_view HttpRequest::getContentType() const {
+  auto header = getHeaderLower("content-type");
+  auto it = std::find(header.begin(), header.end(), ';');
+  if (it != header.end())
+    return std::string_view(header.begin(), it);
+  else
+    return header;
+}
+
 std::string_view HttpRequest::getHeader(const std::string &name) const {
   auto key = toLowerCase(name);
   auto it = std::find_if(headers_.rbegin(), headers_.rend(), [&key](const auto &p) { return p.first == key; });

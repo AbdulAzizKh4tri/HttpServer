@@ -26,14 +26,14 @@ public:
 
   void serializeInto(std::vector<unsigned char> &buf) const;
 
-  void setBody(const std::string &body);
-
-  void stripBody();
+  std::string getContentType() const;
 
   void setVersion(const std::string &version);
   void setStatusCode(int statusCode);
 
-  std::string getBody() const;
+  void setBody(const std::string &body);
+  void stripBody();
+  std::string &getBody();
   size_t getBodySize() const;
 
   std::string getVersion() const;

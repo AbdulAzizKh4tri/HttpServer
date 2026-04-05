@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 #include "CacheControlMiddleware.hpp"
+#include "CompressionMiddleware.hpp"
 #include "CorsMiddleware.hpp"
 #include "ErrorFactory.hpp"
 #include "ExecutorContext.hpp"
@@ -91,10 +92,13 @@ int main() {
   cacheControlMiddleware.setMimeCacheControl("text/html", "max-age=5, public");
   cacheControlMiddleware.setDefaultCacheControl("no-cache, no-store");
 
+  CompressionMiddleware compressionMiddleware(errorFactory);
+
+  router.use(staticMiddleware);
+  router.use(compressionMiddleware);
+  router.use(cacheControlMiddleware);
   router.use(sessionMiddleware);
   router.use(corsMiddleware);
-  router.use(staticMiddleware);
-  router.use(cacheControlMiddleware);
 
   HttpServer server(errorFactory);
 

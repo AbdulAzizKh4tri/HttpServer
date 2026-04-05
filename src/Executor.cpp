@@ -51,7 +51,7 @@ void Executor::submitFileRead(int fd, void *buf, size_t len, std::coroutine_hand
   nextUserData_++;
 }
 
-void Executor::submitFileWrite(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
+void Executor::submitFileWrite(int fd, const void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
                                uint64_t offset) {
   pendingFileOps_[nextUserData_] = {h, resultPtr};
   ioUring_.prepWrite(fd, buf, len, nextUserData_, offset);

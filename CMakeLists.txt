@@ -42,11 +42,19 @@ add_dependencies(liburing liburing_ext)
 
 # OpenSSL (system)
 find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(BROTLIENC REQUIRED IMPORTED_TARGET libbrotlienc)
+pkg_check_modules(BROTLICOMMON REQUIRED IMPORTED_TARGET libbrotlicommon)
 
 target_link_libraries(server PRIVATE
   OpenSSL::SSL
   OpenSSL::Crypto
+  ZLIB::ZLIB
   liburing
+  PkgConfig::BROTLIENC
+  PkgConfig::BROTLICOMMON
 )
 
 target_precompile_headers(server PRIVATE
@@ -56,16 +64,39 @@ target_precompile_headers(server PRIVATE
   <spdlog/sinks/basic_file_sink.h>
   <openssl/ssl.h>
   <openssl/err.h>
+  <brotli/encode.h>
+  <liburing.h>
 
   # stdlib headers used across nearly every file
   <string>
+  <string_view>
   <vector>
   <unordered_map>
-  <functional>
-  <memory>
+  <unordered_set>
+  <map>
+  <set>
+  <array>
+  <deque>
+  <span>
   <optional>
   <variant>
-  <expected>
-  <span>
-  <string_view>
+  <expected>          # C++23
+  <memory>
+  <functional>
+  <algorithm>
+  <numeric>
+  <chrono>
+  <thread>
+  <mutex>
+  <shared_mutex>
+  <atomic>
+  <filesystem>        # very common in servers
+  <format>            # C++20/23
+  <ranges>            # C++20
+  <source_location>   # very useful with C++23
+  <cstdint>
+  <cstddef>
+  <cassert>
+  <exception>
+  <stdexcept>
 )

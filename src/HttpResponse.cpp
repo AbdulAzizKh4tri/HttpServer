@@ -74,6 +74,15 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
     write(body_);
 }
 
+std::string HttpResponse::getContentType() const {
+  std::string header = headers.getHeaderLower("content-type");
+  auto it = std::find(header.begin(), header.end(), ';');
+  if (it != header.end())
+    return std::string(header.begin(), it);
+  else
+    return header;
+}
+
 void HttpResponse::setBody(const std::string &body) {
   body_ = body;
   headers.setHeaderLower("content-length", std::to_string(body_.size()));
@@ -84,7 +93,7 @@ void HttpResponse::stripBody() { body_ = ""; }
 void HttpResponse::setVersion(const std::string &version) { version_ = version; }
 void HttpResponse::setStatusCode(int statusCode) { statusCode_ = statusCode; }
 
-std::string HttpResponse::getBody() const { return body_; }
+std::string &HttpResponse::getBody() { return body_; }
 size_t HttpResponse::getBodySize() const { return body_.size(); }
 
 std::string HttpResponse::getVersion() const { return version_; }

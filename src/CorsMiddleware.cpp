@@ -37,6 +37,7 @@ Task<Response> CorsMiddleware::operator()(const HttpRequest &request, Next next)
                if (not origin.empty()) {
                  if (isOriginAllowed(origin))
                    res.headers.setHeaderLower("access-control-allow-origin", origin);
+                 res.headers.addHeaderLower("vary", "origin");
                }
              }},
              response);

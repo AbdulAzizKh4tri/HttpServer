@@ -42,7 +42,7 @@ struct FileReadAwaitable {
 
 struct FileWriteAwaitable {
   int fd;
-  void *buf;
+  const void *buf;
   size_t len;
   uint64_t offset = (uint64_t)-1; // use file offset by default
   int result = 0;

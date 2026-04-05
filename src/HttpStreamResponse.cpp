@@ -10,17 +10,17 @@
 HttpStreamResponse::HttpStreamResponse() : statusCode_(-1) {}
 
 HttpStreamResponse::HttpStreamResponse(int statusCode, NextChunkFn nextChunkFn)
-    : statusCode_(statusCode), nextChunkFn(std::move(nextChunkFn)) {
+    : statusCode_(statusCode), nextChunkFn_(std::move(nextChunkFn)) {
   headers.setHeaderLower("transfer-encoding", "chunked");
 }
 
 HttpStreamResponse::HttpStreamResponse(int statusCode, const std::string &contentType, NextChunkFn nextChunkFn)
-    : statusCode_(statusCode), nextChunkFn(std::move(nextChunkFn)) {
+    : statusCode_(statusCode), nextChunkFn_(std::move(nextChunkFn)) {
   headers.setHeaderLower("transfer-encoding", "chunked");
   headers.setHeaderLower("content-type", contentType);
 }
 
-Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() { co_return co_await nextChunkFn(); }
+Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() { co_return co_await nextChunkFn_(); }
 
 void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) const {
 
@@ -67,6 +67,18 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
   cookies.serializeUsing(write);
   write("\r\n");
 }
+
+std::string HttpStreamResponse::getContentType() const {
+  std::string header = headers.getHeaderLower("content-type");
+  auto it = std::find(header.begin(), header.end(), ';');
+  if (it != header.end())
+    return std::string(header.begin(), it);
+  else
+    return header;
+}
+
+NextChunkFn HttpStreamResponse::takeNextChunkFn() { return std::move(nextChunkFn_); }
+void HttpStreamResponse::setNextChunkFn(NextChunkFn nextChunkFn) { nextChunkFn_ = std::move(nextChunkFn); }
 
 std::string HttpStreamResponse::getVersion() const { return version_; }
 int HttpStreamResponse::getStatusCode() const { return statusCode_; }
