@@ -56,7 +56,7 @@ public:
         write("; Max-Age=");
         char tmp[20];
         auto [ptr, ec] = std::to_chars(tmp, tmp + 20, cookie.maxAge);
-        write({tmp, ptr - tmp});
+        write({tmp, static_cast<std::size_t>(ptr - tmp)});
       }
       write("\r\n");
     }

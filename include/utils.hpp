@@ -297,3 +297,30 @@ inline std::optional<std::chrono::system_clock::time_point> parseHttpDate(const 
     return std::nullopt;
   return std::chrono::system_clock::from_time_t(timegm(&tm));
 }
+
+inline void parseQValues(const std::string &acceptString, std::vector<std::pair<std::string, float>> &typePrefs,
+                         std::vector<std::string> &excluded) {
+  for (auto typeQ : split(acceptString, ",")) {
+    trim(typeQ);
+    auto sepIt = typeQ.find(';');
+    std::string type = typeQ.substr(0, sepIt);
+    trim(type);
+    if (type.empty())
+      continue;
+    float q = 1.0f;
+    if (sepIt != std::string::npos) {
+      std::string params = typeQ.substr(sepIt + 1);
+      auto qpos = params.find("q=");
+      if (qpos != std::string::npos) {
+        auto qval = params.substr(qpos + 2);
+        trim(qval);
+        q = std::clamp(std::strtof(qval.c_str(), nullptr), 0.0f, 1.0f);
+      }
+    }
+    if (q == 0.0f) {
+      excluded.push_back(type);
+      continue;
+    }
+    typePrefs.emplace_back(type, q);
+  }
+}

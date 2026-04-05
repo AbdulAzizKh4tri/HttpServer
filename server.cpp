@@ -91,15 +91,15 @@ int main() {
   cacheControlMiddleware.setMimeCacheControl("text/html", "max-age=5, public");
   cacheControlMiddleware.setDefaultCacheControl("no-cache, no-store");
 
-  // router.use(sessionMiddleware);
-  // router.use(corsMiddleware);
-  // router.use(staticMiddleware);
-  // router.use(cacheControlMiddleware);
+  router.use(sessionMiddleware);
+  router.use(corsMiddleware);
+  router.use(staticMiddleware);
+  router.use(cacheControlMiddleware);
 
   HttpServer server(errorFactory);
 
-  // ThreadPool threadPool(N * 2);
-  registerRoutes(router, errorFactory, nullptr);
+  ThreadPool threadPool(N * 2);
+  registerRoutes(router, errorFactory, &threadPool);
 
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);

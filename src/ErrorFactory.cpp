@@ -37,9 +37,6 @@ void ErrorFactory::setFormatter(std::string type, Formatter formatter) {
 }
 
 HttpResponse ErrorFactory::build(const HttpRequest &req, int statusCode, const std::string_view &message) const {
-  std::vector<std::pair<std::string, float>> typePrefs;
-  std::vector<std::string> excluded;
-
   const auto &acceptVector = req.getHeaders("Accept");
   if (acceptVector.empty())
     return fallbackFormatterPair_.second(statusCode, message);
@@ -48,29 +45,10 @@ HttpResponse ErrorFactory::build(const HttpRequest &req, int statusCode, const s
   for (const auto &accept : acceptVector)
     acceptString += accept + ",";
 
-  for (auto typeQ : split(acceptString, ",")) {
-    trim(typeQ);
-    auto sepIt = typeQ.find(';');
-    std::string type = typeQ.substr(0, sepIt);
-    trim(type);
-    if (type.empty())
-      continue;
-    float q = 1.0f;
-    if (sepIt != std::string::npos) {
-      std::string params = typeQ.substr(sepIt + 1);
-      auto qpos = params.find("q=");
-      if (qpos != std::string::npos) {
-        auto qval = params.substr(qpos + 2);
-        trim(qval);
-        q = std::strtof(qval.c_str(), nullptr);
-      }
-    }
-    if (q == 0.0f) {
-      excluded.push_back(type);
-      continue;
-    }
-    typePrefs.emplace_back(type, q);
-  }
+  std::vector<std::pair<std::string, float>> typePrefs;
+  std::vector<std::string> excluded;
+
+  parseQValues(acceptString, typePrefs, excluded);
 
   if (typePrefs.empty() && excluded.empty())
     return fallbackFormatterPair_.second(statusCode, message);
