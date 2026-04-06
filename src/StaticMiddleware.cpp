@@ -44,14 +44,15 @@ std::string generateETag(const std::filesystem::directory_entry &entry, const st
 }
 
 template <typename Res>
-void addCacheHeaders(Res &response, const std::string &etag, const std::filesystem::file_time_type last_write,
+void addCacheHeaders(Res &response, const std::string &etag,
+                     const std::chrono::sys_time<std::chrono::file_clock::duration> lastWrite,
                      const std::string &cacheControl) {
   response.headers.setCacheControl(cacheControl);
   if (cacheControl.contains("no-store"))
     return;
 
   response.headers.setHeaderLower("etag", etag);
-  response.headers.setHeaderLower("last-modified", toHttpDate(std::chrono::file_clock::to_sys(last_write)));
+  response.headers.setHeaderLower("last-modified", toHttpDate(lastWrite));
 }
 
 Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next next) {
@@ -136,6 +137,7 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
       if (compressedEntry.exists()) {
         originalFileModified = entry.last_write_time() > compressedEntry.last_write_time();
         if (not originalFileModified) {
+          SPDLOG_DEBUG("NOT MODIFIED");
           entry.assign(compressedEntry);
           resolved = compressedPath;
           fileSize = entry.file_size();
@@ -189,7 +191,8 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   // Design decision: checking for 304 AFTER the open in case permissions change.
   auto cacheControl = getOrDefault(config_.mimeCacheControl, mime, config_.defaultCacheControl);
-  auto lastWrite = entry.last_write_time();
+  auto lastWrite = std::chrono::file_clock::to_sys(entry.last_write_time());
+  auto lastWriteSeconds = std::chrono::time_point_cast<std::chrono::seconds>(lastWrite);
   std::string eTag = "";
 
   if (not cacheControl.contains("no-store")) {
@@ -204,12 +207,14 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
     }
 
     std::string ifModifiedSince = std::string(request.getHeaderLower("if-modified-since"));
+    SPDLOG_DEBUG(toHttpDate(lastWrite));
+    SPDLOG_DEBUG(ifModifiedSince);
     if (not ifModifiedSince.empty()) {
       auto dateOpt = parseHttpDate(ifModifiedSince);
       if (not dateOpt.has_value())
         co_return buildErrorResponse(request, 400);
 
-      if (lastWrite <= std::chrono::file_clock::from_sys(*dateOpt)) {
+      if (lastWriteSeconds <= *dateOpt) {
         HttpResponse response(304);
         addCacheHeaders(response, eTag, lastWrite, cacheControl);
         response.headers.addHeaderLower("vary", "accept-encoding");

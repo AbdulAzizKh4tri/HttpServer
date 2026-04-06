@@ -376,7 +376,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   // A handful of small named chunks. Assembled body: "Hello, World!"
   // The canonical "does streaming work at all" check.
   router.get("/tests/stream/basic", [](const HttpRequest &) -> Task<Response> {
-    co_return HttpStreamResponse(200, [i = 0]() mutable -> Task<std::optional<std::string>> {
+    co_return HttpStreamResponse(200, "text/plain", [i = 0]() mutable -> Task<std::optional<std::string>> {
       static constexpr std::array chunks = {"Hello", ", ", "World", "!"};
       if (i >= 4)
         co_return std::nullopt;

@@ -44,10 +44,6 @@ Task<Response> CompressionMiddleware::operator()(const HttpRequest &request, Nex
       },
       response);
 
-  if (HttpResponse *res = std::get_if<HttpResponse>(&response)) {
-    mustSkip = mustSkip || res->getBodySize() < ServerConfig::COMPRESS_MIN_BYTES;
-  }
-
   if (mustSkip)
     co_return response;
 
@@ -56,16 +52,24 @@ Task<Response> CompressionMiddleware::operator()(const HttpRequest &request, Nex
   auto acceptEncodingHeader = toLowerCase(acceptEncodingHeaderRaw);
 
   parseQValues(acceptEncodingHeader, encodingPrefs, excluded);
+  SPDLOG_DEBUG(acceptEncodingHeader);
+  for (auto &x : excluded)
+    SPDLOG_DEBUG(x);
+
+  bool identityAllowed = true;
+  if (std::find(excluded.begin(), excluded.end(), "identity") != excluded.end()) {
+    identityAllowed = false;
+  }
+  if (HttpResponse *res = std::get_if<HttpResponse>(&response)) {
+    if (identityAllowed && res->getBodySize() < ServerConfig::COMPRESS_MIN_BYTES)
+      co_return response;
+  }
 
   std::sort(encodingPrefs.begin(), encodingPrefs.end(),
             [](const auto &a, const auto &b) { return a.second > b.second; });
 
   Compressor compressor;
-  bool identityAllowed = true;
 
-  if (std::find(excluded.begin(), excluded.end(), "identity") != excluded.end()) {
-    identityAllowed = false;
-  }
   for (const auto &encoding : encodingPrefs) {
     compressor = getCompressor(encoding.first);
     if (compressor) {
