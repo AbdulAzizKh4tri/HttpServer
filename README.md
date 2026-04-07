@@ -1,10 +1,12 @@
-# Roc++
+# RuKh
+
+![RuKh logo, A RuKh(or Roc) the mythical bird](./logo.png)
 
 A high-performance HTTP/1.1 server framework built entirely from scratch in C++23 — no async libraries, no HTTP frameworks. The event loop, coroutine scheduler, connection lifecycle, and request/response pipeline are all hand-rolled.
 
 This is an ongoing solo learning project, built with production-quality goals in mind.
 
-> **Note:** Benchmarks reflect a minimal ping-pong workload. Roc++ is still in active development and may not yet handle every edge case that mature frameworks do. Results are shared transparently, not as a final claim.
+> **Note:** Benchmarks reflect a minimal ping-pong workload. RuKh is still in active development and may not yet handle every edge case that mature frameworks do. Results are shared transparently, not as a final claim.
 
 ---
 
@@ -264,23 +266,23 @@ Workload: minimal `GET /ping → "pong"` — no database, no business logic.
 | Framework | Language | req/s |
 |---|---|---|
 | Drogon | C++ | ~95,000 |
-| **Roc++** | **C++** | **~90,000** |
+| **RuKh** | **C++** | **~90,000** |
 | Crow | C++ | ~80,000 |
 | Go net/http | Go | ~63,000 |
 | Express | Node.js | ~19,000 |
 
-Roc++ reaches ~95% of Drogon's single-threaded throughput.
+RuKh reaches ~95% of Drogon's single-threaded throughput.
 
 ### Multi-Threaded (3 server threads, `taskset -c 6,8,10 wrk -t3 -c30 -d10s`)
 
 | Framework | Language | req/s |
 |---|---|---|
 | Drogon | C++ | ~270,000 |
-| **Roc++** | **C++** | **~260,000** |
+| **RuKh** | **C++** | **~260,000** |
 | Go net/http | Go | ~175,000 |
 | Crow | C++ | ~161,000 |
 
-Roc++ scales near-linearly with thread count (~2.9× from 1→3 threads).
+RuKh scales near-linearly with thread count (~2.9× from 1→3 threads).
 
 ### Methodology Notes
 
