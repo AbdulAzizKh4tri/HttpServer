@@ -51,12 +51,6 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
 
   write(statusLine);
 
-  write(ServerConfig::SERVER_LINE);
-
-  write("date: ");
-  write(date);
-  write("\r\n");
-
   for (const auto &[k, v] : headers.getAllHeaders()) {
     write(k);
     write(": ");
@@ -64,8 +58,16 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
     write("\r\n");
   }
 
+  write(ServerConfig::SERVER_LINE);
+
+  write("date: ");
+  write(date);
+  write("\r\n");
+
   cookies.serializeUsing(write);
   write("\r\n");
+
+  assert(out == buf.data() + oldSize + size);
 }
 
 std::string HttpStreamResponse::getContentType() const {

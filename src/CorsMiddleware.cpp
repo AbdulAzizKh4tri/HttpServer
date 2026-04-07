@@ -28,6 +28,8 @@ Task<Response> CorsMiddleware::operator()(const HttpRequest &request, Next next)
     response.headers.setHeaderLower("access-control-allow-methods", allowedMethods);
     response.headers.setHeaderLower("access-control-allow-headers", allowedHeaders_);
     response.headers.setHeaderLower("access-control-max-age", corsConfig_.maxAge);
+    if (corsConfig_.allowCredentials)
+      response.headers.setHeaderLower("access-control-allow-credentials", "true");
     co_return response;
   }
 
@@ -53,6 +55,10 @@ void CorsMiddleware::setCorsHeaders(const std::vector<std::string> &headers) {
 }
 
 void CorsMiddleware::setCorsMaxAge(int maxAge) { corsConfig_.maxAge = std::to_string(maxAge); }
+
+void CorsMiddleware::setAccessControlAllowCredentials(bool allowCredentials) {
+  corsConfig_.allowCredentials= allowCredentials;
+}
 
 bool CorsMiddleware::isOriginAllowed(const std::string &origin) {
   for (auto &allowedOrigin : corsConfig_.allowedOrigins) {

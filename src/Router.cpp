@@ -71,6 +71,7 @@ Task<Response> Router::dispatch(HttpRequest &request) {
         } else {
           auto &stream = std::get<HttpStreamResponse>(response);
           HttpResponse res(stream.getStatusCode());
+          res.headers.removeHeader("content-length");
           for (auto &[k, v] : stream.headers.getAllHeaders())
             res.headers.setHeader(k, v);
           res.stripBody();
@@ -186,7 +187,7 @@ std::vector<std::pair<std::string, std::string>> Router::getPathParams(const std
     }
     if (patternParts[i][0] == '<' && patternParts[i].back() == '>') {
       auto paramKey = patternParts[i].substr(1, patternParts[i].size() - 2);
-      pathParams.emplace_back(percentDecode(paramKey), percentDecode(pathParts[i]));
+      pathParams.emplace_back(paramKey, percentDecode(pathParts[i]));
     }
   }
 

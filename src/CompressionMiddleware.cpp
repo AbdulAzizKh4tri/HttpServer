@@ -1,8 +1,7 @@
 #include "CompressionMiddleware.hpp"
 
-#include "BrotliCompressor.hpp"
 #include "CompressibleMimeTypes.hpp"
-#include "GzipCompressor.hpp"
+#include "CompressorFactory.hpp"
 #include "HttpResponse.hpp"
 #include "ICompressor.hpp"
 #include "utils.hpp"
@@ -12,18 +11,6 @@
 #include <variant>
 
 using Compressor = std::unique_ptr<ICompressor>;
-
-inline Compressor getCompressor(std::string_view encoding) {
-  if (encoding == "identity")
-    return nullptr;
-  if (encoding == "br")
-    return std::make_unique<BrotliCompressor>();
-  if (encoding == "gzip")
-    return std::make_unique<GzipCompressor>();
-  if (encoding == "*")
-    return std::make_unique<BrotliCompressor>(); // default
-  return nullptr;
-}
 
 CompressionMiddleware::CompressionMiddleware(ErrorFactory &errorFactory) : errorFactory_(errorFactory) {}
 
@@ -61,8 +48,10 @@ Task<Response> CompressionMiddleware::operator()(const HttpRequest &request, Nex
     identityAllowed = false;
   }
   if (HttpResponse *res = std::get_if<HttpResponse>(&response)) {
-    if (identityAllowed && res->getBodySize() < ServerConfig::COMPRESS_MIN_BYTES)
+    if (identityAllowed && res->getBodySize() < ServerConfig::COMPRESS_MIN_BYTES) {
+      res->headers.addHeaderLower("vary", "accept-encoding");
       co_return response;
+    }
   }
 
   std::sort(encodingPrefs.begin(), encodingPrefs.end(),

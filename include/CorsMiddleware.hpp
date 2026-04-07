@@ -9,6 +9,7 @@
 struct CorsConfig {
   std::vector<std::string> allowedOrigins;
   std::vector<std::string> allowedHeaders = {"Authorization", "Content-Type"};
+  bool allowCredentials : true;
   std::string maxAge = "86400";
 };
 
@@ -24,6 +25,8 @@ public:
   void setCorsHeaders(const std::vector<std::string> &headers);
 
   void setCorsMaxAge(int maxAge);
+
+  void setAccessControlAllowCredentials(bool allowCredentials);
 
 private:
   CorsConfig corsConfig_;

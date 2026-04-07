@@ -39,9 +39,13 @@ Task<Response> SessionMiddleware::operator()(HttpRequest &request, Next next) {
     sessionHandle.id = sessionStore_.generateId();
 
   co_await sessionStore_.save(sessionHandle.id, session);
-  std::visit(
-      overloaded{[this, &sessionHandle](auto &res) { res.cookies.setCookie(Cookie("session_id", sessionHandle.id)); }},
-      response);
+  std::visit(overloaded{[this, &sessionHandle](auto &res) {
+               Cookie sessionCookie("session_id", sessionHandle.id);
+               sessionCookie.secure = sessionConfig_.cookieSecure;
+               sessionCookie.httpOnly = sessionConfig_.cookieHttpOnly;
+               res.cookies.setCookie(sessionCookie);
+             }},
+             response);
 
   co_return response;
 }

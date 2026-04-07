@@ -7,6 +7,8 @@
 struct SessionConfig {
   size_t minIdSize = 8;
   size_t maxIdSize = 64;
+  bool cookieHttpOnly = false;
+  bool cookieSecure = false;
 };
 
 class SessionMiddleware {

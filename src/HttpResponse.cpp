@@ -72,6 +72,8 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
 
   if (hasBody)
     write(body_);
+
+  assert(out == buf.data() + oldSize + size);
 }
 
 std::string HttpResponse::getContentType() const {

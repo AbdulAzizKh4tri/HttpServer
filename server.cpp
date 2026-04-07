@@ -76,7 +76,7 @@ int main() {
   Router router(errorFactory);
 
   CorsMiddleware corsMiddleware;
-  corsMiddleware.setCorsOrigins({"http://localhost:8080", "https://localhost:8443"});
+  corsMiddleware.setCorsOrigins({"http://localhost:8080", "https://localhost:8443", "http://127.0.0.1:8080"});
   corsMiddleware.setCorsMaxAge(10);
 
   StaticMiddleware staticMiddleware(errorFactory, "./public", "static");
@@ -94,11 +94,14 @@ int main() {
 
   CompressionMiddleware compressionMiddleware(errorFactory);
 
+  // First because all routes potentially need CORS, it doesn't modify the body so it's fine to put here
+  router.use(corsMiddleware);
+  // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the file
   router.use(staticMiddleware);
+  // Order doesn't matter after this
   router.use(compressionMiddleware);
   router.use(cacheControlMiddleware);
   router.use(sessionMiddleware);
-  router.use(corsMiddleware);
 
   HttpServer server(errorFactory);
 

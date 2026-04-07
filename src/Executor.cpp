@@ -65,17 +65,16 @@ void Executor::run(std::atomic<bool> &shutdown) {
   for (;;) {
     if (shutdown) {
       auto timeNow = now();
-      if (shutdownDeadline < timeNow) {
-        SPDLOG_INFO("Timeout on Shutdown");
-        return;
-      }
       if (shutdownDeadline == std::chrono::steady_clock::time_point::max()) {
         shutdownDeadline = timeNow + std::chrono::seconds(ServerConfig::GRACEFUL_SHUTDOWN_TIMEOUT_S);
-      } else {
-        if (ownedTasks_.empty() || timeNow > shutdownDeadline) {
-          SPDLOG_INFO("Graceful Shutdown");
-          return;
-        }
+      }
+      if (ownedTasks_.empty()) {
+        SPDLOG_INFO("Graceful Shutdown");
+        return;
+      }
+      if (timeNow > shutdownDeadline) {
+        SPDLOG_INFO("Timeout on Shutdown");
+        return;
       }
     }
 

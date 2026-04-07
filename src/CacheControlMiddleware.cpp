@@ -17,28 +17,30 @@ Task<Response> CacheControlMiddleware::operator()(const HttpRequest &request, Ne
           return;
         }
 
-        const auto &pathParts = request.getPathParts();
+        const auto &reqPathParts = request.getPathParts();
         auto routeCache = std::find_if(config_.routeCacheControl.begin(), config_.routeCacheControl.end(),
-                                       [&pathParts, &request](const auto &p) {
+                                       [&reqPathParts, &request](const auto &p) {
                                          std::string_view pattern = p.first;
                                          if (pattern[0] == '/')
                                            pattern.remove_prefix(1);
-                                         auto curr = pathParts.begin();
+                                         auto currReqPart = reqPathParts.begin();
 
-                                         while (!pattern.empty() && curr != pathParts.end()) {
+                                         while (!pattern.empty() && currReqPart != reqPathParts.end()) {
                                            auto end = pattern.find('/');
-                                           std::string_view part = pattern.substr(0, end);
-                                           if (part == "*")
+                                           std::string_view routePart = pattern.substr(0, end);
+                                           if (routePart == "*")
+                                             return std::next(currReqPart) == reqPathParts.end();
+                                           if (routePart == "**")
                                              return true;
-                                           if (*curr != part)
+                                           if (*currReqPart != routePart)
                                              return false;
-                                           curr = std::next(curr);
+                                           currReqPart = std::next(currReqPart);
                                            if (end == std::string_view::npos)
                                              break;
                                            pattern.remove_prefix(end + 1);
                                          }
 
-                                         if (curr == pathParts.end())
+                                         if (currReqPart == reqPathParts.end())
                                            return (pattern == "/" or pattern == "") ? true : false;
 
                                          return false;

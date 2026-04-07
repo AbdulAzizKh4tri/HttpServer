@@ -36,6 +36,4 @@ private:
   ErrorFactory &errorFactory_;
   std::filesystem::path canonicalRoot_;
   std::filesystem::path compressedRoot_;
-
-  std::unordered_map<std::string, std::filesystem::path> canonicalPathCache_;
 };

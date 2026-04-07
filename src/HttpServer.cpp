@@ -104,7 +104,7 @@ ErrorFactory &HttpServer::getErrorFactory() { return errorFactory_; }
 Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
   tl_executor->registerReadOnlyFd(listener.getFd());
   for (;;) {
-    co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(2)};
+    co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(3)};
     if (tl_timed_out) {
       tl_timed_out = false;
       if (shutdown_)
@@ -124,7 +124,7 @@ Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
 Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
   tl_executor->registerReadOnlyFd(listener.getFd());
   for (;;) {
-    co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(2)};
+    co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(3)};
     if (tl_timed_out) {
       tl_timed_out = false;
       if (shutdown_)

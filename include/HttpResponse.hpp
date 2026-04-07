@@ -67,8 +67,12 @@ public:
       return "HTTP/1.1 408 Request Timeout\r\n";
     case 413:
       return "HTTP/1.1 413 Content Too Large\r\n";
+    case 417:
+      return "HTTP/1.1 417 Expectation Failed\r\n";
     case 429:
       return "HTTP/1.1 429 Too Many Requests\r\n";
+    case 431:
+      return "HTTP/1.1 431 Request Header Fields Too Large\r\n";
     case 500:
       return "HTTP/1.1 500 Internal Server Error\r\n";
     case 503:

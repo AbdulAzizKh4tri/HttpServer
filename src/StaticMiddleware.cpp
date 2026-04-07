@@ -5,8 +5,8 @@
 #include "AsyncFileReader.hpp"
 #include "AsyncFileWriter.hpp"
 #include "CompressibleMimeTypes.hpp"
+#include "CompressorFactory.hpp"
 #include "ErrorFactory.hpp"
-#include "GzipCompressor.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
 #include "MimeTypes.hpp"
@@ -14,14 +14,6 @@
 #include "utils.hpp"
 
 using Compressor = std::unique_ptr<ICompressor>;
-
-inline Compressor getCompressor(std::string_view encoding) {
-  if (encoding == "identity")
-    return nullptr;
-  if (encoding == "gzip" || encoding == "*")
-    return std::make_unique<GzipCompressor>(ServerConfig::STATIC_COMPRESS_LEVEL);
-  return nullptr;
-}
 
 StaticMiddleware::StaticMiddleware(ErrorFactory &errorFactory, StaticConfig config)
     : config_(config), errorFactory_(errorFactory) {
