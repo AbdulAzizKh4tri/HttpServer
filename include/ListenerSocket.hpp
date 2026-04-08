@@ -18,6 +18,8 @@ public:
 
   std::optional<TcpStream> accept();
 
+  int acceptRawFd();
+
   int setSocketNonBlocking();
   int getFd();
 

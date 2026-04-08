@@ -102,9 +102,14 @@ ssize_t TlsStream::send(const std::span<const unsigned char> &data) const {
   return n;
 }
 
+void TlsStream::resetConnection() {
+  linger l{1, 0};
+  setsockopt(socket_.getFd(), SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+}
+
+int TlsStream::setSocketNonBlocking() { return socket_.setNonBlocking(); }
+
 std::string TlsStream::getIp() const { return ip_; }
 uint16_t TlsStream::getPort() const { return port_; }
 
 int TlsStream::getFd() const { return socket_.getFd(); }
-
-int TlsStream::setSocketNonBlocking() { return socket_.setNonBlocking(); }

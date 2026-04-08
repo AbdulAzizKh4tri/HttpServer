@@ -7,8 +7,8 @@
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
 
-#include "StreamResults.hpp"
 #include "Socket.hpp"
+#include "StreamResults.hpp"
 
 class TlsStream {
 public:
@@ -29,12 +29,14 @@ public:
 
   ssize_t send(const std::span<const unsigned char> &data) const;
 
+  void resetConnection();
+
+  int setSocketNonBlocking();
+
   std::string getIp() const;
   uint16_t getPort() const;
 
   int getFd() const;
-
-  int setSocketNonBlocking();
 
 private:
   Socket socket_;

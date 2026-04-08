@@ -1,5 +1,6 @@
 #include "HttpServer.hpp"
 
+#include <atomic>
 #include <csignal>
 #include <thread>
 
@@ -7,6 +8,7 @@
 #include "Executor.hpp"
 #include "ExecutorContext.hpp"
 #include "HttpConnection.hpp"
+#include "ServerConfig.hpp"
 
 HttpServer::HttpServer(ErrorFactory &errorFactory) : errorFactory_(errorFactory) {}
 
@@ -112,11 +114,24 @@ Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
       continue;
     }
     for (;;) {
+      if (globalConnectionCount_.load(std::memory_order_relaxed) >= ServerConfig::CONNECTION_LIMIT) {
+        SPDLOG_WARN("Connection Limit {} hit, RST-ing new connections", ServerConfig::CONNECTION_LIMIT);
+        for (int i = 0; i < 10; i++) {
+          int fd = listener.acceptRawFd();
+          if (fd == -1)
+            break;
+          linger l{1, 0};
+          setsockopt(fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+          ::close(fd);
+        }
+        break;
+      }
+
       auto streamOpt = listener.accept();
       if (!streamOpt)
         break;
-      auto stream = std::make_unique<TcpStream>(std::move(*streamOpt));
-      tl_executor->spawn(handleConnection(std::move(stream)));
+      globalConnectionCount_.fetch_add(1, std::memory_order_relaxed);
+      tl_executor->spawn(handleConnection(std::make_unique<TcpStream>(std::move(*streamOpt))));
     }
   }
 }
@@ -132,9 +147,23 @@ Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
       continue;
     }
     for (;;) {
+      if (globalConnectionCount_.load(std::memory_order_relaxed) >= ServerConfig::CONNECTION_LIMIT) {
+        SPDLOG_WARN("Connection Limit {} hit, RST-ing new connections", ServerConfig::CONNECTION_LIMIT);
+        for (int i = 0; i < 10; i++) {
+          int fd = listener.acceptRawFd();
+          if (fd == -1)
+            break;
+          linger l{1, 0};
+          setsockopt(fd, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+          ::close(fd);
+        }
+        break;
+      }
+
       auto streamOpt = listener.acceptTls(tlsContext_.get());
       if (!streamOpt)
         break;
+      globalConnectionCount_.fetch_add(1, std::memory_order_relaxed);
       auto stream = std::make_unique<TlsStream>(std::move(*streamOpt));
       tl_executor->spawn(handleConnection(std::move(stream)));
     }
@@ -145,7 +174,7 @@ template <typename Stream> Task<void> HttpServer::handleConnection(std::unique_p
   int fd = stream->getFd();
   tl_executor->registerFd(fd);
 
-  HttpConnection<Stream> conn(std::move(stream), *router_, errorFactory_, shutdown_);
+  HttpConnection<Stream> conn(std::move(stream), *router_, errorFactory_, shutdown_, globalConnectionCount_);
   co_await conn.run();
   tl_executor->unregister(fd);
 }

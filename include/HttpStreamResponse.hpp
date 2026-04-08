@@ -1,11 +1,13 @@
 #pragma once
 
 #include <optional>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
 
 #include "CookieStore.hpp"
 #include "HeaderStore.hpp"
+#include "ServerConfig.hpp"
 #include "Task.hpp"
 
 using NextChunkFn = std::move_only_function<Task<std::optional<std::string>>()>;
@@ -15,12 +17,17 @@ public:
   HeaderStore headers;
   CookieStore cookies;
 
-  static void serializeChunkInto(std::string_view chunk, std::vector<unsigned char> &buf) {
+  static bool serializeChunkInto(std::string_view chunk, std::vector<unsigned char> &buf) {
     char hexBuf[16];
     auto [ptr, ec] = std::to_chars(hexBuf, hexBuf + sizeof(hexBuf), chunk.size(), 16);
     size_t hexLen = ptr - hexBuf;
 
     size_t oldSize = buf.size();
+
+    if (oldSize + chunk.size() + hexLen + 4 > ServerConfig::MAX_WRITE_BUFFER_BYTES) {
+      SPDLOG_WARN("Write buffer limit would be exceeded, Closing Connection");
+      return false;
+    }
     buf.resize(oldSize + chunk.size() + hexLen + 4);
     size_t offset = oldSize + hexLen;
 
@@ -31,6 +38,7 @@ public:
     offset += chunk.size();
     buf[offset++] = '\r';
     buf[offset++] = '\n';
+    return true;
   }
 
   HttpStreamResponse();
@@ -41,7 +49,7 @@ public:
 
   Task<std::optional<std::string>> getNextChunk();
 
-  void serializeHeaderInto(std::vector<unsigned char> &buf) const;
+  bool serializeHeaderInto(std::vector<unsigned char> &buf) const;
 
   std::string getContentType() const;
 

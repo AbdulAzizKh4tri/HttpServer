@@ -13,6 +13,7 @@ static constexpr int GRACEFUL_SHUTDOWN_TIMEOUT_S = 20;
 // ── Request limits ────────────────────────────────────────
 static constexpr size_t MAX_HEADER_BYTES = 8 * 1024;
 static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
+static constexpr size_t MAX_WRITE_BUFFER_BYTES = 2 * 1024 * 1024;
 
 // ── Static File Serving ───────────────────────────────────
 static constexpr size_t STATIC_STREAM_THRESHOLD_BYTES = 1 * 1024;
@@ -25,5 +26,8 @@ static constexpr int IO_URING_RING_SIZE = 64;
 // ── Compression ───────────────────────────────────────────
 static constexpr int COMPRESS_MIN_BYTES = 256;
 static constexpr int STATIC_COMPRESS_LEVEL = 9;
+
+// ── Connection limits ─────────────────────────────────────
+static constexpr int CONNECTION_LIMIT = 75;
 
 } // namespace ServerConfig

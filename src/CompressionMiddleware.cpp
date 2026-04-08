@@ -39,9 +39,6 @@ Task<Response> CompressionMiddleware::operator()(const HttpRequest &request, Nex
   auto acceptEncodingHeader = toLowerCase(acceptEncodingHeaderRaw);
 
   parseQValues(acceptEncodingHeader, encodingPrefs, excluded);
-  SPDLOG_DEBUG(acceptEncodingHeader);
-  for (auto &x : excluded)
-    SPDLOG_DEBUG(x);
 
   bool identityAllowed = true;
   if (std::find(excluded.begin(), excluded.end(), "identity") != excluded.end()) {

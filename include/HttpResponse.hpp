@@ -24,7 +24,7 @@ public:
 
   HttpResponse(int statusCode, const std::string &contentType, const std::string &body);
 
-  void serializeInto(std::vector<unsigned char> &buf) const;
+  bool serializeInto(std::vector<unsigned char> &buf) const;
 
   std::string getContentType() const;
 

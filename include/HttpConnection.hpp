@@ -25,9 +25,9 @@
 template <typename Stream> class HttpConnection {
 public:
   HttpConnection(std::unique_ptr<Stream> stream, Router &router, ErrorFactory &errorFactory,
-                 std::atomic<bool> &shutdown)
-      : io_(std::move(stream)), router_(router), errorFactory_(errorFactory), shutdown_(shutdown) {
-
+                 std::atomic<bool> &shutdown, std::atomic<int> &globalConnectionCount)
+      : io_(std::move(stream)), router_(router), errorFactory_(errorFactory), shutdown_(shutdown),
+        ConnGuard_(globalConnectionCount) {
     request_.setIp(io_.getIp());
     request_.setPort(io_.getPort());
   }
@@ -302,7 +302,9 @@ public:
           co_return;
         }
 
-        res->serializeInto(io_.getWriteBuffer());
+        if (not res->serializeInto(io_.getWriteBuffer()))
+          co_return;
+
         logRequest(request_, *res);
         while (io_.hasPendingWrites()) {
           if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
@@ -314,7 +316,8 @@ public:
         //=== Send: streaming response ===
       } else if (HttpStreamResponse *responseStream = std::get_if<HttpStreamResponse>(&response)) {
         // Send headers immediately — chunked body follows as chunks become available
-        responseStream->serializeHeaderInto(io_.getWriteBuffer());
+        if (not responseStream->serializeHeaderInto(io_.getWriteBuffer()))
+          co_return;
 
         while (io_.hasPendingWrites()) {
           if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
@@ -328,14 +331,27 @@ public:
             chunkOpt = co_await responseStream->getNextChunk();
           } catch (const std::exception &e) {
             SPDLOG_ERROR("Stream handler threw exception: {}", e.what());
-            HttpStreamResponse::serializeChunkInto("Internal Server Error: " + std::string(e.what()),
-                                                   io_.getWriteBuffer());
-            HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer());
+            if (not HttpStreamResponse::serializeChunkInto("Internal Server Error: " + std::string(e.what()),
+                                                           io_.getWriteBuffer())) {
+              io_.resetConnection();
+              co_return;
+            }
+
+            if (not HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer())) {
+              io_.resetConnection();
+              co_return;
+            }
             error = true;
           } catch (...) {
             SPDLOG_ERROR("Stream handler threw unknown exception");
-            HttpStreamResponse::serializeChunkInto("Internal Server Error", io_.getWriteBuffer());
-            HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer());
+            if (not HttpStreamResponse::serializeChunkInto("Internal Server Error", io_.getWriteBuffer())) {
+              io_.resetConnection();
+              co_return;
+            }
+            if (not HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer())) {
+              io_.resetConnection();
+              co_return;
+            }
             error = true;
           }
 
@@ -349,7 +365,10 @@ public:
 
           if (not chunkOpt.has_value()) {
             // nullopt returned — send the terminal zero-length chunk to close the stream
-            HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer());
+            if (not HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer())) {
+              io_.resetConnection();
+              co_return;
+            }
             logRequest(request_, *responseStream);
             while (io_.hasPendingWrites()) {
               if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
@@ -357,12 +376,17 @@ public:
             }
             break;
           } else {
-            HttpStreamResponse::serializeChunkInto(*chunkOpt, io_.getWriteBuffer());
+            if (not HttpStreamResponse::serializeChunkInto(*chunkOpt, io_.getWriteBuffer())) {
+              io_.resetConnection();
+              co_return;
+            }
           }
 
           while (io_.hasPendingWrites()) {
-            if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)
+            if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK) {
+              io_.resetConnection();
               co_return;
+            }
           }
         }
       }
@@ -376,6 +400,12 @@ public:
   uint16_t getPort() const { return io_.getPort(); }
 
 private:
+  struct ConnGuard {
+    std::atomic<int> &c;
+    ConnGuard(std::atomic<int> &c) : c(c) {}
+    ~ConnGuard() { c.fetch_sub(1, std::memory_order_relaxed); }
+  };
+
   HttpRequest request_;
   Router &router_;
   ErrorFactory &errorFactory_;
@@ -385,6 +415,7 @@ private:
 
   bool keepAlive_ = true;
   std::atomic<bool> &shutdown_;
+  ConnGuard ConnGuard_;
 
   bool formationArmed_ = false;
   std::chrono::steady_clock::time_point inactivityDeadline_ = std::chrono::steady_clock::time_point::max();
@@ -411,7 +442,8 @@ private:
       co_return;
     }
 
-    response.serializeInto(io_.getWriteBuffer());
+    if (not response.serializeInto(io_.getWriteBuffer()))
+      co_return;
     logRequest(request_, response);
     do {
       if (auto r = co_await io_.write(ServerConfig::INACTIVITY_TIMEOUT_S); r != WriteResult::OK)

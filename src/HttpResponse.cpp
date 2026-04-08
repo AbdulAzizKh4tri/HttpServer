@@ -18,7 +18,7 @@ HttpResponse::HttpResponse(int statusCode, const std::string &contentType, const
   headers.setHeaderLower("content-type", contentType);
 }
 
-void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
+bool HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
   bool hasBody = !std::ranges::contains(noBody, statusCode_);
 
   const std::string_view statusLine = getStatusLine(statusCode_);
@@ -39,6 +39,11 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
   size += 2; // final \r\n
 
   size += hasBody ? body_.size() : 0;
+
+  if (buf.size() + size > ServerConfig::MAX_WRITE_BUFFER_BYTES) {
+    SPDLOG_WARN("Write buffer limit would be exceeded, Closing Connection");
+    return false;
+  }
 
   size_t oldSize = buf.size();
   buf.resize(oldSize + size);
@@ -74,6 +79,7 @@ void HttpResponse::serializeInto(std::vector<unsigned char> &buf) const {
     write(body_);
 
   assert(out == buf.data() + oldSize + size);
+  return true;
 }
 
 std::string HttpResponse::getContentType() const {

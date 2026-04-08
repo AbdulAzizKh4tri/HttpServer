@@ -129,7 +129,6 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
       if (compressedEntry.exists()) {
         originalFileModified = entry.last_write_time() > compressedEntry.last_write_time();
         if (not originalFileModified) {
-          SPDLOG_DEBUG("NOT MODIFIED");
           entry.assign(compressedEntry);
           resolved = compressedPath;
           fileSize = entry.file_size();
@@ -175,8 +174,6 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
     }
   }
 
-  SPDLOG_DEBUG("Serving {} ({})", resolved.native(), fileSize);
-
   std::optional<AsyncFileReader> fileOpt = AsyncFileReader::open(resolved, fileSize);
   if (not fileOpt.has_value())
     co_return buildErrorResponse(request, 403);
@@ -199,8 +196,6 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
     }
 
     std::string ifModifiedSince = std::string(request.getHeaderLower("if-modified-since"));
-    SPDLOG_DEBUG(toHttpDate(lastWrite));
-    SPDLOG_DEBUG(ifModifiedSince);
     if (not ifModifiedSince.empty()) {
       auto dateOpt = parseHttpDate(ifModifiedSince);
       if (not dateOpt.has_value())

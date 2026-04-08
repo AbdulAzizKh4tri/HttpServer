@@ -184,6 +184,7 @@ public:
   uint16_t getPort() const { return stream_->getPort(); }
   int getFd() const { return stream_->getFd(); }
   HandshakeResult handshake() { return stream_->handshake(); }
+  void resetConnection() { stream_->resetConnection(); }
 
 private:
   std::shared_ptr<Stream> stream_;

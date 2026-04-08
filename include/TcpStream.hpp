@@ -17,6 +17,8 @@ public:
 
   int setSocketNonBlocking();
 
+  void resetConnection();
+
   std::string getIp() const;
   uint16_t getPort() const;
 

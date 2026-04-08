@@ -22,7 +22,7 @@ HttpStreamResponse::HttpStreamResponse(int statusCode, const std::string &conten
 
 Task<std::optional<std::string>> HttpStreamResponse::getNextChunk() { co_return co_await nextChunkFn_(); }
 
-void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) const {
+bool HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) const {
 
   const std::string_view statusLine = HttpResponse::getStatusLine(statusCode_);
 
@@ -41,6 +41,12 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
   size += 2; // final \r\n
 
   size_t oldSize = buf.size();
+
+  if (oldSize + size > ServerConfig::MAX_WRITE_BUFFER_BYTES) {
+    SPDLOG_WARN("Write buffer limit would be exceeded, Closing Connection");
+    return false;
+  }
+
   buf.resize(oldSize + size);
   unsigned char *out = buf.data() + oldSize;
 
@@ -68,6 +74,7 @@ void HttpStreamResponse::serializeHeaderInto(std::vector<unsigned char> &buf) co
   write("\r\n");
 
   assert(out == buf.data() + oldSize + size);
+  return true;
 }
 
 std::string HttpStreamResponse::getContentType() const {

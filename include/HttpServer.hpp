@@ -45,6 +45,8 @@ private:
   Router *router_ = nullptr;
   ErrorFactory &errorFactory_;
 
+  std::atomic<int> globalConnectionCount_ = 0;
+
   void workerMain();
 
   Task<void> tcpAcceptLoop(ListenerSocket &listener);

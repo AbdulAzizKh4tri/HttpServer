@@ -46,6 +46,11 @@ HandshakeResult TcpStream::handshake() { return HandshakeResult::NO_TLS; }
 
 int TcpStream::setSocketNonBlocking() { return socket_.setNonBlocking(); }
 
+void TcpStream::resetConnection() {
+  linger l{1, 0};
+  setsockopt(socket_.getFd(), SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+}
+
 std::string TcpStream::getIp() const { return ip_; }
 uint16_t TcpStream::getPort() const { return port_; }
 

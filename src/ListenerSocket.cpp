@@ -65,6 +65,15 @@ std::optional<TcpStream> ListenerSocket::accept() {
   return TcpStream(newSocket_fd, addr, len);
 }
 
+int ListenerSocket::acceptRawFd() {
+  sockaddr_storage addr{};
+  socklen_t len = sizeof(addr);
+  int fd = ::accept4(socket_.getFd(), (sockaddr *)&addr, &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+  if (fd < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+    return -1;
+  return fd;
+}
+
 int ListenerSocket::setSocketNonBlocking() { return socket_.setNonBlocking(); }
 int ListenerSocket::getFd() { return socket_.getFd(); }
 
