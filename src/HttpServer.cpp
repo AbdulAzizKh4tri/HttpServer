@@ -45,10 +45,18 @@ void HttpServer::run(int N) {
   signal(SIGPIPE, SIG_IGN);
 
   signal(SIGINT, [](int) {
+    if (shutdown_) {
+      SPDLOG_WARN("Terminated");
+      exit(0);
+    }
     SPDLOG_INFO("Shutting down...");
     HttpServer::shutdown_ = true;
   });
   signal(SIGTERM, [](int) {
+    if (shutdown_) {
+      SPDLOG_WARN("Terminated");
+      exit(0);
+    }
     SPDLOG_INFO("Shutting down...");
     HttpServer::shutdown_ = true;
   });

@@ -47,6 +47,8 @@ public:
       return "HTTP/1.1 201 Created\r\n";
     case 204:
       return "HTTP/1.1 204 No Content\r\n";
+    case 206:
+      return "HTTP/1.1 206 Partial Content\r\n";
     case 301:
       return "HTTP/1.1 301 Moved Permanently\r\n";
     case 302:
@@ -67,6 +69,8 @@ public:
       return "HTTP/1.1 408 Request Timeout\r\n";
     case 413:
       return "HTTP/1.1 413 Content Too Large\r\n";
+    case 416:
+      return "HTTP/1.1 416 Range Not Satisfiable\r\n";
     case 417:
       return "HTTP/1.1 417 Expectation Failed\r\n";
     case 429:

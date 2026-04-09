@@ -31,6 +31,10 @@ public:
   }
 
   void setCacheControl(const std::string &cacheControlHeader) { setHeaderLower("cache-control", cacheControlHeader); }
+  void setContentRange(size_t start, size_t end, size_t filesize) {
+    setHeaderLower("content-range",
+                   "bytes " + std::to_string(start) + "-" + std::to_string(end) + "/" + std::to_string(filesize));
+  }
 
   void addHeader(const std::string &name, const std::string &value) {
     auto key = toLowerCase(name);

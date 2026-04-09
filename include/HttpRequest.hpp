@@ -15,8 +15,8 @@ enum class ContentLengthError {
 };
 
 class HttpRequest {
-
 public:
+  using Range = std::pair<std::optional<size_t>, std::optional<size_t>>;
   static constexpr size_t MAX_HEADER_SIZE = ServerConfig::MAX_HEADER_BYTES;
   static constexpr size_t MAX_CONTENT_LENGTH = ServerConfig::MAX_CONTENT_LENGTH;
 
@@ -30,6 +30,8 @@ public:
 
   bool parseRequestHeader(std::string_view headerView);
 
+  std::vector<Range> getRanges() const;
+
   std::vector<std::pair<std::string, std::string>> getCookies() const;
 
   std::optional<std::string> getCookie(const std::string &name) const;
@@ -38,7 +40,7 @@ public:
 
   std::expected<size_t, ContentLengthError> getContentLength() const;
 
-  std::string_view getContentType() const; 
+  std::string_view getContentType() const;
 
   std::string_view getHeader(const std::string &name) const;
 

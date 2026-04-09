@@ -5,3 +5,7 @@ cmake-source-cache/
 *.pem
 *.log
 .server_cache/
+*.mp4
+*.webm
+*.gif
+tetherIP.hpp

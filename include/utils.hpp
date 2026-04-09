@@ -4,8 +4,10 @@
 #include <arpa/inet.h>
 #include <chrono>
 #include <ctime>
+#include <exception>
 #include <netinet/in.h>
 #include <nlohmann/json.hpp>
+#include <queue>
 #include <ranges>
 #include <stdexcept>
 #include <string>
@@ -324,4 +326,48 @@ inline void parseQValues(const std::string_view acceptString, std::vector<std::p
     }
     typePrefs.emplace_back(type, q);
   }
+}
+
+inline bool validateAndCleanRanges(std::vector<std::pair<std::optional<size_t>, std::optional<size_t>>> &ranges,
+                                   size_t fileSize) {
+  if (ranges.empty())
+    return true;
+
+  for (auto &[start, end] : ranges) {
+    if (!start.has_value() && !end.has_value())
+      return false;
+
+    if (!start.has_value()) {
+      start = (*end >= fileSize) ? 0 : fileSize - *end;
+      end = fileSize - 1;
+    } else {
+      if (*end >= fileSize)
+        *end = fileSize - 1;
+      if (!end.has_value())
+        end = fileSize - 1;
+    }
+
+    if (*start > *end)
+      return false;
+    if (*start >= fileSize)
+      return false;
+  }
+
+  std::sort(ranges.begin(), ranges.end(), [](const auto &a, const auto &b) { return *a.first < *b.first; });
+
+  std::vector<std::pair<std::optional<size_t>, std::optional<size_t>>> merged;
+  merged.push_back(ranges[0]);
+
+  for (size_t i = 1; i < ranges.size(); ++i) {
+    auto &[ms, me] = merged.back();
+    auto &[cs, ce] = ranges[i];
+    if (*cs <= *me + 1) {
+      *me = std::max(*me, *ce);
+    } else {
+      merged.push_back(ranges[i]);
+    }
+  }
+
+  ranges = std::move(merged);
+  return true;
 }

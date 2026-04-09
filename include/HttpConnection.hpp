@@ -331,24 +331,24 @@ public:
             chunkOpt = co_await responseStream->getNextChunk();
           } catch (const std::exception &e) {
             SPDLOG_ERROR("Stream handler threw exception: {}", e.what());
-            if (not HttpStreamResponse::serializeChunkInto("Internal Server Error: " + std::string(e.what()),
-                                                           io_.getWriteBuffer())) {
+            if (not responseStream->serializeBlockInto("Internal Server Error: " + std::string(e.what()),
+                                                       io_.getWriteBuffer())) {
               io_.resetConnection();
               co_return;
             }
 
-            if (not HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer())) {
+            if (not responseStream->serializeBlockInto("", io_.getWriteBuffer())) {
               io_.resetConnection();
               co_return;
             }
             error = true;
           } catch (...) {
             SPDLOG_ERROR("Stream handler threw unknown exception");
-            if (not HttpStreamResponse::serializeChunkInto("Internal Server Error", io_.getWriteBuffer())) {
+            if (not responseStream->serializeBlockInto("Internal Server Error", io_.getWriteBuffer())) {
               io_.resetConnection();
               co_return;
             }
-            if (not HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer())) {
+            if (not responseStream->serializeBlockInto("", io_.getWriteBuffer())) {
               io_.resetConnection();
               co_return;
             }
@@ -365,7 +365,7 @@ public:
 
           if (not chunkOpt.has_value()) {
             // nullopt returned — send the terminal zero-length chunk to close the stream
-            if (not HttpStreamResponse::serializeChunkInto("", io_.getWriteBuffer())) {
+            if (not responseStream->serializeBlockInto("", io_.getWriteBuffer())) {
               io_.resetConnection();
               co_return;
             }
@@ -376,7 +376,7 @@ public:
             }
             break;
           } else {
-            if (not HttpStreamResponse::serializeChunkInto(*chunkOpt, io_.getWriteBuffer())) {
+            if (not responseStream->serializeBlockInto(*chunkOpt, io_.getWriteBuffer())) {
               io_.resetConnection();
               co_return;
             }

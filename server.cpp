@@ -17,6 +17,7 @@
 #include "ThreadPool.hpp"
 #include "logUtils.hpp"
 #include "routes.hpp"
+// #include "tetherIP.hpp"
 
 using json = nlohmann::json;
 thread_local Executor *tl_executor = nullptr;
@@ -26,6 +27,7 @@ int main() {
 
   int N;
   std::string logging;
+  std::string host = "0.0.0.0";
 
   std::cout << "Do we want logging? (y/n)" << std::endl;
   std::cin >> logging;
@@ -76,7 +78,8 @@ int main() {
   Router router(errorFactory);
 
   CorsMiddleware corsMiddleware;
-  corsMiddleware.setCorsOrigins({"http://localhost:8080", "https://localhost:8443", "http://127.0.0.1:8080"});
+  corsMiddleware.setCorsOrigins({"http://localhost:8080", "https://localhost:8443", "http://127.0.0.1:8080",
+                                 "http://" + host + ":8080", "https://" + host + ":8443"});
   corsMiddleware.setCorsMaxAge(10);
 
   StaticMiddleware staticMiddleware(errorFactory, "./public", "static");
@@ -96,7 +99,8 @@ int main() {
 
   // First because all routes potentially need CORS, it doesn't modify the body so it's fine to put here
   router.use(corsMiddleware);
-  // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the file
+  // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the
+  // file
   router.use(staticMiddleware);
   // Order doesn't matter after this
   router.use(compressionMiddleware);
@@ -110,8 +114,8 @@ int main() {
 
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);
-  server.addListener("localhost", "8080");
-  server.addTlsListener("localhost", "8443");
+  server.addListener(host, "8080");
+  server.addTlsListener(host, "8443");
 
   server.run(N);
 

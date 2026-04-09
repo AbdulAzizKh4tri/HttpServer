@@ -7,6 +7,7 @@
 #include "SessionHandle.hpp"
 #include "utils.hpp"
 
+using Range = std::pair<std::optional<size_t>, std::optional<size_t>>;
 HttpRequest::HttpRequest() {}
 
 bool HttpRequest::parseRequestHeader(std::string_view headerView) {
@@ -25,6 +26,50 @@ bool HttpRequest::parseRequestHeader(std::string_view headerView) {
   if (not parseRequestHeaders(headerView))
     return false;
   return true;
+}
+
+std::vector<HttpRequest::Range> HttpRequest::getRanges() const {
+  auto rangeHeader = getHeaderLower("range");
+  if (rangeHeader.empty())
+    return {};
+
+  std::vector<HttpRequest::Range> ranges;
+  auto rangestart = rangeHeader.find("bytes=");
+  if (rangestart == std::string_view::npos)
+    return {};
+
+  rangeHeader.remove_prefix(rangestart + 6);
+  while (!rangeHeader.empty()) {
+    auto rangeEnd = rangeHeader.find(',');
+    auto range = rangeEnd == std::string_view::npos ? rangeHeader : rangeHeader.substr(0, rangeEnd);
+    auto dash = range.find('-');
+    if (dash == std::string_view::npos)
+      return {};
+
+    auto startStr = range.substr(0, dash);
+    auto endStr = range.substr(dash + 1);
+    std::optional<size_t> start, end;
+    size_t tmp;
+
+    auto [s_ptr, se] = std::from_chars(startStr.data(), startStr.data() + startStr.size(), tmp);
+    if (se == std::errc{})
+      start = tmp;
+
+    auto [e_ptr, ee] = std::from_chars(endStr.data(), endStr.data() + endStr.size(), tmp);
+    if (ee == std::errc{})
+      end = tmp;
+
+    if (!start && !end) {
+      rangeHeader.remove_prefix(rangeEnd == std::string_view::npos ? rangeHeader.size() : rangeEnd + 1);
+      continue;
+    }
+
+    ranges.emplace_back(start, end);
+
+    rangeHeader.remove_prefix(rangeEnd == std::string_view::npos ? rangeHeader.size() : rangeEnd + 1);
+  };
+
+  return ranges;
 }
 
 std::vector<std::pair<std::string, std::string>> HttpRequest::getCookies() const {

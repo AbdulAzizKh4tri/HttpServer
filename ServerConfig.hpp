@@ -10,10 +10,10 @@ static constexpr int INACTIVITY_TIMEOUT_S = 20;
 static constexpr int FORMATION_TIMEOUT_S = 120;
 static constexpr int GRACEFUL_SHUTDOWN_TIMEOUT_S = 20;
 
-// ── Request limits ────────────────────────────────────────
+// ── Request/Response limits ────────────────────────────────────────
 static constexpr size_t MAX_HEADER_BYTES = 8 * 1024;
 static constexpr size_t MAX_CONTENT_LENGTH = 1 * 1024 * 1024;
-static constexpr size_t MAX_WRITE_BUFFER_BYTES = 2 * 1024 * 1024;
+static constexpr size_t MAX_WRITE_BUFFER_BYTES = 10 * 1024 * 1024;
 
 // ── Static File Serving ───────────────────────────────────
 static constexpr size_t STATIC_STREAM_THRESHOLD_BYTES = 1 * 1024;

@@ -48,7 +48,7 @@ public:
 
   Task<std::string> readAll() {
     std::string buf(fileSize_, '\0');
-    int n = co_await FileReadAwaitable{.fd = fd_, .buf = buf.data(), .len = fileSize_};
+    int n = co_await FileReadAwaitable{.fd = fd_, .buf = buf.data(), .len = fileSize_, .offset = offset_};
     if (n < 0)
       throw std::runtime_error("File Read Awaitable failed");
     buf.resize(n);
@@ -66,6 +66,8 @@ public:
     buf.resize(n);
     co_return buf;
   }
+
+  void seek(uint64_t offset) { offset_ = offset; }
 
 private:
   int fd_ = -1;
