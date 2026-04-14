@@ -1,8 +1,10 @@
 #pragma once
 
 #include <expected>
+#include <memory>
+#include <optional>
 
-#include "ServerConfig.hpp"
+#include "BodyStream.hpp"
 #include "Session.hpp"
 #include "Task.hpp"
 
@@ -17,8 +19,6 @@ enum class ContentLengthError {
 class HttpRequest {
 public:
   using Range = std::pair<std::optional<size_t>, std::optional<size_t>>;
-  static constexpr size_t MAX_HEADER_SIZE = ServerConfig::MAX_HEADER_BYTES;
-  static constexpr size_t MAX_CONTENT_LENGTH = ServerConfig::MAX_CONTENT_LENGTH;
 
   static constexpr std::array singletonHeaders_ = {
       std::string_view("host"),          std::string_view("content-length"),
@@ -38,7 +38,7 @@ public:
 
   Task<Session *> getSession();
 
-  std::expected<size_t, ContentLengthError> getContentLength() const;
+  std::expected<size_t, ContentLengthError> getContentLength();
 
   std::string_view getContentType() const;
 
@@ -78,6 +78,10 @@ public:
 
   std::vector<std::pair<std::string, std::string>> getAllPathParams() const;
 
+  Task<std::string> fullBody();
+  BodyStream *bodyStream();
+  void attachBodyStream(std::shared_ptr<BodyStream> bodyStream);
+
   const std::string &getPath() const;
   const std::string &getRawPath() const;
   const std::string &getVersion() const;
@@ -85,9 +89,6 @@ public:
 
   const std::string &getMethod() const;
   void setMethod(const std::string &method);
-
-  const std::string &getBody() const;
-  void setBody(const std::string &body);
 
   const std::string &getIp() const;
   uint16_t getPort() const;
@@ -104,9 +105,12 @@ private:
   std::vector<std::pair<std::string, std::string>> attributes_;
   std::vector<std::pair<std::string, std::string>> pathParams_;
 
+  std::optional<size_t> contentLength_;
+  std::shared_ptr<BodyStream> bodyStream_;
+
   SessionHandle *sessionHandle_ = nullptr;
 
-  std::string method_, rawPath_, path_, version_, body_, ip_;
+  std::string method_, rawPath_, path_, version_, ip_;
   uint16_t port_ = 0;
   std::vector<std::string_view> pathParts_;
 

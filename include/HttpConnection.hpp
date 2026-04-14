@@ -8,7 +8,8 @@
 #include <variant>
 
 #include "Awaitables.hpp"
-#include "ChunkedBodyParser.hpp"
+#include "BodyStream.hpp"
+#include "ChunkDecoder.hpp"
 #include "ConnectionIO.hpp"
 #include "ErrorFactory.hpp"
 #include "ExecutorContext.hpp"
@@ -16,9 +17,9 @@
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
 #include "Router.hpp"
+#include "RuKhExceptions.hpp"
 #include "ServerConfig.hpp"
 #include "StreamResults.hpp"
-#include "ThreadPoolFullException.hpp"
 #include "logUtils.hpp"
 #include "utils.hpp"
 
@@ -89,14 +90,10 @@ public:
           }
 
           // Marker not found yet — suspend until the socket is readable or a deadline fires
-          auto readResult = co_await io_.read(activeDeadline(), HttpRequest::MAX_HEADER_SIZE);
+          auto readResult = co_await io_.read(activeDeadline(), ServerConfig::MAX_HEADER_BYTES);
           if (readResult == ReadResult::DATA) {
             auto timeNow = now();
             resetInactivity(timeNow);
-            if (!formationArmed_) {
-              formationDeadline_ = timeNow + std::chrono::seconds(ServerConfig::FORMATION_TIMEOUT_S);
-              formationArmed_ = true;
-            }
           } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
             co_return;
           } else if (it == io_.readBufferEnd() && readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
@@ -109,7 +106,7 @@ public:
         }
 
         //=== Parse + validate headers ===
-        if (headerSize > HttpRequest::MAX_HEADER_SIZE) {
+        if (headerSize > ServerConfig::MAX_HEADER_BYTES) {
           co_await sendErrorResponseAndClose(431);
           co_return;
         }
@@ -117,33 +114,26 @@ public:
         std::string_view headerView(reinterpret_cast<const char *>(io_.readBufferData()), headerSize);
 
         if (not request_.parseRequestHeader(headerView)) {
-          SPDLOG_DEBUG("PARSE ERROR... {}",
+          SPDLOG_ERROR("PARSE ERROR... {}",
                        std::string_view(reinterpret_cast<const char *>(io_.readBufferData()), headerSize));
           co_await sendErrorResponseAndClose(400, "Malformed Header");
           co_return;
         }
 
         if (request_.getVersion() != "HTTP/1.1") {
-          SPDLOG_DEBUG("VERSION ERROR... {}", request_.getVersion());
+          SPDLOG_ERROR("VERSION ERROR... {}", request_.getVersion());
           co_await sendErrorResponseAndClose(505);
           co_return;
         }
 
         if (request_.getHeaderLower("host") == "") {
-          SPDLOG_DEBUG("HOST ERROR... {}", headerView);
+          SPDLOG_ERROR("HOST ERROR... {}", headerView);
           co_await sendErrorResponseAndClose(400, "No Host Header Provided");
           co_return;
         }
 
         // Consume the header bytes + the \r\n\r\n terminator from the read buffer
         io_.eraseFromReadBuffer(headerSize + 4);
-      }
-
-      // If we had data buffered from a previous read (no suspension occurred),
-      // the formation timer still needs to be armed
-      if (not formationArmed_) {
-        formationDeadline_ = now() + std::chrono::seconds(ServerConfig::FORMATION_TIMEOUT_S);
-        formationArmed_ = true;
       }
 
       //=== Expect: 100-continue ===
@@ -153,6 +143,20 @@ public:
 
       if (not expect.empty()) {
         if (expect == "100-continue") {
+          auto res = request_.getContentLength();
+          if (res.error() == ContentLengthError::CONTENT_LENGTH_TOO_LARGE) {
+            co_await sendErrorResponseAndClose(413);
+            co_return;
+          } else if (res.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
+            co_await sendErrorResponseAndClose(400, "Invalid content-length header");
+            co_return;
+          } else if (res.error() == ContentLengthError::NO_CONTENT_LENGTH_HEADER) {
+            if (toLowerCase(request_.getHeaderLower("transfer-encoding")).find("chunked") == std::string::npos) {
+              co_await sendErrorResponseAndClose(400, "Missing content-length header");
+              co_return;
+            }
+          }
+
           RouterResponse result = router_.validate(request_);
           switch (result) {
           case RouterResponse::NOT_FOUND:
@@ -177,8 +181,9 @@ public:
         }
       }
 
-      //=== Read body ===
-      {
+      formationDeadline_ = std::chrono::steady_clock::time_point::max();
+
+      { // Reading Body
         bool hasContentLengthHeader = request_.getHeaderLower("content-length") != "";
         auto transferEncodingHeader = request_.getHeaderLower("transfer-encoding");
 
@@ -189,45 +194,50 @@ public:
           co_return;
         }
 
-        //=== Body: chunked transfer encoding ===
-        if (transferEncodingHeader.find("chunked") != std::string::npos) {
-          for (;;) {
-            auto result = chunkParser_.feed(io_, request_);
-
-            if (!result)
-              switch (result.error()) {
-              case ChunkError::TOO_LARGE:
-                co_await sendErrorResponseAndClose(413);
-                co_return;
-              case ChunkError::MALFORMED:
-                co_await sendErrorResponseAndClose(400);
-                co_return;
-              }
-
-            if (result.value().has_value()) {
-              request_.setBody(*result.value());
-              break;
-            }
-            // Parser needs more data before it can make progress — suspend
-            ReadResult readResult = co_await io_.read(activeDeadline());
-            if (readResult == ReadResult::DATA) {
-              resetInactivity();
-            } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
-              co_await sendErrorResponseAndClose(413);
-              co_return;
-            } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
-              co_return;
-            } else if (readResult == ReadResult::TIMED_OUT) {
-              co_await sendErrorResponseAndClose(408);
-              co_return;
-            }
+        if (transferEncodingHeader != "") {
+          if (transferEncodingHeader.find("chunked") == std::string::npos) {
+            SPDLOG_ERROR("Transfer-Encoding header not supported: {}", transferEncodingHeader);
+            co_await sendErrorResponseAndClose(501);
+            co_return;
           }
 
-          //=== Body: content-length ===
+          auto chunkReadFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
+            auto chunkResult = co_await chunkDecoder_.getNextChunk(io_);
+            if (not chunkResult) {
+              switch (chunkResult.error()) {
+              case ChunkError::MALFORMED:
+                throw MalformedChunkException("Malformed chunk");
+              case ChunkError::CHUNK_TOO_LARGE:
+                throw ChunkTooLargeException("Chunk too large");
+              case ChunkError::REQUEST_SIZE_LIMIT_EXCEEDED:
+                throw RequestSizeLimitExceededException("Request size limit exceeded");
+              }
+            }
+            buf.insert(buf.end(), chunkResult.value().begin(), chunkResult.value().end());
+            co_return chunkResult.value().size();
+          };
+
+          BodyDrainFn chunkDrainFn = [this](size_t remaining) mutable -> Task<void> {
+            while (not chunkDecoder_.isDone()) {
+              auto chunkResult = co_await chunkDecoder_.getNextChunk(io_);
+              if (not chunkResult) {
+                switch (chunkResult.error()) {
+                case ChunkError::MALFORMED:
+                  throw MalformedChunkException("Malformed chunk");
+                case ChunkError::CHUNK_TOO_LARGE:
+                  throw ChunkTooLargeException("Chunk too large");
+                case ChunkError::REQUEST_SIZE_LIMIT_EXCEEDED:
+                  throw RequestSizeLimitExceededException("Request size limit exceeded");
+                }
+              }
+            }
+          };
+
+          bodyStream_ = std::make_shared<BodyStream>(0, std::move(chunkReadFn), std::move(chunkDrainFn));
+          request_.attachBodyStream(bodyStream_);
+
         } else if (hasContentLengthHeader) {
-
           auto contentLengthResult = request_.getContentLength();
-
           if (!contentLengthResult) {
             switch (contentLengthResult.error()) {
             case ContentLengthError::NO_CONTENT_LENGTH_HEADER:
@@ -240,32 +250,61 @@ public:
               co_return;
             }
           }
-
           size_t contentLength = contentLengthResult.value();
 
-          // Accumulate until the read buffer holds the full declared body
-          while (io_.getReadBufferSize() < contentLength) {
-            ReadResult result = co_await io_.read(activeDeadline());
-            if (result == ReadResult::DATA) {
-              resetInactivity();
-            } else if (result == ReadResult::BUFFER_LIMIT_EXCEEDED) {
-              co_await sendErrorResponseAndClose(413);
-              co_return;
-            } else if (result == ReadResult::CLOSED || result == ReadResult::ERROR) {
-              co_return;
-            } else if (result == ReadResult::TIMED_OUT) {
-              co_await sendErrorResponseAndClose(408);
-              co_return;
+          BodyReadFn readFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
+            if (io_.getReadBufferSize() >= remaining) {
+              buf.insert(buf.end(), io_.readBufferData(), io_.readBufferData() + remaining);
+              io_.eraseFromReadBuffer(remaining);
+              co_return remaining;
             }
-          }
 
-          request_.setBody(io_.getReadBufferString(contentLength));
-          io_.eraseFromReadBuffer(contentLength);
+            ReadResult readResult = co_await io_.read(activeDeadline());
+            if (readResult == ReadResult::DATA) {
+              resetInactivity();
+            } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+              throw BufferLimitExceededException("Buffer limit exceeded");
+            } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
+              throw ConnectionClosedException("Connection closed");
+            } else if (readResult == ReadResult::TIMED_OUT) {
+              throw ReadTimeOutException("Read timed out");
+            }
+            size_t n = std::min(io_.getReadBufferSize(), remaining);
+            buf.insert(buf.end(), io_.readBufferData(), io_.readBufferData() + n);
+            io_.eraseFromReadBuffer(n);
+            co_return n;
+          };
+
+          BodyDrainFn drainFn = [this](size_t remaining) mutable -> Task<void> {
+            while (io_.getReadBufferSize() < remaining) {
+              size_t oldSize = io_.getReadBufferSize();
+              ReadResult readResult = co_await io_.read(activeDeadline());
+              if (readResult == ReadResult::DATA) {
+                resetInactivity();
+              } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
+                throw BufferLimitExceededException("Buffer limit exceeded");
+              } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
+                throw ConnectionClosedException("Connection closed");
+              } else if (readResult == ReadResult::TIMED_OUT) {
+                throw ReadTimeOutException("Read timed out");
+              }
+            }
+            io_.eraseFromReadBuffer(remaining);
+          };
+
+          bodyStream_ = std::make_shared<BodyStream>(contentLength, std::move(readFn), std::move(drainFn));
+          request_.attachBodyStream(bodyStream_);
+        } else {
+
+          BodyReadFn readFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
+            co_return 0;
+          };
+
+          BodyDrainFn drainFn = [this](size_t remaining) mutable -> Task<void> { co_return; };
+          bodyStream_ = std::make_shared<BodyStream>(0, std::move(readFn), std::move(drainFn));
+          request_.attachBodyStream(bodyStream_);
         }
       }
-
-      // Body is fully read — disarm the formation timer
-      formationDeadline_ = std::chrono::steady_clock::time_point::max();
 
       //=== Dispatch ===
       Response response;
@@ -275,12 +314,17 @@ public:
       } catch (ThreadPoolFullException &e) {
         SPDLOG_ERROR("Thread Pool Full!\n {}", e.what());
         response = buildErrorResponse(503, e.what());
+      } catch (ServerException &e) {
+        SPDLOG_ERROR("Server threw exception: {}", e.what());
+        response = buildErrorResponse(500, e.what());
       } catch (const std::exception &e) {
         SPDLOG_ERROR("Handler threw exception: {}", e.what());
         response = buildErrorResponse(500, e.what());
       } catch (...) {
         response = buildErrorResponse(500);
       }
+
+      co_await bodyStream_->drain();
 
       //=== Set Connection header ===
       std::visit(overloaded{[this](auto &res) {
@@ -410,14 +454,15 @@ private:
   Router &router_;
   ErrorFactory &errorFactory_;
 
+  std::shared_ptr<BodyStream> bodyStream_;
+  ChunkDecoder<Stream> chunkDecoder_;
+
   ConnectionIO<Stream> io_;
-  ChunkedBodyParser<Stream> chunkParser_;
 
   bool keepAlive_ = true;
   std::atomic<bool> &shutdown_;
   ConnGuard ConnGuard_;
 
-  bool formationArmed_ = false;
   std::chrono::steady_clock::time_point inactivityDeadline_ = std::chrono::steady_clock::time_point::max();
   std::chrono::steady_clock::time_point formationDeadline_ = std::chrono::steady_clock::time_point::max();
 
@@ -462,8 +507,7 @@ private:
 
   void resetForNextRequest() {
     request_.reset(io_.getIp(), io_.getPort());
-    chunkParser_.reset();
-    formationArmed_ = false;
     formationDeadline_ = std::chrono::steady_clock::time_point::max();
+    chunkDecoder_.reset();
   }
 };

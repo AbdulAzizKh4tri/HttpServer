@@ -5,7 +5,6 @@
 
 #include "Executor.hpp"
 #include "ExecutorContext.hpp"
-#include "HttpRequest.hpp"
 #include "StreamResults.hpp"
 #include "utils.hpp"
 
@@ -82,7 +81,7 @@ public:
 
   [[nodiscard]] ReadAwaitable
   read(std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::time_point::max(),
-       size_t maxBufferSize = HttpRequest::MAX_CONTENT_LENGTH) noexcept {
+       size_t maxBufferSize = ServerConfig::MAX_CONTENT_LENGTH) noexcept {
     return {*this, deadline, maxBufferSize};
   }
 
@@ -112,7 +111,7 @@ public:
         readBuffer_.resize(oldSize);
         return gotData ? ReadResult::DATA : ReadResult::WOULD_BLOCK;
       case ReceiveResult::Status::CLOSED:
-        SPDLOG_DEBUG("Connection closed by peer, {}:{}", stream_->getIp(), stream_->getPort());
+        SPDLOG_ERROR("Connection closed by peer, {}:{}", stream_->getIp(), stream_->getPort());
         return ReadResult::CLOSED;
       case ReceiveResult::Status::ERROR:
         SPDLOG_ERROR("Receive error for {}:{}", stream_->getIp(), stream_->getPort());

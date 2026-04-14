@@ -32,14 +32,16 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
     co_return response;
   });
 
-  router.post("/", [](const HttpRequest &request) -> Task<Response> {
-    json data = json::parse(request.getBody());
+  router.post("/", [](HttpRequest &request) -> Task<Response> {
+    json data = json::parse(co_await request.fullBody());
     auto res = HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
     res.headers.setHeaderLower("content-type", "text/plain");
     co_return res;
   });
 
-  router.put("/", [](const HttpRequest &request) -> Task<Response> { co_return HttpResponse(200, request.getBody()); });
+  router.put("/", [](HttpRequest &request) -> Task<Response> {
+    co_return HttpResponse(200, co_await request.fullBody());
+  });
 
   // WARNING: BLOCKS THE ENTIRE THREAD FOR 5 SECONDS!
   router.get("/tests/slow", [](const HttpRequest &) -> Task<Response> {
@@ -87,10 +89,12 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   //   "cookies": { "session_id": "abc123" },
   //   "body":    ""
   // }
-  auto debugRequestHandler = [](const HttpRequest &request) -> Task<Response> {
+  auto debugRequestHandler = [](HttpRequest &request) -> Task<Response> {
     json cookies = json::object();
     for (const auto &[name, value] : request.getCookies())
       cookies[name] = value;
+
+    const std::string body = co_await request.fullBody();
 
     json j = {
         {"method", request.getMethod()},
@@ -99,7 +103,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
         {"headers", toJsonObject(request.getAllHeaders())},
         {"query", toJsonObject(request.getAllQueryParams())},
         {"cookies", cookies},
-        {"body", request.getBody()},
+        {"body", body},
     };
     auto res = HttpResponse(200, j.dump());
     res.headers.setHeaderLower("content-type", "application/json");
@@ -113,8 +117,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   // Echoes the raw request body back verbatim and mirrors the Content-Type.
   // Kept because body-echo tests (empty body, near-limit, chunked) need a
   // route that returns the body directly, not wrapped in JSON.
-  router.post("/tests/echo", [](const HttpRequest &request) -> Task<Response> {
-    auto res = HttpResponse(200, request.getBody());
+  router.post("/tests/echo", [](HttpRequest &request) -> Task<Response> {
+    auto res = HttpResponse(200, co_await request.fullBody());
     auto ct = request.getHeader("Content-Type");
     if (not ct.empty())
       res.headers.setHeaderLower("content-type", std::string(ct));
@@ -123,8 +127,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
 
   // PUT /tests/echo
   // Same as POST echo -- useful for testing PUT-specific behaviour (405 etc.).
-  router.put("/tests/echo", [](const HttpRequest &request) -> Task<Response> {
-    auto res = HttpResponse(200, request.getBody());
+  router.put("/tests/echo", [](HttpRequest &request) -> Task<Response> {
+    auto res = HttpResponse(200, co_await request.fullBody());
     auto ct = request.getHeader("Content-Type");
     if (not ct.empty())
       res.headers.setHeaderLower("content-type", std::string(ct));
@@ -438,8 +442,8 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   // Reads the request body and streams it back in 4-byte chunks.
   // Empty body -> empty stream (terminal chunk only).
   // Mirrors Content-Type if provided.
-  router.post("/tests/stream/echo", [](const HttpRequest &request) -> Task<Response> {
-    std::string body = request.getBody();
+  router.post("/tests/stream/echo", [](HttpRequest &request) -> Task<Response> {
+    std::string body = co_await request.fullBody();
     auto ct = request.getHeader("Content-Type");
     auto res = HttpStreamResponse(
         200, [offset = size_t(0), body = std::move(body)]() mutable -> Task<std::optional<std::string>> {

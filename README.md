@@ -52,11 +52,23 @@ This is an ongoing solo learning project, built with production-quality goals in
 ### Steps
 
 ```bash
+sudo apt update && sudo apt install -y \
+  build-essential \
+  cmake \
+  pkg-config \
+  libssl-dev \
+  zlib1g-dev \
+  libbrotli-dev
+```
+
+```bash
 # Debug
 cmake -B build/debug -S . -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/debug -j$(nproc)
 ./build/debug/server
+```
 
+```bash
 # Release
 cmake -B build/release -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release -j$(nproc)
@@ -67,8 +79,8 @@ Or use the Makefile shortcuts:
 
 ```bash
 make configure BUILD_TYPE=debug
-make configure BUILD_TYPE=release
 make debug     # build + run debug
+make configure BUILD_TYPE=release
 make release   # build + run release
 ```
 

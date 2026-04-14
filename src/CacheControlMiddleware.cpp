@@ -12,7 +12,6 @@ Task<Response> CacheControlMiddleware::operator()(const HttpRequest &request, Ne
           return;
 
         if (res.getStatusCode() >= 400) {
-          SPDLOG_DEBUG("Error status without cache control");
           res.headers.setCacheControl("no-store");
           return;
         }

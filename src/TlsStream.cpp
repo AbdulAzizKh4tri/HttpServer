@@ -66,7 +66,7 @@ HandshakeResult TlsStream::handshake() {
   case SSL_ERROR_WANT_WRITE:
     return HandshakeResult::WANT_WRITE;
   default:
-    SPDLOG_DEBUG("TLS handshake error for {}:{} — SSL error code {}", ip_, port_, err);
+    SPDLOG_ERROR("TLS handshake error for {}:{} — SSL error code {}", ip_, port_, err);
     return HandshakeResult::ERROR;
   }
 }

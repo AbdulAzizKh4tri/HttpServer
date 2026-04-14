@@ -5,7 +5,7 @@
 #include "IPoolTask.hpp"
 #include "PoolTask.hpp"
 #include "PoolTaskAwaitable.hpp"
-#include "ThreadPoolFullException.hpp"
+#include "RuKhExceptions.hpp"
 
 class ThreadPool {
 public:

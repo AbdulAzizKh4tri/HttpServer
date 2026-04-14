@@ -99,8 +99,7 @@ int main() {
 
   // First because all routes potentially need CORS, it doesn't modify the body so it's fine to put here
   router.use(corsMiddleware);
-  // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the
-  // file
+  // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the file
   router.use(staticMiddleware);
   // Order doesn't matter after this
   router.use(compressionMiddleware);
@@ -111,6 +110,7 @@ int main() {
 
   ThreadPool threadPool(N * 2);
   registerRoutes(router, errorFactory, &threadPool);
+  // registerRoutes(router, errorFactory, nullptr);
 
   server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);

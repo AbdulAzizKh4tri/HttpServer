@@ -79,6 +79,8 @@ public:
       return "HTTP/1.1 431 Request Header Fields Too Large\r\n";
     case 500:
       return "HTTP/1.1 500 Internal Server Error\r\n";
+    case 501:
+      return "HTTP/1.1 501 Not Implemented\r\n";
     case 503:
       return "HTTP/1.1 503 Service Unavailable\r\n";
     // fallback for anything not in the fast path:

@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 #include <string_view>
 
+#include "BodyStream.hpp"
+#include "ServerConfig.hpp"
 #include "SessionHandle.hpp"
 #include "utils.hpp"
 
@@ -111,19 +113,23 @@ Task<Session *> HttpRequest::getSession() {
   co_return co_await sessionHandle_->get();
 }
 
-std::expected<size_t, ContentLengthError> HttpRequest::getContentLength() const {
+std::expected<size_t, ContentLengthError> HttpRequest::getContentLength() {
+  if (contentLength_.has_value())
+    return *contentLength_;
+
   auto lenStr = getHeaderLower("content-length");
   if (lenStr.empty())
     return std::unexpected(ContentLengthError::NO_CONTENT_LENGTH_HEADER);
 
   size_t len;
-
   auto [ptr, ec] = std::from_chars(lenStr.data(), lenStr.data() + lenStr.size(), len);
   if (ec != std::errc{})
     return std::unexpected(ContentLengthError::INVALID_CONTENT_LENGTH);
 
-  if (len > MAX_CONTENT_LENGTH)
+  if (len > ServerConfig::MAX_CONTENT_LENGTH)
     return std::unexpected(ContentLengthError::CONTENT_LENGTH_TOO_LARGE);
+
+  contentLength_ = len;
   return len;
 }
 
@@ -234,15 +240,22 @@ void HttpRequest::setPathParams(const std::vector<std::pair<std::string, std::st
 
 std::vector<std::pair<std::string, std::string>> HttpRequest::getAllPathParams() const { return pathParams_; }
 
+Task<std::string> HttpRequest::fullBody() {
+  if (bodyStream_->isExhausted())
+    throw BodyExhaustedException("Body stream is exhausted (Do not call fullBody() twice)");
+  co_return co_await bodyStream_->readAll();
+}
+
+BodyStream *HttpRequest::bodyStream() { return bodyStream_.get(); }
+
+void HttpRequest::attachBodyStream(std::shared_ptr<BodyStream> bodyStream) { bodyStream_ = bodyStream; }
+
 const std::string &HttpRequest::getPath() const { return path_; }
 const std::string &HttpRequest::getRawPath() const { return rawPath_; }
 const std::string &HttpRequest::getVersion() const { return version_; }
 
 const std::string &HttpRequest::getMethod() const { return method_; }
 void HttpRequest::setMethod(const std::string &method) { method_ = method; }
-
-const std::string &HttpRequest::getBody() const { return body_; }
-void HttpRequest::setBody(const std::string &body) { body_ = body; }
 
 const std::string &HttpRequest::getIp() const { return ip_; }
 uint16_t HttpRequest::getPort() const { return port_; }
@@ -373,9 +386,10 @@ void HttpRequest::reset(const std::string &ip, uint16_t port) {
   rawPath_.clear();
   path_.clear();
   version_.clear();
-  body_.clear();
   pathParts_.clear();
+  contentLength_ = std::nullopt;
   sessionHandle_ = nullptr;
+  bodyStream_ = nullptr;
   ip_ = ip;
   port_ = port;
 }
