@@ -80,7 +80,7 @@ public:
 
   Task<std::string> fullBody();
   BodyStream *bodyStream();
-  void attachBodyStream(std::shared_ptr<BodyStream> bodyStream);
+  void attachBodyStream(std::unique_ptr<BodyStream> bodyStream);
 
   const std::string &getPath() const;
   const std::string &getRawPath() const;
@@ -106,7 +106,7 @@ private:
   std::vector<std::pair<std::string, std::string>> pathParams_;
 
   std::optional<size_t> contentLength_;
-  std::shared_ptr<BodyStream> bodyStream_;
+  std::unique_ptr<BodyStream> bodyStream_;
 
   SessionHandle *sessionHandle_ = nullptr;
 

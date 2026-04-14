@@ -38,7 +38,7 @@ public:
   void setListenBacklog(int backlog) { listenBacklog_ = backlog; }
 
 private:
-  int listenBacklog_ = 100;
+  int listenBacklog_ = 10000;
   std::shared_ptr<SSL_CTX> tlsContext_ = nullptr;
   std::vector<ListenerConfig> listenersConfigs_;
 

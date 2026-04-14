@@ -14,8 +14,13 @@ Executor::Executor() {
 }
 
 void Executor::spawn(Task<void> task) {
-  readyQueue_.push({task.handle(), false});
+  auto h = task.handle();
+  if (not h)
+    return;
+
+  ownedTaskMap_[h.address()] = ownedTasks_.size();
   ownedTasks_.push_back(std::move(task));
+  readyQueue_.push({h, false});
 }
 
 void Executor::unregister(int fd) {
@@ -36,11 +41,15 @@ void Executor::registerReadOnlyFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLET, fd
 void Executor::registerFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLOUT | EPOLLET, fd); }
 
 void Executor::waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
-  suspendedTasks_[fd] = {caller, false, deadline};
+  int seq = nextSeq_++;
+  suspendedTasks_[fd] = {caller, false, seq};
+  taskDeadlines_.push({deadline, fd, seq});
 }
 
 void Executor::waitForWrite(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
-  suspendedTasks_[fd] = {caller, true, deadline};
+  int seq = nextSeq_++;
+  suspendedTasks_[fd] = {caller, true, seq};
+  taskDeadlines_.push({deadline, fd, seq});
 }
 
 void Executor::submitFileRead(int fd, void *buf, size_t len, std::coroutine_handle<> h, int *resultPtr,
@@ -61,6 +70,8 @@ void Executor::submitFileWrite(int fd, const void *buf, size_t len, std::corouti
 void Executor::run(std::atomic<bool> &shutdown) {
   tl_executor = this;
   std::chrono::steady_clock::time_point shutdownDeadline = std::chrono::steady_clock::time_point::max();
+  size_t maxEvents = 512;
+  epoll_event events[maxEvents];
 
   for (;;) {
     if (shutdown) {
@@ -96,15 +107,28 @@ void Executor::run(std::atomic<bool> &shutdown) {
       tl_timed_out = timed_out;
       task.resume();
       tl_timed_out = false;
-    }
+      if (task.done()) {
+        auto it = ownedTaskMap_.find(task.address());
+        if (it == ownedTaskMap_.end())
+          continue;
 
-    std::erase_if(ownedTasks_, [](const Task<void> &t) { return t.done(); });
+        auto index = it->second;
+        auto last = ownedTasks_.size() - 1;
+
+        if (index != last) {
+          ownedTasks_[index] = std::move(ownedTasks_.back());
+          ownedTaskMap_[ownedTasks_[index].handle().address()] = index;
+        }
+        ownedTasks_.pop_back();
+        ownedTaskMap_.erase(it);
+      }
+    }
 
     // setting this directly to epoll_wait_timeout makes it so that
     // download speed = STATIC_STREAM_CHUNK_SIZE / EPOLL_WAIT_TIMEOUT seconds
-    int timeout = pendingFileOps_.empty() ? EPOLL_WAIT_TIMEOUT * 1000 : 0;
-    auto events = epoll_.wait(64, timeout);
-    for (auto &event : events) {
+    int timeout = pendingFileOps_.empty() ? ServerConfig::EPOLL_WAIT_TIMEOUT * 1000 : 0;
+    int n = epoll_.wait(events, maxEvents, timeout);
+    for (auto &event : std::span(events, n)) {
       int fd = event.data.fd;
 
       if (fd == eventFd_) {
@@ -137,14 +161,18 @@ void Executor::run(std::atomic<bool> &shutdown) {
     }
 
     auto timeNow = now();
-    for (auto it = suspendedTasks_.begin(); it != suspendedTasks_.end();) {
-      if (it->second.deadline <= timeNow) {
-        readyQueue_.push({it->second.handle, true});
-        it = suspendedTasks_.erase(it);
-      } else {
-        ++it;
-      }
+    while (not taskDeadlines_.empty() && taskDeadlines_.top().deadline <= timeNow) {
+      auto [deadline, fd, seq] = taskDeadlines_.top();
+      taskDeadlines_.pop();
+      auto it = suspendedTasks_.find(fd);
+      if (it == suspendedTasks_.end())
+        continue;
+      if (it->second.suspensionSeq != seq)
+        continue;
+      readyQueue_.push({it->second.handle, true});
+      suspendedTasks_.erase(it);
     }
+
     ioUring_.ioSubmit();
   }
 }

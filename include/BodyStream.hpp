@@ -28,7 +28,7 @@ public:
       data.reserve(remaining_);
     size_t n = 0;
 
-    while (data.size() < limit) {
+    while (data.size() <= limit) {
       n = co_await read(data);
       if (n == 0)
         break;

@@ -1,6 +1,7 @@
 #include "HttpRequest.hpp"
 
 #include <charconv>
+#include <memory>
 #include <spdlog/spdlog.h>
 #include <string_view>
 
@@ -248,7 +249,7 @@ Task<std::string> HttpRequest::fullBody() {
 
 BodyStream *HttpRequest::bodyStream() { return bodyStream_.get(); }
 
-void HttpRequest::attachBodyStream(std::shared_ptr<BodyStream> bodyStream) { bodyStream_ = bodyStream; }
+void HttpRequest::attachBodyStream(std::unique_ptr<BodyStream> bodyStream) { bodyStream_ = std::move(bodyStream); }
 
 const std::string &HttpRequest::getPath() const { return path_; }
 const std::string &HttpRequest::getRawPath() const { return rawPath_; }

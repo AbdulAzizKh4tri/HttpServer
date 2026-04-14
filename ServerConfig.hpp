@@ -9,6 +9,7 @@ static const std::string SERVER_LINE = "server: " + SERVER_NAME + "\r\n";
 static constexpr int INACTIVITY_TIMEOUT_S = 20;
 static constexpr int FORMATION_TIMEOUT_S = 120;
 static constexpr int GRACEFUL_SHUTDOWN_TIMEOUT_S = 20;
+static constexpr int EPOLL_WAIT_TIMEOUT = 1;
 
 // ── Request/Response limits ────────────────────────────────────────
 static constexpr size_t MAX_HEADER_BYTES = 8 * 1024;

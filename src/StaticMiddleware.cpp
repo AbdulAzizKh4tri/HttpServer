@@ -61,19 +61,19 @@ Task<Response> StaticMiddleware::operator()(const HttpRequest &request, Next nex
 
   const std::string &method = request.getMethod();
 
-  if (not (method == "GET" || method == "HEAD"))
+  if (not(method == "GET" || method == "HEAD"))
     co_return co_await next();
 
   const std::string &path = request.getPath();
 
-  if (not (path == config_.prefix || path.starts_with(config_.prefix + "/")))
+  if (not(path == config_.prefix || path.starts_with(config_.prefix + "/")))
     co_return co_await next();
 
   std::string relative = path.substr(config_.prefix.size());
   if (not relative.empty() && relative.front() == '/')
     relative.erase(0, 1);
 
-  std::filesystem::path resolved = canonicalRoot_ / relative;
+  std::filesystem::path resolved = std::filesystem::weakly_canonical(canonicalRoot_ / relative);
 
   if (not resolved.native().starts_with(canonicalRoot_.native())) {
     co_return buildErrorResponse(request, 403);

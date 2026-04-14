@@ -195,7 +195,7 @@ public:
         }
 
         if (transferEncodingHeader != "") {
-          if (transferEncodingHeader.find("chunked") == std::string::npos) {
+          if (icontains(transferEncodingHeader, "chunked") == std::string::npos) {
             SPDLOG_ERROR("Transfer-Encoding header not supported: {}", transferEncodingHeader);
             co_await sendErrorResponseAndClose(501);
             co_return;
@@ -233,8 +233,7 @@ public:
             }
           };
 
-          bodyStream_ = std::make_shared<BodyStream>(0, std::move(chunkReadFn), std::move(chunkDrainFn));
-          request_.attachBodyStream(bodyStream_);
+          request_.attachBodyStream(std::make_unique<BodyStream>(0, std::move(chunkReadFn), std::move(chunkDrainFn)));
 
         } else if (hasContentLengthHeader) {
           auto contentLengthResult = request_.getContentLength();
@@ -292,8 +291,7 @@ public:
             io_.eraseFromReadBuffer(remaining);
           };
 
-          bodyStream_ = std::make_shared<BodyStream>(contentLength, std::move(readFn), std::move(drainFn));
-          request_.attachBodyStream(bodyStream_);
+          request_.attachBodyStream(std::make_unique<BodyStream>(contentLength, std::move(readFn), std::move(drainFn)));
         } else {
 
           BodyReadFn readFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
@@ -301,8 +299,7 @@ public:
           };
 
           BodyDrainFn drainFn = [this](size_t remaining) mutable -> Task<void> { co_return; };
-          bodyStream_ = std::make_shared<BodyStream>(0, std::move(readFn), std::move(drainFn));
-          request_.attachBodyStream(bodyStream_);
+          request_.attachBodyStream(std::make_unique<BodyStream>(0, std::move(readFn), std::move(drainFn)));
         }
       }
 
@@ -314,17 +311,21 @@ public:
       } catch (ThreadPoolFullException &e) {
         SPDLOG_ERROR("Thread Pool Full!\n {}", e.what());
         response = buildErrorResponse(503, e.what());
+        keepAlive_ = false;
       } catch (ServerException &e) {
         SPDLOG_ERROR("Server threw exception: {}", e.what());
         response = buildErrorResponse(500, e.what());
+        keepAlive_ = false;
       } catch (const std::exception &e) {
         SPDLOG_ERROR("Handler threw exception: {}", e.what());
         response = buildErrorResponse(500, e.what());
+        keepAlive_ = false;
       } catch (...) {
         response = buildErrorResponse(500);
+        keepAlive_ = false;
       }
 
-      co_await bodyStream_->drain();
+      co_await request_.bodyStream()->drain();
 
       //=== Set Connection header ===
       std::visit(overloaded{[this](auto &res) {
@@ -332,8 +333,7 @@ public:
                      keepAlive_ = false;
                      res.headers.setHeaderLower("connection", "close");
                    } else {
-                     keepAlive_ = shouldKeepAlive();
-                     if (not keepAlive_)
+                     if (not keepAlive_ || not shouldKeepAlive())
                        res.headers.setHeaderLower("connection", "close");
                    }
                  }},
@@ -454,7 +454,6 @@ private:
   Router &router_;
   ErrorFactory &errorFactory_;
 
-  std::shared_ptr<BodyStream> bodyStream_;
   ChunkDecoder<Stream> chunkDecoder_;
 
   ConnectionIO<Stream> io_;
