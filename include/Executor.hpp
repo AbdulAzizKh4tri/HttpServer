@@ -39,8 +39,9 @@ public:
 
   void unregister(int fd);
 
-  void registerReadOnlyFd(int fd);
-  void registerFd(int fd);
+  void registerReadFd(int fd);
+  void enableWriteEvents(int fd);
+  void disableWriteEvents(int fd);
 
   void waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline);
 
@@ -63,6 +64,8 @@ private:
   int nextSeq_ = 0;
   std::unordered_map<int, SuspendedTask> suspendedTasks_;
   std::priority_queue<TaskDeadline, std::vector<TaskDeadline>, std::greater<TaskDeadline>> taskDeadlines_;
+
+  std::unordered_set<int> writeInterested_;
 
   IoUringInstance ioUring_;
   uint64_t nextUserData_ = 0;

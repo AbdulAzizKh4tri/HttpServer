@@ -22,14 +22,14 @@ TcpStream::TcpStream(int fd, sockaddr_storage addr, socklen_t len) : socket_(fd)
   };
 }
 
-ssize_t TcpStream::send(const std::span<const unsigned char> &data) const {
+ssize_t TcpStream::send(const std::span<const unsigned char> data) const {
   ssize_t n = ::send(socket_.getFd(), data.data(), data.size(), 0);
   if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
     return 0;
   return n;
 }
 
-ReceiveResult TcpStream::receive(std::span<unsigned char> &data) const {
+ReceiveResult TcpStream::receive(std::span<unsigned char> data) const {
   ssize_t n = ::recv(socket_.getFd(), data.data(), data.size(), 0);
   if (n > 0)
     return ReceiveResult::data(n);

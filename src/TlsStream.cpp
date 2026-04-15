@@ -71,7 +71,7 @@ HandshakeResult TlsStream::handshake() {
   }
 }
 
-ReceiveResult TlsStream::receive(std::span<unsigned char> &buf) const {
+ReceiveResult TlsStream::receive(std::span<unsigned char> buf) const {
   int n = SSL_read(ssl_, buf.data(), buf.size());
   if (n > 0)
     return ReceiveResult::data(n);
@@ -91,7 +91,7 @@ ReceiveResult TlsStream::receive(std::span<unsigned char> &buf) const {
   }
 }
 
-ssize_t TlsStream::send(const std::span<const unsigned char> &data) const {
+ssize_t TlsStream::send(const std::span<const unsigned char> data) const {
   int n = SSL_write(ssl_, data.data(), data.size());
   if (n <= 0) {
     int err = SSL_get_error(ssl_, n);

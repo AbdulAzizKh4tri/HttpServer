@@ -9,9 +9,9 @@ class TcpStream {
 public:
   TcpStream(int fd, sockaddr_storage addr, socklen_t len);
 
-  ssize_t send(const std::span<const unsigned char> &data) const;
+  ssize_t send(const std::span<const unsigned char> data) const;
 
-  ReceiveResult receive(std::span<unsigned char> &data) const;
+  ReceiveResult receive(std::span<unsigned char> data) const;
 
   HandshakeResult handshake();
 

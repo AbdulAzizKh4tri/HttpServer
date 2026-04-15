@@ -112,7 +112,7 @@ void HttpServer::workerMain() {
 ErrorFactory &HttpServer::getErrorFactory() { return errorFactory_; }
 
 Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
-  tl_executor->registerReadOnlyFd(listener.getFd());
+  tl_executor->registerReadFd(listener.getFd());
   for (;;) {
     co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(3)};
     if (tl_timed_out) {
@@ -145,7 +145,7 @@ Task<void> HttpServer::tcpAcceptLoop(ListenerSocket &listener) {
 }
 
 Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
-  tl_executor->registerReadOnlyFd(listener.getFd());
+  tl_executor->registerReadFd(listener.getFd());
   for (;;) {
     co_await ReadAwaitable{listener.getFd(), now() + std::chrono::seconds(3)};
     if (tl_timed_out) {
@@ -180,7 +180,7 @@ Task<void> HttpServer::tlsAcceptLoop(ListenerSocket &listener) {
 
 template <typename Stream> Task<void> HttpServer::handleConnection(std::unique_ptr<Stream> stream) {
   int fd = stream->getFd();
-  tl_executor->registerFd(fd);
+  tl_executor->registerReadFd(fd);
 
   HttpConnection<Stream> conn(std::move(stream), *router_, errorFactory_, shutdown_, globalConnectionCount_);
   co_await conn.run();

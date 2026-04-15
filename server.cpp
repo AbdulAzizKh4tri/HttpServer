@@ -97,27 +97,25 @@ int main() {
 
   CompressionMiddleware compressionMiddleware(errorFactory);
 
-  // // First because all routes potentially need CORS, it doesn't modify the body so it's fine to put here
-  // router.use(corsMiddleware);
-  // // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the
-  // file
-  //
-  // router.use(staticMiddleware);
-  // // Order doesn't matter after this
-  // router.use(compressionMiddleware);
-  // router.use(cacheControlMiddleware);
-  // router.use(sessionMiddleware);
+  // First because all routes potentially need CORS, it doesn't modify the body so it's fine to put here
+  router.use(corsMiddleware);
+  // Must come before others because it has it's own caching/compression, short circuits chain if it can serve the file
+  router.use(staticMiddleware);
+  // Order doesn't matter after this
+  router.use(compressionMiddleware);
+  router.use(cacheControlMiddleware);
+  router.use(sessionMiddleware);
 
   HttpServer server(errorFactory);
 
-  // ThreadPool threadPool(N * 2);
-  // registerRoutes(router, errorFactory, &threadPool);
-  registerRoutes(router, errorFactory, nullptr);
+  ThreadPool threadPool(N * 2);
+  registerRoutes(router, errorFactory, &threadPool);
+  // registerRoutes(router, errorFactory, nullptr);
 
-  // server.setTlsContext("cert.pem", "key.pem");
+  server.setTlsContext("cert.pem", "key.pem");
   server.setRouter(router);
   server.addListener(host, "8080");
-  // server.addTlsListener(host, "8443");
+  server.addTlsListener(host, "8443");
 
   server.run(N);
 

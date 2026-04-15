@@ -10,7 +10,7 @@ Executor::Executor() {
   eventFd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
   if (eventFd_ < 0)
     throw std::runtime_error("eventfd failed");
-  registerReadOnlyFd(eventFd_);
+  registerReadFd(eventFd_);
 }
 
 void Executor::spawn(Task<void> task) {
@@ -24,6 +24,7 @@ void Executor::spawn(Task<void> task) {
 }
 
 void Executor::unregister(int fd) {
+  writeInterested_.erase(fd);
   epoll_.remove(fd);
   suspendedTasks_.erase(fd);
 }
@@ -37,8 +38,20 @@ void Executor::post(std::coroutine_handle<> h) {
   ::write(eventFd_, &one, sizeof(one));
 }
 
-void Executor::registerReadOnlyFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLET, fd); }
-void Executor::registerFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLOUT | EPOLLET, fd); }
+void Executor::registerReadFd(int fd) { epoll_.add(fd, EPOLLIN | EPOLLET, fd); }
+
+void Executor::enableWriteEvents(int fd) {
+  auto [_, inserted] = writeInterested_.insert(fd);
+  if (not inserted)
+    return;
+  epoll_.modify(fd, EPOLLIN | EPOLLOUT | EPOLLET, fd);
+}
+void Executor::disableWriteEvents(int fd) {
+  auto erased = writeInterested_.erase(fd);
+  if (erased == 0)
+    return;
+  epoll_.modify(fd, EPOLLIN | EPOLLET, fd);
+}
 
 void Executor::waitForRead(int fd, std::coroutine_handle<> caller, std::chrono::steady_clock::time_point deadline) {
   int seq = nextSeq_++;

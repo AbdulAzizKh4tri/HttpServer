@@ -63,6 +63,7 @@ public:
     void await_suspend(std::coroutine_handle<> h) noexcept {
       auto deadline = inactivitySeconds ? now() + std::chrono::seconds(inactivitySeconds)
                                         : std::chrono::steady_clock::time_point::max();
+      tl_executor->enableWriteEvents(io.getFd());
       tl_executor->waitForWrite(io.getFd(), h, deadline);
     }
 
@@ -73,6 +74,9 @@ public:
         return WriteResult::TIMED_OUT;
       if (!io.flushFromWriteBuffer())
         return WriteResult::ERROR;
+
+      if (not io.hasPendingWrites())
+        tl_executor->disableWriteEvents(io.getFd());
       return WriteResult::OK;
     }
   };

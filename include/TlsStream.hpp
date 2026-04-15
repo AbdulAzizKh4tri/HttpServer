@@ -25,9 +25,9 @@ public:
 
   HandshakeResult handshake();
 
-  ReceiveResult receive(std::span<unsigned char> &buf) const;
+  ReceiveResult receive(std::span<unsigned char> buf) const;
 
-  ssize_t send(const std::span<const unsigned char> &data) const;
+  ssize_t send(const std::span<const unsigned char> data) const;
 
   void resetConnection();
 
