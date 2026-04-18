@@ -32,6 +32,8 @@ public:
 
   bool parseRequestHeader(std::string_view headerView);
 
+  Task<nlohmann::json> jsonBody();
+
   Task<std::unordered_map<std::string, std::vector<std::string>>> getFormData();
 
   std::vector<Range> getRanges() const;

@@ -596,4 +596,14 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
     res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });
+
+  // POST /tests/forms/json
+  // Accepts JSON form data, returns it as JSON.
+  // Response: { "username": "alice", "password": "secret" }
+  router.post("/tests/forms/json", [](HttpRequest &request) -> Task<Response> {
+    auto body = co_await request.jsonBody();
+    auto res = HttpResponse(200, json{{"username", body["username"]}, {"password", body["password"]}}.dump());
+    res.headers.setHeaderLower("content-type", "application/json");
+    co_return res;
+  });
 }

@@ -31,6 +31,12 @@ bool HttpRequest::parseRequestHeader(std::string_view headerView) {
   return true;
 }
 
+Task<nlohmann::json> HttpRequest::jsonBody() {
+  if (not toLowerCase(getContentType()).starts_with("application/json"))
+    co_return {};
+  co_return nlohmann::json::parse(co_await consumeBody());
+}
+
 Task<std::unordered_map<std::string, std::vector<std::string>>> HttpRequest::getFormData() {
   if (not toLowerCase(getContentType()).starts_with("application/x-www-form-urlencoded"))
     co_return {};
