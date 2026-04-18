@@ -33,15 +33,14 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   });
 
   router.post("/", [](HttpRequest &request) -> Task<Response> {
-    json data = json::parse(co_await request.fullBody());
+    json data = json::parse(co_await request.consumeBody());
     auto res = HttpResponse(200, "Hello, " + std::string(data["name"]) + "!");
     res.headers.setHeaderLower("content-type", "text/plain");
     co_return res;
   });
 
-  router.put("/", [](HttpRequest &request) -> Task<Response> {
-    co_return HttpResponse(200, co_await request.fullBody());
-  });
+  router.put(
+      "/", [](HttpRequest &request) -> Task<Response> { co_return HttpResponse(200, co_await request.consumeBody()); });
 
   // WARNING: BLOCKS THE ENTIRE THREAD FOR 5 SECONDS!
   router.get("/tests/slow", [](const HttpRequest &) -> Task<Response> {
@@ -94,7 +93,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
     for (const auto &[name, value] : request.getCookies())
       cookies[name] = value;
 
-    const std::string body = co_await request.fullBody();
+    const std::string body = co_await request.consumeBody();
 
     json j = {
         {"method", request.getMethod()},
@@ -118,7 +117,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   // Kept because body-echo tests (empty body, near-limit, chunked) need a
   // route that returns the body directly, not wrapped in JSON.
   router.post("/tests/echo", [](HttpRequest &request) -> Task<Response> {
-    auto res = HttpResponse(200, co_await request.fullBody());
+    auto res = HttpResponse(200, co_await request.consumeBody());
     auto ct = request.getHeader("Content-Type");
     if (not ct.empty())
       res.headers.setHeaderLower("content-type", std::string(ct));
@@ -128,7 +127,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   // PUT /tests/echo
   // Same as POST echo -- useful for testing PUT-specific behaviour (405 etc.).
   router.put("/tests/echo", [](HttpRequest &request) -> Task<Response> {
-    auto res = HttpResponse(200, co_await request.fullBody());
+    auto res = HttpResponse(200, co_await request.consumeBody());
     auto ct = request.getHeader("Content-Type");
     if (not ct.empty())
       res.headers.setHeaderLower("content-type", std::string(ct));
@@ -443,7 +442,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   // Empty body -> empty stream (terminal chunk only).
   // Mirrors Content-Type if provided.
   router.post("/tests/stream/echo", [](HttpRequest &request) -> Task<Response> {
-    std::string body = co_await request.fullBody();
+    std::string body = co_await request.consumeBody();
     auto ct = request.getHeader("Content-Type");
     auto res = HttpStreamResponse(
         200, [offset = size_t(0), body = std::move(body)]() mutable -> Task<std::optional<std::string>> {
@@ -572,5 +571,29 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
       });
     }
     co_return HttpResponse(200, "no crash, check logs for unawaited warning");
+  });
+
+  // POST /tests/forms/urlencoded
+  // Accepts URL-encoded form data, returns it as JSON.
+  // Response: { "username": "alice", "password": "secret" }
+  router.post("/tests/forms/urlencoded", [](HttpRequest &request) -> Task<Response> {
+    auto formData = co_await request.getFormData();
+    auto res =
+        HttpResponse(200, json{{"username", formData["username"][0]}, {"password", formData["password"][0]}}.dump());
+    res.headers.setHeaderLower("content-type", "application/json");
+    co_return res;
+  });
+
+  // POST /tests/forms/urlencoded/checkboxes
+  // Accepts URL-encoded form data, returns it as JSON.
+  // Response: { "username": "alice", "password": "secret", "terms": ["1", "2", "3"] }
+  router.post("/tests/forms/urlencoded/checkboxes", [](HttpRequest &request) -> Task<Response> {
+    auto formData = co_await request.getFormData();
+    auto terms = formData["terms"];
+    auto res = HttpResponse(
+        200,
+        json{{"username", formData["username"][0]}, {"password", formData["password"][0]}, {"terms", terms}}.dump());
+    res.headers.setHeaderLower("content-type", "application/json");
+    co_return res;
   });
 }

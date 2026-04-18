@@ -31,6 +31,40 @@ bool HttpRequest::parseRequestHeader(std::string_view headerView) {
   return true;
 }
 
+Task<std::unordered_map<std::string, std::vector<std::string>>> HttpRequest::getFormData() {
+  if (not toLowerCase(getContentType()).starts_with("application/x-www-form-urlencoded"))
+    co_return {};
+  std::unordered_map<std::string, std::vector<std::string>> formData;
+
+  std::string body = co_await consumeBody();
+  std::string_view bodyView = body;
+
+  for (;;) {
+    auto paramDelim = bodyView.find('&');
+    auto pair = paramDelim == std::string_view::npos ? bodyView : bodyView.substr(0, paramDelim);
+
+    if (pair.empty()) {
+      if (paramDelim == std::string_view::npos)
+        break;
+      bodyView.remove_prefix(paramDelim + 1);
+      continue;
+    }
+
+    auto eqpos = pair.find('=');
+    if (eqpos != std::string_view::npos) {
+      formData[percentDecode(pair.substr(0, eqpos))].push_back(percentDecode(pair.substr(eqpos + 1)));
+    } else {
+      formData.try_emplace(percentDecode(pair));
+    }
+
+    if (paramDelim == std::string_view::npos)
+      break;
+
+    bodyView.remove_prefix(paramDelim + 1);
+  }
+  co_return formData;
+}
+
 std::vector<HttpRequest::Range> HttpRequest::getRanges() const {
   auto rangeHeader = getHeaderLower("range");
   if (rangeHeader.empty())
@@ -241,7 +275,7 @@ void HttpRequest::setPathParams(const std::vector<std::pair<std::string, std::st
 
 std::vector<std::pair<std::string, std::string>> HttpRequest::getAllPathParams() const { return pathParams_; }
 
-Task<std::string> HttpRequest::fullBody() {
+Task<std::string> HttpRequest::consumeBody() {
   if (bodyStream_->isExhausted())
     throw BodyExhaustedException("Body stream is exhausted (Do not call fullBody() twice)");
   co_return co_await bodyStream_->readAll();

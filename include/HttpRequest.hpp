@@ -3,6 +3,8 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <string>
+#include <unordered_map>
 
 #include "BodyStream.hpp"
 #include "Session.hpp"
@@ -29,6 +31,8 @@ public:
   HttpRequest();
 
   bool parseRequestHeader(std::string_view headerView);
+
+  Task<std::unordered_map<std::string, std::vector<std::string>>> getFormData();
 
   std::vector<Range> getRanges() const;
 
@@ -78,7 +82,7 @@ public:
 
   std::vector<std::pair<std::string, std::string>> getAllPathParams() const;
 
-  Task<std::string> fullBody();
+  Task<std::string> consumeBody();
   BodyStream *bodyStream();
   void attachBodyStream(std::unique_ptr<BodyStream> bodyStream);
 

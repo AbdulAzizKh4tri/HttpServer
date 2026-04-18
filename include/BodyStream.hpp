@@ -40,6 +40,16 @@ public:
     co_return std::string(reinterpret_cast<char *>(data.data()), data.size());
   }
 
+  template <typename StreamFn> Task<void> streamUsing(StreamFn fn) {
+    for (;;) {
+      std::vector<unsigned char> buf(4096);
+      size_t n = co_await read(buf);
+      if (n == 0)
+        break;
+      fn(std::string_view(reinterpret_cast<char *>(buf.data()), n));
+    }
+  }
+
   Task<void> drain() {
     if (exhausted_)
       co_return;
