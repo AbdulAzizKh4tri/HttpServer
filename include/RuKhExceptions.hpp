@@ -41,3 +41,19 @@ struct RequestSizeLimitExceededException : public ServerException {
 struct BodyExhaustedException : public ServerException {
   using ServerException::ServerException;
 };
+
+struct InvalidContentTypeException : public ServerException {
+  using ServerException::ServerException;
+};
+
+struct MalformedRequestException : public ServerException {
+  using ServerException::ServerException;
+};
+
+struct LengthRequiredException : public ServerException {
+  using ServerException::ServerException;
+};
+
+struct NotImplementedException : public ServerException {
+  using ServerException::ServerException;
+};

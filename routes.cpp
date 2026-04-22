@@ -2,10 +2,13 @@
 
 #include <cstdlib>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
 
 #include "AsyncFileReader.hpp"
+#include "AsyncFileWriter.hpp"
 #include "ErrorFactory.hpp"
 #include "HttpResponse.hpp"
+#include "MultipartParser.hpp"
 #include "ThreadPool.hpp"
 
 using json = nlohmann::json;
@@ -603,6 +606,44 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
   router.post("/tests/forms/json", [](HttpRequest &request) -> Task<Response> {
     auto body = co_await request.jsonBody();
     auto res = HttpResponse(200, json{{"username", body["username"]}, {"password", body["password"]}}.dump());
+    res.headers.setHeaderLower("content-type", "application/json");
+    co_return res;
+  });
+
+  // POST /tests/forms/multipart
+  // Accepts multipart form data, returns it as JSON.
+  // Response: { "username": "alice", "password": "secret" }
+  router.post("/tests/forms/multipart", [](HttpRequest &request) -> Task<Response> {
+    MultipartParser mp(request);
+    std::string username, password;
+    std::vector<std::string> terms;
+    mp.onField("username", [&username](std::string v) -> Task<void> {
+      username = v;
+      co_return;
+    });
+    mp.storeFieldValue("password", password);
+    mp.storeFieldValues("terms", terms);
+
+    std::string file;
+    mp.onFile("file", [&file](std::span<unsigned char> data) -> Task<void> {
+      std::optional<AsyncFileWriter> writerOpt = AsyncFileWriter::open("./public/test.bin");
+      if (not writerOpt)
+        throw std::runtime_error("File issue");
+      auto x = std::string_view(reinterpret_cast<char *>(data.data()), data.size());
+      co_await writerOpt->writeChunk(x);
+      file += x;
+    });
+
+    co_await mp.go();
+
+    std::optional<AsyncFileWriter> writerOpt = AsyncFileWriter::open("./public/test2.bin");
+    if (not writerOpt)
+      throw std::runtime_error("File issue");
+    co_await writerOpt->writeAll(file);
+
+    SPDLOG_DEBUG("FILE SIZE: {}", file.size());
+
+    HttpResponse res(200, json{{"username", username}, {"password", password}, {"terms", terms}}.dump());
     res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
   });

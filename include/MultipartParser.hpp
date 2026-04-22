@@ -1,0 +1,371 @@
+#pragma once
+
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "BodyStream.hpp"
+#include "HttpRequest.hpp"
+#include "RuKhExceptions.hpp"
+#include "ServerConfig.hpp"
+#include "utils.hpp"
+
+class MultipartParser {
+
+  using PartReadResult = std::tuple<size_t /*totalConsumed*/, bool /*end*/>;
+
+  class BufferedReader {
+  public:
+    BufferedReader(BodyStream *bodyStream) : bodyStream_(bodyStream) {}
+
+    Task<std::pair<std::span<unsigned char>, size_t>> read() {
+      auto span = std::span<unsigned char>(buffer_.data() + validBytes_, buffer_.size() - validBytes_);
+      auto n = co_await bodyStream_->read(span);
+      validBytes_ += n;
+      co_return {std::span<unsigned char>(buffer_.data(), validBytes_), n};
+    }
+
+    std::span<unsigned char> consumeBytes(size_t n) {
+      std::memmove(buffer_.data(), buffer_.data() + n, validBytes_ - n);
+      validBytes_ -= n;
+      return std::span<unsigned char>(buffer_.data(), validBytes_);
+    }
+
+  private:
+    std::array<unsigned char, ServerConfig::MULTIPART_BUFFER_SIZE> buffer_;
+    BodyStream *bodyStream_;
+
+    size_t validBytes_ = 0;
+  };
+
+  class PartReader {
+  public:
+    PartReader(std::vector<std::pair<std::string, std::string>> headers, std::string &boundary, BufferedReader &reader,
+               size_t maxSize)
+        : headers_(headers), boundary_(boundary), reader_(reader), maxSize_(maxSize) {}
+
+    Task<PartReadResult> readAndDo(std::move_only_function<Task<void>(std::span<unsigned char>)> doPart) {
+      size_t fullBoundarySize = boundary_.size() + 2;
+      size_t totalConsumed = 0;
+      for (;;) {
+        auto [span, _] = co_await reader_.read();
+        auto [it, end] = findBoundary(span);
+        if (it == span.end()) {
+          totalConsumed += span.size() - fullBoundarySize;
+          if (totalConsumed > maxSize_)
+            throw RequestSizeLimitExceededException("Request size limit exceeded");
+
+          co_await doPart(span.subspan(0, span.size() - fullBoundarySize));
+          reader_.consumeBytes(span.size() - fullBoundarySize);
+
+        } else {
+          size_t endOfPart = it - span.begin();
+          size_t endOfBoundary;
+          endOfBoundary = endOfPart + fullBoundarySize;
+          totalConsumed += endOfBoundary;
+          if (totalConsumed > maxSize_)
+            throw RequestSizeLimitExceededException("Request size limit exceeded");
+
+          co_await doPart(span.subspan(0, endOfPart));
+          reader_.consumeBytes(endOfBoundary);
+          co_return {totalConsumed, end};
+        }
+      }
+    }
+
+    Task<PartReadResult> drainTillBoundary() {
+      size_t fullBoundarySize = boundary_.size() + 2;
+      size_t totalConsumed = 0;
+      for (;;) {
+        auto [span, n] = co_await reader_.read();
+        auto [it, end] = findBoundary(span);
+        if (it == span.end()) {
+          reader_.consumeBytes(span.size() - fullBoundarySize);
+          totalConsumed += span.size() - fullBoundarySize;
+          if (totalConsumed > maxSize_)
+            throw RequestSizeLimitExceededException("Request size limit exceeded");
+        } else {
+          size_t endOfPart = it - span.begin();
+          size_t endOfBoundary;
+          endOfBoundary = endOfPart + fullBoundarySize;
+          totalConsumed += endOfBoundary;
+          if (totalConsumed > maxSize_)
+            throw RequestSizeLimitExceededException("Request size limit exceeded");
+          reader_.consumeBytes(endOfBoundary);
+          co_return {totalConsumed, end};
+        }
+      }
+    }
+
+  private:
+    std::vector<std::pair<std::string, std::string>> headers_;
+    std::string &boundary_;
+    BufferedReader &reader_;
+    size_t maxSize_;
+
+    std::pair<std::span<unsigned char>::iterator, bool> findBoundary(std::span<unsigned char> &span) {
+
+      auto it = std::search(span.begin(), span.end(), boundary_.begin(), boundary_.end());
+      if (it == span.end())
+        return {span.end(), false};
+
+      auto boundaryEnd = it + boundary_.size();
+      if (boundaryEnd == span.end())
+        return {span.end(), false};
+      if (*(boundaryEnd) == '-' and *(boundaryEnd + 1) == '-') {
+        return std::make_pair(it, true);
+      } else if (*(boundaryEnd) == '\r' and *(boundaryEnd + 1) == '\n') {
+        return std::make_pair(it, false);
+      } else {
+        return {span.end(), false};
+      }
+    }
+  };
+
+public:
+  MultipartParser(HttpRequest &request) : reader_(request.bodyStream()) {
+    auto contentLengthResult = request.getContentLength();
+    if (not contentLengthResult) {
+      if (contentLengthResult.error() == ContentLengthError::CONTENT_LENGTH_TOO_LARGE) {
+        throw ContentLimitExceededException("Content limit exceeded");
+      } else if (contentLengthResult.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
+        throw MalformedRequestException("Invalid content length");
+      } else if (contentLengthResult.error() == ContentLengthError::NO_CONTENT_LENGTH_HEADER) {
+        if (toLowerCase(request.getHeaderLower("transfer-encoding")).find("chunked") == std::string::npos) {
+          throw LengthRequiredException("Content length or TE chunked required");
+        }
+      }
+    }
+
+    if (contentLengthResult)
+      contentLength_ = *contentLengthResult;
+    else
+      contentLength_ = ServerConfig::MAX_MULTIPART_TE_LENGTH;
+
+    auto contentType = request.getHeaderLower("content-type");
+    if (not contentType.starts_with("multipart/form-data"))
+      throw InvalidContentTypeException("Request is not multipart/form-data");
+
+    boundary_ = std::string("\r\n") + "--" + std::string(contentType.substr(contentType.find("boundary=") + 9));
+
+    if (boundary_.empty())
+      throw InvalidContentTypeException("Boundary for multipart not found");
+    else if (boundary_.size() > ServerConfig::MAX_MULTIPART_BOUNDARY_LENGTH)
+      throw InvalidContentTypeException("Boundary for multipart is too long");
+  }
+
+  void storeFieldValue(const std::string &name, std::string &value) { // wrapper method
+    onField(name, [&value](std::string v) -> Task<void> {
+      value = v;
+      co_return;
+    });
+  }
+
+  void storeFieldValues(const std::string &name, std::vector<std::string> &values) { // wrapper method
+    onMultiField(name, [&values](std::vector<std::string> v) -> Task<void> {
+      for (auto value : v)
+        values.push_back(value);
+      co_return;
+    });
+  }
+
+  void onMultiField(const std::string &name, std::move_only_function<Task<void>(std::vector<std::string>)> handler) {
+    MultiFieldHandlers_.emplace_back(name, std::move(handler));
+  }
+
+  void onField(const std::string &name, std::move_only_function<Task<void>(std::string)> handler) {
+    fieldHandlers_.emplace_back(name, std::move(handler));
+  }
+
+  void onFile(const std::string &name, std::move_only_function<Task<void>(std::span<unsigned char>)> handler) {
+    fileHandlers_.emplace_back(name, std::move(handler));
+  }
+
+  Task<void> go() {
+    size_t fullBoundarySize = boundary_.size() + 2;
+    size_t firstBoundarySize = boundary_.size();
+    std::span<unsigned char> span;
+
+    while (span.size() < firstBoundarySize) {
+      auto [newSpan, n] = co_await reader_.read();
+      span = newSpan;
+    }
+
+    if (span[firstBoundarySize - 1] != '\n' or span[firstBoundarySize - 2] != '\r')
+      throw MalformedRequestException("Malformed multipart request: no initial boundary found");
+
+    bool found =
+        std::memcmp(span.data(), reinterpret_cast<unsigned char *>(boundary_.data() + 2), firstBoundarySize - 2) == 0;
+
+    if (not found)
+      throw MalformedRequestException("Malformed multipart request: no initial boundary found");
+
+    reader_.consumeBytes(firstBoundarySize);
+    contentConsumed_ += firstBoundarySize;
+
+    std::vector<std::pair<std::string, std::string>> headersVec;
+    std::unordered_map<std::string, std::vector<std::string>> multiFieldValues;
+
+    while (contentConsumed_ < contentLength_) {
+      SPDLOG_DEBUG("{} : {}", contentConsumed_, contentLength_);
+      auto [span, n] = co_await reader_.read();
+
+      auto headerEndIt = std::search(span.begin(), span.end(), crlf2.begin(), crlf2.end());
+      while (headerEndIt == span.end()) {
+        auto [span, n] = co_await reader_.read();
+        if (n == 0)
+          throw MalformedRequestException("Malformed multipart request: Part headers not found or too large");
+        auto headerEndIt = std::search(span.begin(), span.end(), crlf2.begin(), crlf2.end());
+      }
+
+      std::string headers = std::string(span.begin(), headerEndIt + 4);
+      reader_.consumeBytes(headers.size());
+      contentConsumed_ += headers.size();
+
+      if (headers.empty())
+        throw MalformedRequestException("Malformed multipart request");
+
+      std::string_view headerView = headers;
+
+      while (not headerView.empty()) {
+        auto crlfIt = headerView.find("\r\n");
+        std::string_view header = headerView.substr(0, crlfIt);
+        headerView.remove_prefix(crlfIt + 2);
+        if (header.empty())
+          continue;
+
+        auto colonIt = header.find(':');
+        if (colonIt == std::string_view::npos)
+          throw MalformedRequestException("Malformed part header");
+
+        std::string name = toLowerCase(header.substr(0, colonIt));
+        std::string_view value = header.substr(colonIt + 1);
+        trim(name);
+        trim(value);
+
+        if (name.empty() || value.empty())
+          throw MalformedRequestException("Malformed part header");
+
+        headersVec.emplace_back(name, value);
+      }
+
+      auto cdHeaderIt =
+          std::find_if(headersVec.begin(), headersVec.end(),
+                       [](const std::pair<std::string, std::string> &h) { return h.first == "content-disposition"; });
+
+      if (cdHeaderIt == headersVec.end())
+        throw MalformedRequestException("Malformed part header: No Content-Disposition");
+
+      std::string_view name = cdHeaderIt->first;
+      std::string_view value = cdHeaderIt->second;
+
+      bool formData = false;
+      std::string partName;
+      bool isFile = false;
+
+      while (not value.empty()) {
+        auto semicolonIt = value.find(';');
+        std::string_view part;
+        if (semicolonIt == std::string_view::npos) {
+          part = value;
+          value.remove_prefix(value.size());
+        } else {
+          part = value.substr(0, semicolonIt);
+          value.remove_prefix(semicolonIt + 1);
+        }
+
+        trim(part);
+        if (part == "form-data")
+          formData = true;
+        else if (auto equalsIt = part.find('='); equalsIt != std::string_view::npos) {
+          std::string_view paramName = part.substr(0, equalsIt);
+          std::string_view paramValue = part.substr(equalsIt + 1);
+          trim(paramName);
+          trim(paramValue);
+
+          if (paramName == "name") {
+            partName = paramValue.substr(1, paramValue.size() - 2);
+          } else if (paramName == "filename") {
+            isFile = true;
+          }
+        }
+      }
+
+      if (not formData)
+        throw NotImplementedException("Content-Disposition must be form-data");
+      if (partName.empty())
+        throw MalformedRequestException("Multipart: No part name provided");
+
+      size_t maxSize = isFile ? ServerConfig::MAX_MULTIPART_FILE_SIZE : ServerConfig::MAX_MULTIPART_FIELD_SIZE;
+
+      PartReader partReader(std::move(headersVec), boundary_, reader_, maxSize);
+      headersVec.clear();
+
+      if (isFile) {
+        auto handlerIt = std::find_if(fileHandlers_.begin(), fileHandlers_.end(),
+                                      [&partName](const auto &p) { return p.first == partName; });
+        if (handlerIt != fileHandlers_.end()) {
+          auto [totalConsumed, end] = co_await partReader.readAndDo(std::move(handlerIt->second));
+          contentConsumed_ += totalConsumed;
+          if (end)
+            break;
+        } else {
+          SPDLOG_WARN("Multipart: File '{}' not handled", partName);
+          auto [totalConsumed, end] = co_await partReader.drainTillBoundary();
+          if (end)
+            break;
+          contentConsumed_ += totalConsumed;
+        }
+      } else {
+        std::string value;
+        auto valueReader = [&value](std::span<unsigned char> span) -> Task<void> {
+          value += std::string(span.begin(), span.end());
+          co_return;
+        };
+
+        auto [totalConsumed, end] = co_await partReader.readAndDo(std::move(valueReader));
+        contentConsumed_ += totalConsumed;
+
+        auto handlerIt = std::find_if(fieldHandlers_.begin(), fieldHandlers_.end(),
+                                      [&partName](const auto &p) { return p.first == partName; });
+        auto multiHandlerIt = std::find_if(MultiFieldHandlers_.begin(), MultiFieldHandlers_.end(),
+                                           [&partName](const auto &p) { return p.first == partName; });
+
+        if (handlerIt == fieldHandlers_.end() && multiHandlerIt == MultiFieldHandlers_.end())
+          SPDLOG_WARN("Multipart: Field '{}' not handled", partName);
+
+        if (handlerIt != fieldHandlers_.end()) {
+          co_await handlerIt->second(std::move(value));
+        } else if (multiHandlerIt != MultiFieldHandlers_.end()) {
+          multiFieldValues[partName].push_back(std::move(value));
+        }
+
+        if (end)
+          break;
+      }
+    }
+    if (contentConsumed_ > contentLength_)
+      throw RequestSizeLimitExceededException("Request size limit exceeded");
+
+    for (auto &[key, val] : multiFieldValues) {
+      auto handlerIt = std::find_if(MultiFieldHandlers_.begin(), MultiFieldHandlers_.end(),
+                                    [&key](const auto &p) { return p.first == key; });
+      if (handlerIt != MultiFieldHandlers_.end())
+        co_await handlerIt->second(val);
+      else
+        SPDLOG_WARN("Multipart: MultiField '{}' not handled", key);
+    }
+  }
+
+private:
+  size_t contentLength_;
+  size_t contentConsumed_ = 0;
+  BufferedReader reader_;
+  std::string boundary_;
+
+  std::vector<std::pair<std::string, std::move_only_function<Task<void>(std::string)>>> fieldHandlers_;
+  std::vector<std::pair<std::string, std::move_only_function<Task<void>(std::vector<std::string>)>>>
+      MultiFieldHandlers_;
+  std::vector<std::pair<std::string, std::move_only_function<Task<void>(std::span<unsigned char>)>>> fileHandlers_;
+};

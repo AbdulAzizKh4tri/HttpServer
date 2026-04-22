@@ -144,16 +144,18 @@ public:
       if (not expect.empty()) {
         if (expect == "100-continue") {
           auto res = request_.getContentLength();
-          if (res.error() == ContentLengthError::CONTENT_LENGTH_TOO_LARGE) {
-            co_await sendErrorResponseAndClose(413);
-            co_return;
-          } else if (res.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
-            co_await sendErrorResponseAndClose(400, "Invalid content-length header");
-            co_return;
-          } else if (res.error() == ContentLengthError::NO_CONTENT_LENGTH_HEADER) {
-            if (toLowerCase(request_.getHeaderLower("transfer-encoding")).find("chunked") == std::string::npos) {
-              co_await sendErrorResponseAndClose(400, "Missing content-length header");
+          if (not res) {
+            if (res.error() == ContentLengthError::CONTENT_LENGTH_TOO_LARGE) {
+              co_await sendErrorResponseAndClose(413);
               co_return;
+            } else if (res.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
+              co_await sendErrorResponseAndClose(400, "Invalid content-length header");
+              co_return;
+            } else if (res.error() == ContentLengthError::NO_CONTENT_LENGTH_HEADER) {
+              if (toLowerCase(request_.getHeaderLower("transfer-encoding")).find("chunked") == std::string::npos) {
+                co_await sendErrorResponseAndClose(400, "Missing content-length header");
+                co_return;
+              }
             }
           }
 
@@ -195,41 +197,47 @@ public:
         }
 
         if (transferEncodingHeader != "") {
-          if (icontains(transferEncodingHeader, "chunked") == std::string::npos) {
+          if (not icontains(transferEncodingHeader, "chunked")) {
             SPDLOG_ERROR("Transfer-Encoding header not supported: {}", transferEncodingHeader);
             co_await sendErrorResponseAndClose(501);
             co_return;
           }
 
-          auto chunkReadFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
-            auto chunkResult = co_await chunkDecoder_.getNextChunk(io_);
-            if (not chunkResult) {
-              switch (chunkResult.error()) {
+          BodyReadFn chunkReadFn = [this](std::span<unsigned char> buf, size_t /*unused*/) mutable -> Task<size_t> {
+            auto result = co_await chunkDecoder_.readSome(io_, buf, activeDeadline());
+            if (!result) {
+              switch (result.error()) {
               case ChunkError::MALFORMED:
-                throw MalformedChunkException("Malformed chunk");
+                throw MalformedRequestException("Malformed chunk encoding");
               case ChunkError::CHUNK_TOO_LARGE:
                 throw ChunkTooLargeException("Chunk too large");
               case ChunkError::REQUEST_SIZE_LIMIT_EXCEEDED:
-                throw RequestSizeLimitExceededException("Request size limit exceeded");
+                throw RequestSizeLimitExceededException("Request body size limit exceeded");
               }
             }
-            buf.insert(buf.end(), chunkResult.value().begin(), chunkResult.value().end());
-            co_return chunkResult.value().size();
+            if (*result > 0)
+              resetInactivity();
+            co_return *result;
           };
 
-          BodyDrainFn chunkDrainFn = [this](size_t remaining) mutable -> Task<void> {
-            while (not chunkDecoder_.isDone()) {
-              auto chunkResult = co_await chunkDecoder_.getNextChunk(io_);
-              if (not chunkResult) {
-                switch (chunkResult.error()) {
+          BodyDrainFn chunkDrainFn = [this](size_t /*unused*/) mutable -> Task<void> {
+            std::array<unsigned char, 4096> scratch;
+            std::span<unsigned char> buf{scratch};
+            while (true) {
+              auto result = co_await chunkDecoder_.readSome(io_, buf, activeDeadline());
+              if (!result) {
+                switch (result.error()) {
                 case ChunkError::MALFORMED:
-                  throw MalformedChunkException("Malformed chunk");
+                  throw MalformedRequestException("Malformed chunk encoding");
                 case ChunkError::CHUNK_TOO_LARGE:
                   throw ChunkTooLargeException("Chunk too large");
                 case ChunkError::REQUEST_SIZE_LIMIT_EXCEEDED:
-                  throw RequestSizeLimitExceededException("Request size limit exceeded");
+                  throw RequestSizeLimitExceededException("Request body size limit exceeded");
                 }
               }
+              if (*result == 0)
+                co_return;
+              resetInactivity();
             }
           };
 
@@ -251,9 +259,15 @@ public:
           }
           size_t contentLength = contentLengthResult.value();
 
-          BodyReadFn readFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
+          BodyReadFn readFn = [this](std::span<unsigned char> buf, size_t remaining) mutable -> Task<size_t> {
+            if (io_.getReadBufferSize() >= buf.size()) {
+              std::memcpy(buf.data(), io_.readBufferData(), buf.size());
+              io_.eraseFromReadBuffer(buf.size());
+              co_return buf.size();
+            }
+
             if (io_.getReadBufferSize() >= remaining) {
-              buf.insert(buf.end(), io_.readBufferData(), io_.readBufferData() + remaining);
+              std::memcpy(buf.data(), io_.readBufferData(), remaining);
               io_.eraseFromReadBuffer(remaining);
               co_return remaining;
             }
@@ -268,8 +282,9 @@ public:
             } else if (readResult == ReadResult::TIMED_OUT) {
               throw ReadTimeOutException("Read timed out");
             }
-            size_t n = std::min(io_.getReadBufferSize(), remaining);
-            buf.insert(buf.end(), io_.readBufferData(), io_.readBufferData() + n);
+
+            size_t n = std::min(io_.getReadBufferSize(), std::min(buf.size(), remaining));
+            std::memcpy(buf.data(), io_.readBufferData(), n);
             io_.eraseFromReadBuffer(n);
             co_return n;
           };
@@ -294,11 +309,10 @@ public:
           request_.attachBodyStream(std::make_unique<BodyStream>(contentLength, std::move(readFn), std::move(drainFn)));
         } else {
 
-          BodyReadFn readFn = [this](std::vector<unsigned char> &buf, size_t remaining) mutable -> Task<size_t> {
-            co_return 0;
-          };
+          BodyReadFn readFn = [this](std::span<unsigned char> /* unused */,
+                                     size_t /* unused */) mutable -> Task<size_t> { co_return 0; };
 
-          BodyDrainFn drainFn = [this](size_t remaining) mutable -> Task<void> { co_return; };
+          BodyDrainFn drainFn = [this](size_t /* unused */) mutable -> Task<void> { co_return; };
           request_.attachBodyStream(std::make_unique<BodyStream>(0, std::move(readFn), std::move(drainFn)));
         }
       }

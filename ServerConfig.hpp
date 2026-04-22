@@ -18,6 +18,15 @@ static constexpr size_t MAX_WRITE_BUFFER_BYTES = 10 * 1024 * 1024;
 static constexpr size_t MAX_TE_CHUNK_LENGTH = 1 * 1024 * 1024;
 static constexpr size_t MAX_TE_LENGTH = 10 * 1024 * 1024;
 
+// ── Multipart ────────────────────────────────────────────────
+static constexpr size_t MULTIPART_BUFFER_SIZE = 1024;
+static constexpr size_t MAX_MULTIPART_CONTENT_LENGTH = 50 * 1024 * 1024;
+static constexpr size_t MAX_MULTIPART_TE_LENGTH = 50 * 1024 * 1024;
+static constexpr size_t MAX_MULTIPART_FIELD_SIZE = 64 * 1024;
+static constexpr size_t MAX_MULTIPART_FILE_SIZE = 20 * 1024 * 1024;
+static constexpr size_t MAX_MULTIPART_PARTS = 256;
+static constexpr size_t MAX_MULTIPART_BOUNDARY_LENGTH = 64;
+
 // ── Static File Serving ───────────────────────────────────
 static constexpr size_t STATIC_STREAM_THRESHOLD_BYTES = 1 * 1024;
 static constexpr size_t STATIC_STREAM_CHUNK_SIZE = 4096;

@@ -284,7 +284,9 @@ std::vector<std::pair<std::string, std::string>> HttpRequest::getAllPathParams()
 Task<std::string> HttpRequest::consumeBody() {
   if (bodyStream_->isExhausted())
     throw BodyExhaustedException("Body stream is exhausted (Do not call fullBody() twice)");
-  co_return co_await bodyStream_->readAll();
+  std::string body;
+  co_await bodyStream_->readAll(body);
+  co_return body;
 }
 
 BodyStream *HttpRequest::bodyStream() { return bodyStream_.get(); }
