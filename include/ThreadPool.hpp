@@ -29,7 +29,7 @@ public:
     {
       std::unique_lock<std::mutex> lock(mutex_);
       if (taskQueue_.size() >= maxQueueSize_)
-        throw ThreadPoolFullException("Thread pool queue is full");
+        throw ServerException("Thread pool queue is full", 500);
       taskQueue_.push(task);
     }
     cv_.notify_one();
@@ -60,7 +60,7 @@ public:
 
     try {
       enqueue(task.get());
-    } catch (ThreadPoolFullException &e) {
+    } catch (ServerException &e) {
       SPDLOG_ERROR(e.what());
     }
   }

@@ -4,56 +4,23 @@
 
 struct ServerException : public std::runtime_error {
   using std::runtime_error::runtime_error;
+  int status_code;
+  bool fatal;
+
+  explicit ServerException(const std::string &msg, int code = 500, bool fatal = true)
+      : std::runtime_error(msg), status_code(code), fatal(fatal) {}
 };
 
-struct ThreadPoolFullException : public ServerException {
-  using ServerException::ServerException;
+struct HandlerException : public std::runtime_error {
+  using std::runtime_error::runtime_error;
+  int status_code;
+  bool fatal;
+
+  explicit HandlerException(const std::string &msg, int code = 500, bool fatal = false)
+      : std::runtime_error(msg), status_code(code), fatal(fatal) {}
 };
 
-struct ContentLimitExceededException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct BufferLimitExceededException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct ConnectionClosedException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct ReadTimeOutException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct MalformedChunkException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct ChunkTooLargeException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct RequestSizeLimitExceededException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct BodyExhaustedException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct InvalidContentTypeException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct MalformedRequestException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct LengthRequiredException : public ServerException {
-  using ServerException::ServerException;
-};
-
-struct NotImplementedException : public ServerException {
-  using ServerException::ServerException;
+struct ConnectionException : public std::runtime_error {
+  using std::runtime_error::runtime_error;
+  explicit ConnectionException(const std::string &msg) : std::runtime_error(msg) {}
 };

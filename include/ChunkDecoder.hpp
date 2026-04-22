@@ -130,11 +130,11 @@ private:
 
   static void handleIO(ReadResult r) {
     if (r == ReadResult::BUFFER_LIMIT_EXCEEDED)
-      throw BufferLimitExceededException("Buffer limit exceeded");
+      throw ServerException("Buffer limit exceeded", 500);
     if (r == ReadResult::CLOSED || r == ReadResult::ERROR)
-      throw ConnectionClosedException("Connection closed");
+      throw ConnectionException("Connection closed");
     if (r == ReadResult::TIMED_OUT)
-      throw ReadTimeOutException("Read timed out");
+      throw ConnectionException("Read timed out");
   }
 
   State state_ = State::CHUNK_SIZE;

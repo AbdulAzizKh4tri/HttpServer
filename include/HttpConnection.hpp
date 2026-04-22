@@ -16,6 +16,7 @@
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "HttpStreamResponse.hpp"
+#include "HttpTypes.hpp"
 #include "Router.hpp"
 #include "RuKhExceptions.hpp"
 #include "ServerConfig.hpp"
@@ -145,10 +146,7 @@ public:
         if (expect == "100-continue") {
           auto res = request_.getContentLength();
           if (not res) {
-            if (res.error() == ContentLengthError::CONTENT_LENGTH_TOO_LARGE) {
-              co_await sendErrorResponseAndClose(413);
-              co_return;
-            } else if (res.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
+            if (res.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
               co_await sendErrorResponseAndClose(400, "Invalid content-length header");
               co_return;
             } else if (res.error() == ContentLengthError::NO_CONTENT_LENGTH_HEADER) {
@@ -157,6 +155,11 @@ public:
                 co_return;
               }
             }
+          }
+
+          if (res.value() > ServerConfig::MAX_CONTENT_LENGTH) {
+            co_await sendErrorResponseAndClose(413);
+            co_return;
           }
 
           RouterResponse result = router_.validate(request_);
@@ -208,11 +211,11 @@ public:
             if (!result) {
               switch (result.error()) {
               case ChunkError::MALFORMED:
-                throw MalformedRequestException("Malformed chunk encoding");
+                throw ServerException("Malformed chunk encoding", 400);
               case ChunkError::CHUNK_TOO_LARGE:
-                throw ChunkTooLargeException("Chunk too large");
+                throw ServerException("Chunk too large", 413);
               case ChunkError::REQUEST_SIZE_LIMIT_EXCEEDED:
-                throw RequestSizeLimitExceededException("Request body size limit exceeded");
+                throw ServerException("Request body size limit exceeded", 413);
               }
             }
             if (*result > 0)
@@ -228,11 +231,11 @@ public:
               if (!result) {
                 switch (result.error()) {
                 case ChunkError::MALFORMED:
-                  throw MalformedRequestException("Malformed chunk encoding");
+                  throw ServerException("Malformed chunk encoding", 400);
                 case ChunkError::CHUNK_TOO_LARGE:
-                  throw ChunkTooLargeException("Chunk too large");
+                  throw ServerException("Chunk too large", 413);
                 case ChunkError::REQUEST_SIZE_LIMIT_EXCEEDED:
-                  throw RequestSizeLimitExceededException("Request body size limit exceeded");
+                  throw ServerException("Request body size limit exceeded", 413);
                 }
               }
               if (*result == 0)
@@ -252,12 +255,13 @@ public:
             case ContentLengthError::INVALID_CONTENT_LENGTH:
               co_await sendErrorResponseAndClose(400, "Invalid Content-Length header");
               co_return;
-            case ContentLengthError::CONTENT_LENGTH_TOO_LARGE:
-              co_await sendErrorResponseAndClose(413);
-              co_return;
             }
           }
           size_t contentLength = contentLengthResult.value();
+          if (contentLength > ServerConfig::MAX_CONTENT_LENGTH) {
+            co_await sendErrorResponseAndClose(413);
+            co_return;
+          }
 
           BodyReadFn readFn = [this](std::span<unsigned char> buf, size_t remaining) mutable -> Task<size_t> {
             if (io_.getReadBufferSize() >= buf.size()) {
@@ -276,11 +280,11 @@ public:
             if (readResult == ReadResult::DATA) {
               resetInactivity();
             } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
-              throw BufferLimitExceededException("Buffer limit exceeded");
+              throw ServerException("Buffer limit exceeded", 500);
             } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
-              throw ConnectionClosedException("Connection closed");
+              throw ConnectionException("Connection closed");
             } else if (readResult == ReadResult::TIMED_OUT) {
-              throw ReadTimeOutException("Read timed out");
+              throw ConnectionException("Read timed out");
             }
 
             size_t n = std::min(io_.getReadBufferSize(), std::min(buf.size(), remaining));
@@ -296,11 +300,11 @@ public:
               if (readResult == ReadResult::DATA) {
                 resetInactivity();
               } else if (readResult == ReadResult::BUFFER_LIMIT_EXCEEDED) {
-                throw BufferLimitExceededException("Buffer limit exceeded");
+                throw ServerException("Buffer limit exceeded", 500);
               } else if (readResult == ReadResult::CLOSED || readResult == ReadResult::ERROR) {
-                throw ConnectionClosedException("Connection closed");
+                throw ConnectionException("Connection closed");
               } else if (readResult == ReadResult::TIMED_OUT) {
-                throw ReadTimeOutException("Read timed out");
+                throw ConnectionException("Read timed out");
               }
             }
             io_.eraseFromReadBuffer(remaining);
@@ -322,19 +326,16 @@ public:
 
       try {
         response = co_await router_.dispatch(request_);
-      } catch (ThreadPoolFullException &e) {
-        SPDLOG_ERROR("Thread Pool Full!\n {}", e.what());
-        response = buildErrorResponse(503, e.what());
-        keepAlive_ = false;
       } catch (ServerException &e) {
         SPDLOG_ERROR("Server threw exception: {}", e.what());
-        response = buildErrorResponse(500, e.what());
-        keepAlive_ = false;
-      } catch (const std::exception &e) {
+        response = buildErrorResponse(e.status_code, e.what());
+        keepAlive_ = not e.fatal;
+      } catch (HandlerException &e) {
         SPDLOG_ERROR("Handler threw exception: {}", e.what());
-        response = buildErrorResponse(500, e.what());
-        keepAlive_ = false;
+        response = buildErrorResponse(e.status_code, e.what());
+        keepAlive_ = not e.fatal;
       } catch (...) {
+        SPDLOG_ERROR("Unknown Exception");
         response = buildErrorResponse(500);
         keepAlive_ = false;
       }

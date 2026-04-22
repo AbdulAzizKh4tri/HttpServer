@@ -624,24 +624,14 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
     mp.storeFieldValue("password", password);
     mp.storeFieldValues("terms", terms);
 
-    std::string file;
-    mp.onFile("file", [&file](std::span<unsigned char> data) -> Task<void> {
-      std::optional<AsyncFileWriter> writerOpt = AsyncFileWriter::open("./public/test.bin");
-      if (not writerOpt)
-        throw std::runtime_error("File issue");
-      auto x = std::string_view(reinterpret_cast<char *>(data.data()), data.size());
-      co_await writerOpt->writeChunk(x);
-      file += x;
+    std::optional<AsyncFileWriter> writerOpt = AsyncFileWriter::open("./public/test.bin");
+    if (not writerOpt)
+      throw std::runtime_error("File issue");
+    mp.onFile("file", [&writerOpt](std::span<unsigned char> data) -> Task<void> {
+      co_await writerOpt->writeChunk(std::string_view(reinterpret_cast<char *>(data.data()), data.size()));
     });
 
     co_await mp.go();
-
-    std::optional<AsyncFileWriter> writerOpt = AsyncFileWriter::open("./public/test2.bin");
-    if (not writerOpt)
-      throw std::runtime_error("File issue");
-    co_await writerOpt->writeAll(file);
-
-    SPDLOG_DEBUG("FILE SIZE: {}", file.size());
 
     HttpResponse res(200, json{{"username", username}, {"password", password}, {"terms", terms}}.dump());
     res.headers.setHeaderLower("content-type", "application/json");

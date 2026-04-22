@@ -39,7 +39,7 @@ public:
     }
 
     if (n > 0)
-      throw ContentLimitExceededException("Content limit exceeded");
+      throw ServerException("Content limit exceeded", 413, true);
 
     co_return std::string(reinterpret_cast<char *>(data.data()), data.size());
   }

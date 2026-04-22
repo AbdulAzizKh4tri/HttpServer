@@ -15,7 +15,6 @@ struct SessionHandle;
 enum class ContentLengthError {
   NO_CONTENT_LENGTH_HEADER,
   INVALID_CONTENT_LENGTH,
-  CONTENT_LENGTH_TOO_LARGE,
 };
 
 class HttpRequest {

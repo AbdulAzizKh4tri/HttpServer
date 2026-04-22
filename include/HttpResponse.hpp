@@ -67,8 +67,12 @@ public:
       return "HTTP/1.1 405 Method Not Allowed\r\n";
     case 408:
       return "HTTP/1.1 408 Request Timeout\r\n";
+    case 411:
+      return "HTTP/1.1 411 Length Required";
     case 413:
       return "HTTP/1.1 413 Content Too Large\r\n";
+    case 415:
+      return "HTTP/1.1 415 Unsupported Media Type";
     case 416:
       return "HTTP/1.1 416 Range Not Satisfiable\r\n";
     case 417:

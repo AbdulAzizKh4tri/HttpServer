@@ -6,7 +6,7 @@
 #include <string_view>
 
 #include "BodyStream.hpp"
-#include "ServerConfig.hpp"
+#include "RuKhExceptions.hpp"
 #include "SessionHandle.hpp"
 #include "utils.hpp"
 
@@ -167,9 +167,6 @@ std::expected<size_t, ContentLengthError> HttpRequest::getContentLength() {
   if (ec != std::errc{})
     return std::unexpected(ContentLengthError::INVALID_CONTENT_LENGTH);
 
-  if (len > ServerConfig::MAX_CONTENT_LENGTH)
-    return std::unexpected(ContentLengthError::CONTENT_LENGTH_TOO_LARGE);
-
   contentLength_ = len;
   return len;
 }
@@ -283,7 +280,7 @@ std::vector<std::pair<std::string, std::string>> HttpRequest::getAllPathParams()
 
 Task<std::string> HttpRequest::consumeBody() {
   if (bodyStream_->isExhausted())
-    throw BodyExhaustedException("Body stream is exhausted (Do not call fullBody() twice)");
+    throw HandlerException("Body stream is exhausted (Do not call fullBody() twice)", 500, true);
   std::string body;
   co_await bodyStream_->readAll(body);
   co_return body;
