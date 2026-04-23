@@ -13,7 +13,7 @@ public:
   BodyStream(size_t contentLength, BodyReadFn readFn, BodyDrainFn drainFn)
       : remaining_(contentLength), readFn_(std::move(readFn)), drainFn_(std::move(drainFn)) {}
 
-  Task<size_t> read(std::span<unsigned char> &buf) {
+  Task<size_t> read(std::span<unsigned char> buf) {
     if (exhausted_)
       co_return 0;
     size_t n = co_await readFn_(buf, remaining_);
@@ -24,6 +24,9 @@ public:
   }
 
   Task<std::string> readAll(std::string &data, size_t limit = ServerConfig::MAX_CONTENT_LENGTH) {
+    if (exhausted_)
+      co_return "";
+
     size_t bufferSize = 4096;
     if (remaining_ > 0)
       data.reserve(remaining_);
@@ -31,17 +34,19 @@ public:
       data.reserve(bufferSize);
 
     size_t n = 0;
+    unsigned char scratch[4096];
     while (data.size() <= limit) {
-      auto span = std::span<unsigned char>(reinterpret_cast<unsigned char *>(data.data() + data.size()), bufferSize);
+      auto span = std::span<unsigned char>(scratch, sizeof(scratch));
       n = co_await read(span);
       if (n == 0)
         break;
+      data.append(reinterpret_cast<char *>(scratch), n);
     }
 
     if (n > 0)
       throw ServerException("Content limit exceeded", 413, true);
 
-    co_return std::string(reinterpret_cast<char *>(data.data()), data.size());
+    co_return data;
   }
 
   Task<void> streamUsing(StreamFn fn) {
@@ -51,7 +56,7 @@ public:
       size_t n = co_await read(span);
       if (n == 0)
         break;
-      fn(span.subspan(0, n));
+      co_await fn(span.subspan(0, n));
     }
   }
 
