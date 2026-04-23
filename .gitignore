@@ -1,5 +1,8 @@
 build/
 cmake-source-cache/
+external/
+.vscode/
+.github/
 .cache/
 *.key
 *.pem

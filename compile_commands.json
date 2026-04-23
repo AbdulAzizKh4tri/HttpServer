@@ -1,128 +1,140 @@
 [
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -x c++-header -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/cmake_pch.hxx.gch -c /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
-  "file": "/home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx.cxx",
-  "output": "CMakeFiles/server.dir/cmake_pch.hxx.gch"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -x c++-header -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/cmake_pch.hxx.gch -c /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx.cxx",
+  "file": "/home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx.cxx",
+  "output": "rukh/CMakeFiles/rukh.dir/cmake_pch.hxx.gch"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/server.cpp.o -c /home/pair/stuff/HttpServer/server.cpp",
-  "file": "/home/pair/stuff/HttpServer/server.cpp",
-  "output": "CMakeFiles/server.dir/server.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/CacheControlMiddleware.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/CacheControlMiddleware.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/CacheControlMiddleware.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/CacheControlMiddleware.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/routes.cpp.o -c /home/pair/stuff/HttpServer/routes.cpp",
-  "file": "/home/pair/stuff/HttpServer/routes.cpp",
-  "output": "CMakeFiles/server.dir/routes.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/CompressionMiddleware.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/CompressionMiddleware.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/CompressionMiddleware.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/CompressionMiddleware.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/CacheControlMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/CacheControlMiddleware.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/CacheControlMiddleware.cpp",
-  "output": "CMakeFiles/server.dir/src/CacheControlMiddleware.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/CorsMiddleware.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/CorsMiddleware.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/CorsMiddleware.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/CorsMiddleware.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/CompressionMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/CompressionMiddleware.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/CompressionMiddleware.cpp",
-  "output": "CMakeFiles/server.dir/src/CompressionMiddleware.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/EpollInstance.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/EpollInstance.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/EpollInstance.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/EpollInstance.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/CorsMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/CorsMiddleware.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/CorsMiddleware.cpp",
-  "output": "CMakeFiles/server.dir/src/CorsMiddleware.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/ErrorFactory.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/ErrorFactory.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/ErrorFactory.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/ErrorFactory.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/EpollInstance.cpp.o -c /home/pair/stuff/HttpServer/src/EpollInstance.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/EpollInstance.cpp",
-  "output": "CMakeFiles/server.dir/src/EpollInstance.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/Executor.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/Executor.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/Executor.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/Executor.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ErrorFactory.cpp.o -c /home/pair/stuff/HttpServer/src/ErrorFactory.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/ErrorFactory.cpp",
-  "output": "CMakeFiles/server.dir/src/ErrorFactory.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/HttpRequest.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/HttpRequest.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/HttpRequest.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/HttpRequest.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Executor.cpp.o -c /home/pair/stuff/HttpServer/src/Executor.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/Executor.cpp",
-  "output": "CMakeFiles/server.dir/src/Executor.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/HttpResponse.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/HttpResponse.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/HttpResponse.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/HttpResponse.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpRequest.cpp.o -c /home/pair/stuff/HttpServer/src/HttpRequest.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/HttpRequest.cpp",
-  "output": "CMakeFiles/server.dir/src/HttpRequest.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/HttpServer.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/HttpServer.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/HttpServer.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/HttpServer.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpResponse.cpp.o -c /home/pair/stuff/HttpServer/src/HttpResponse.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/HttpResponse.cpp",
-  "output": "CMakeFiles/server.dir/src/HttpResponse.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/HttpStreamResponse.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/HttpStreamResponse.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/HttpStreamResponse.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/HttpStreamResponse.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpServer.cpp.o -c /home/pair/stuff/HttpServer/src/HttpServer.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/HttpServer.cpp",
-  "output": "CMakeFiles/server.dir/src/HttpServer.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/ListenerSocket.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/ListenerSocket.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/ListenerSocket.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/ListenerSocket.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/HttpStreamResponse.cpp.o -c /home/pair/stuff/HttpServer/src/HttpStreamResponse.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/HttpStreamResponse.cpp",
-  "output": "CMakeFiles/server.dir/src/HttpStreamResponse.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/Router.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/Router.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/Router.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/Router.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/ListenerSocket.cpp.o -c /home/pair/stuff/HttpServer/src/ListenerSocket.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/ListenerSocket.cpp",
-  "output": "CMakeFiles/server.dir/src/ListenerSocket.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/SessionMiddleware.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/SessionMiddleware.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/SessionMiddleware.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/SessionMiddleware.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Router.cpp.o -c /home/pair/stuff/HttpServer/src/Router.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/Router.cpp",
-  "output": "CMakeFiles/server.dir/src/Router.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/Socket.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/Socket.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/Socket.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/Socket.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/SessionMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/SessionMiddleware.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/SessionMiddleware.cpp",
-  "output": "CMakeFiles/server.dir/src/SessionMiddleware.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/StaticMiddleware.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/StaticMiddleware.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/StaticMiddleware.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/StaticMiddleware.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/Socket.cpp.o -c /home/pair/stuff/HttpServer/src/Socket.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/Socket.cpp",
-  "output": "CMakeFiles/server.dir/src/Socket.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/TcpStream.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/TcpStream.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/TcpStream.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/TcpStream.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/StaticMiddleware.cpp.o -c /home/pair/stuff/HttpServer/src/StaticMiddleware.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/StaticMiddleware.cpp",
-  "output": "CMakeFiles/server.dir/src/StaticMiddleware.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/TlsStream.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/TlsStream.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/TlsStream.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/TlsStream.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/TcpStream.cpp.o -c /home/pair/stuff/HttpServer/src/TcpStream.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/TcpStream.cpp",
-  "output": "CMakeFiles/server.dir/src/TcpStream.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/rukh",
+  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/rukh/CMakeFiles/rukh.dir/cmake_pch.hxx -o CMakeFiles/rukh.dir/src/logUtils.cpp.o -c /home/pair/stuff/HttpServer/rukh/src/logUtils.cpp",
+  "file": "/home/pair/stuff/HttpServer/rukh/src/logUtils.cpp",
+  "output": "rukh/CMakeFiles/rukh.dir/src/logUtils.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/TlsStream.cpp.o -c /home/pair/stuff/HttpServer/src/TlsStream.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/TlsStream.cpp",
-  "output": "CMakeFiles/server.dir/src/TlsStream.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/app",
+  "command": "/usr/bin/c++  -I/home/pair/stuff/HttpServer/app/external -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -o CMakeFiles/server.dir/main.cpp.o -c /home/pair/stuff/HttpServer/app/main.cpp",
+  "file": "/home/pair/stuff/HttpServer/app/main.cpp",
+  "output": "app/CMakeFiles/server.dir/main.cpp.o"
 },
 {
-  "directory": "/home/pair/stuff/HttpServer/build/debug",
-  "command": "/usr/bin/c++ -DSPDLOG_ACTIVE_LEVEL=0 -I/home/pair/stuff/HttpServer/include -I/home/pair/stuff/HttpServer -I/home/pair/stuff/HttpServer/external -isystem /home/pair/stuff/HttpServer/build/debug/liburing_ext-prefix/include -g -std=gnu++23 -O0 -g -Winvalid-pch -include /home/pair/stuff/HttpServer/build/debug/CMakeFiles/server.dir/cmake_pch.hxx -o CMakeFiles/server.dir/src/logUtils.cpp.o -c /home/pair/stuff/HttpServer/src/logUtils.cpp",
-  "file": "/home/pair/stuff/HttpServer/src/logUtils.cpp",
-  "output": "CMakeFiles/server.dir/src/logUtils.cpp.o"
+  "directory": "/home/pair/stuff/HttpServer/build/debug/app",
+  "command": "/usr/bin/c++  -I/home/pair/stuff/HttpServer/app/external -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -o CMakeFiles/server.dir/routes.cpp.o -c /home/pair/stuff/HttpServer/app/routes.cpp",
+  "file": "/home/pair/stuff/HttpServer/app/routes.cpp",
+  "output": "app/CMakeFiles/server.dir/routes.cpp.o"
+},
+{
+  "directory": "/home/pair/stuff/HttpServer/build/debug/app",
+  "command": "/usr/bin/c++  -I/home/pair/stuff/HttpServer/app/external -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -o CMakeFiles/server.dir/config/errors.cpp.o -c /home/pair/stuff/HttpServer/app/config/errors.cpp",
+  "file": "/home/pair/stuff/HttpServer/app/config/errors.cpp",
+  "output": "app/CMakeFiles/server.dir/config/errors.cpp.o"
+},
+{
+  "directory": "/home/pair/stuff/HttpServer/build/debug/app",
+  "command": "/usr/bin/c++  -I/home/pair/stuff/HttpServer/app/external -I/home/pair/stuff/HttpServer/rukh/include -I/home/pair/stuff/HttpServer/rukh/include/rukh -I/home/pair/stuff/HttpServer/rukh/include/rukh/core -I/home/pair/stuff/HttpServer/rukh/include/rukh/middleware -I/home/pair/stuff/HttpServer/rukh/external -isystem /home/pair/stuff/HttpServer/build/debug/rukh/liburing_ext-prefix/include -g -std=gnu++23 -o CMakeFiles/server.dir/config/middlewares.cpp.o -c /home/pair/stuff/HttpServer/app/config/middlewares.cpp",
+  "file": "/home/pair/stuff/HttpServer/app/config/middlewares.cpp",
+  "output": "app/CMakeFiles/server.dir/config/middlewares.cpp.o"
 }
 ]

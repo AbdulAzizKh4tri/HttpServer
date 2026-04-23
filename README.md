@@ -2,7 +2,7 @@
 
 ![RuKh logo, A RuKh(or Roc) the mythical bird](./logo.png)
 
-A high-performance HTTP/1.1 server framework built entirely from scratch in C++23 — no async libraries, no HTTP frameworks. The event loop, coroutine scheduler, connection lifecycle, and request/response pipeline are all hand-rolled.
+A high-performance HTTP/1.1 server framework built entirely from scratch in C++23 - no async libraries, no HTTP frameworks. The event loop, coroutine scheduler, connection lifecycle, and request/response pipeline are all hand-rolled.
 
 This is an ongoing solo learning project, built with production-quality goals in mind.
 
@@ -34,7 +34,7 @@ This is an ongoing solo learning project, built with production-quality goals in
 - Static file serving with async file I/O via io_uring
 - Content negotiation for error responses
 - Edge-triggered epoll with SO_REUSEPORT multi-threading
-- C++20 coroutines throughout — one heap allocation per connection lifetime
+- C++20 coroutines throughout - one heap allocation per connection lifetime
 
 ---
 
@@ -46,8 +46,9 @@ This is an ongoing solo learning project, built with production-quality goals in
 - C++23 compiler (GCC 13+ or Clang 17+)
 - CMake 3.28+
 - OpenSSL
-- [spdlog](https://github.com/gabime/spdlog) + [nlohmann/json](https://github.com/nlohmann/json) — vendored under `external/`
-- [liburing](https://github.com/axboe/liburing) — built automatically via CMake `ExternalProject`
+- [spdlog](https://github.com/gabime/spdlog)
+- [nlohmann/json](https://github.com/nlohmann/json)
+- [liburing](https://github.com/axboe/liburing) - built automatically via CMake `ExternalProject`
 
 ### Steps
 
@@ -58,30 +59,23 @@ sudo apt update && sudo apt install -y \
   pkg-config \
   libssl-dev \
   zlib1g-dev \
-  libbrotli-dev
+  libbrotli-dev \
+  libspdlog-dev \
+  nlohmann-json3-dev
 ```
 
 ```bash
 # Debug
 cmake -B build/debug -S . -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/debug -j$(nproc)
-./build/debug/server
+./build/debug/app/server
 ```
 
 ```bash
 # Release
 cmake -B build/release -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release -j$(nproc)
-./build/release/server
-```
-
-Or use the Makefile shortcuts:
-
-```bash
-make configure BUILD_TYPE=debug
-make debug     # build + run debug
-make configure BUILD_TYPE=release
-make release   # build + run release
+./build/release/app/server
 ```
 
 ### TLS
@@ -89,20 +83,22 @@ make release   # build + run release
 Generate a self-signed certificate for local development:
 
 ```bash
-openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+openssl req -x509 -newkey rsa:2048 -keyout app/key.pem -out app/cert.pem -days 365 -nodes
 ```
 
-Paths are configured in `config.hpp`.
+TLS certificate paths are configured in `app/main.cpp`.
 
 ---
 
 ## Quick Start
 
 ```cpp
-// server.cpp
-#include "HttpServer.hpp"
-#include "Router.hpp"
-#include "ErrorFactory.hpp"
+// app/main.cpp
+#include <rukh/ErrorFactory.hpp>
+#include <rukh/HttpServer.hpp>
+#include <rukh/Router.hpp>
+
+using namespace rukh;
 
 int main() {
     ErrorFactory errorFactory;
@@ -210,12 +206,12 @@ Middleware runs in registration order. `next()` advances to the next middleware 
 
 ### Runtime
 
-Each worker thread owns an `Executor` — an event loop built on:
+Each worker thread owns an `Executor` - an event loop built on:
 
-- **Edge-triggered epoll** (`EPOLLIN | EPOLLOUT | EPOLLET`) — fds registered once at accept time.
-- **C++20 coroutines** — every connection is a single coroutine; one heap allocation covers the entire connection lifetime on the happy path
-- **io_uring** — async file reads/writes for static file serving, submitted in batches and drained each loop iteration
-- **SO_REUSEPORT** — each thread binds its own listener socket independently; the kernel distributes incoming connections
+- **Edge-triggered epoll** (`EPOLLIN | EPOLLOUT | EPOLLET`) - fds registered once at accept time.
+- **C++20 coroutines** - every connection is a single coroutine; one heap allocation covers the entire connection lifetime on the happy path
+- **io_uring** - async file reads/writes for static file serving, submitted in batches and drained each loop iteration
+- **SO_REUSEPORT** - each thread binds its own listener socket independently; the kernel distributes incoming connections
 
 ### Connection Lifecycle
 
@@ -253,12 +249,13 @@ resetForNextRequest()  ──►  keep-alive loop
 ##### (Subject to change)
 
 ```
-include/        — all headers (framework is header + .cpp pairs)
-src/            — implementations
-server.cpp      — entry point, wires everything together
-routes.cpp      — route definitions
-ServerConfig.hpp — tuning constants (timeouts, limits, thread count)
-external/       — vendored headers (spdlog, nlohmann/json)
+rukh/include/rukh/      - public framework headers
+rukh/src/               - framework implementation
+rukh/external/liburing/ - vendored liburing source
+app/main.cpp            - application entry point
+app/routes.cpp          - application route definitions
+app/config/             - middleware + error formatter wiring
+app/public/             - static assets served by StaticMiddleware
 ```
 
 ---
@@ -269,7 +266,7 @@ All benchmarks run on a single machine with server and load generator pinned to 
 
 Tool: [`wrk`](https://github.com/wg/wrk)
 
-Workload: minimal `GET /ping → "pong"` — no database, no business logic.
+Workload: minimal `GET /ping → "pong"` - no database, no business logic.
 
 > These numbers reflect the best-case scenario for all frameworks tested. Real-world workloads will be lower across the board.
 
@@ -298,9 +295,8 @@ RuKh scales near-linearly with thread count (~2.9× from 1→3 threads).
 
 ### Methodology Notes
 
-- Server and `wrk` pinned to separate physical cores — no shared cache interference
+- Server and `wrk` pinned to separate physical cores - no shared cache interference
 - Each result is the average of two consecutive runs; variance was low across all tests
-- Drogon's response payload is slightly larger per-request (more headers) — it still edges ahead, meaning the gap is real
 - Express tested single-process (standard deployment model for a single instance)
 - Go tested with `GOMAXPROCS(1)` for the single-threaded comparison; Go's runtime still uses background goroutines
 
