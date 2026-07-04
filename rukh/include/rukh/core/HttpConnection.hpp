@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <exception>
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <sys/timerfd.h>
@@ -145,7 +146,7 @@ public:
       auto expect = request_.getHeaderLower("expect");
 
       if (not expect.empty()) {
-        if (expect == "100-continue") {
+        if (toLowerCase(expect) == "100-continue") {
           auto res = request_.getContentLength();
           if (not res) {
             if (res.error() == ContentLengthError::INVALID_CONTENT_LENGTH) {
@@ -220,6 +221,10 @@ public:
                 throw ServerException("Request body size limit exceeded", 413);
               }
             }
+
+            if (chunkDecoder_.isDone())
+              request_.setAttribute("chunkTrailers", chunkDecoder_.getTrailers());
+
             if (*result > 0)
               resetInactivity();
             co_return *result;
@@ -336,6 +341,10 @@ public:
         SPDLOG_ERROR("Handler threw exception: {}", e.what());
         response = buildErrorResponse(e.status_code, e.what());
         keepAlive_ = not e.fatal;
+      } catch (std::exception &e) {
+        SPDLOG_ERROR("Exception: {}", e.what());
+        response = buildErrorResponse(500, e.what());
+        keepAlive_ = false;
       } catch (...) {
         SPDLOG_ERROR("Unknown Exception");
         response = buildErrorResponse(500);

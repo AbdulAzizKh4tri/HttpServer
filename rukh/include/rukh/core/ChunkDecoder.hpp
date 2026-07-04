@@ -117,7 +117,7 @@ public:
     co_return written;
   }
 
-  std::string_view getTrailers() const { return trailers_; }
+  const std::string &getTrailers() const { return trailers_; }
   bool isDone() const { return state_ == State::DONE; }
 
   void reset() {

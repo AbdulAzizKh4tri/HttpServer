@@ -1,5 +1,3 @@
-#include "routes.hpp"
-
 #include <cstdlib>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -11,10 +9,13 @@
 #include <rukh/MultipartParser.hpp>
 #include <rukh/ThreadPool.hpp>
 
+#include "routes.hpp"
+#include "rukh/db/IDatabase.hpp"
+
 using json = nlohmann::json;
 using namespace rukh;
 
-void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool *threadPool) {
+void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool *threadPool, db::IDatabase *db) {
 
   router.get("/", [&errorFactory](const HttpRequest &request) -> Task<Response> {
     auto name = request.getQueryParam("name");
@@ -452,7 +453,7 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
     co_return res;
   });
 
-  // ── Thread pool test routes ─────────────────────────────────────────────────
+  // -- Thread pool test routes -------------------------------
   // All live under /tests/pool/*
 
   // GET /tests/pool/basic
@@ -627,5 +628,158 @@ void registerRoutes(Router &router, const ErrorFactory &errorFactory, ThreadPool
     HttpResponse res(200, json{{"username", username}, {"password", password}, {"terms", terms}}.dump());
     res.headers.setHeaderLower("content-type", "application/json");
     co_return res;
+  });
+
+  // -- Database test routes -------------------------------
+  // All live under /tests/db/* and interact with the 'users' table
+  // Schema: id (INTEGER PRIMARY KEY), name (TEXT NOT NULL), email (TEXT),
+  //         age (INTEGER), created_at (DATETIME DEFAULT CURRENT_TIMESTAMP)
+
+  // GET /tests/db/select
+  // Queries users table with optional filtering parameters
+  // Query params:
+  //   - name: Filter users by name (case-insensitive substring match)
+  //   - email: Filter users by email (exact match)
+  //   - minAge: Filter users with age >= minAge
+  //   - maxAge: Filter users with age <= maxAge
+  //   - orderBy: Sort results (name, email, age, created_at; default: name)
+  router.get("/tests/db/select", [threadPool, db](const HttpRequest &request) -> Task<Response> {
+    std::string whereClause = "1=1";
+    std::vector<db::DbValue> params;
+
+    // Optional: Filter by name (case-insensitive substring match)
+    std::string nameFilter = request.getQueryParam("name");
+    if (!nameFilter.empty()) {
+      whereClause += " AND name LIKE ?";
+      params.push_back(db::DbValue{"%" + nameFilter + "%"});
+    }
+
+    // Optional: Filter by email (exact match)
+    std::string emailFilter = request.getQueryParam("email");
+    if (!emailFilter.empty()) {
+      whereClause += " AND email = ?";
+      params.push_back(db::DbValue{emailFilter});
+    }
+
+    // Optional: Filter by minimum age
+    std::string minAgeStr = request.getQueryParam("minAge");
+    if (!minAgeStr.empty()) {
+      try {
+        int64_t minAge = std::stoll(minAgeStr);
+        whereClause += " AND age >= ?";
+        params.push_back(db::DbValue{minAge});
+      } catch (...) {
+        auto res = HttpResponse(400, "application/json", json{{"error", "invalid minAge parameter"}}.dump());
+        res.headers.setHeaderLower("content-type", "application/json");
+        co_return res;
+      }
+    }
+
+    // Optional: Filter by maximum age
+    std::string maxAgeStr = request.getQueryParam("maxAge");
+    if (!maxAgeStr.empty()) {
+      try {
+        int64_t maxAge = std::stoll(maxAgeStr);
+        whereClause += " AND age <= ?";
+        params.push_back(db::DbValue{maxAge});
+      } catch (...) {
+        auto res = HttpResponse(400, "application/json", json{{"error", "invalid maxAge parameter"}}.dump());
+        res.headers.setHeaderLower("content-type", "application/json");
+        co_return res;
+      }
+    }
+
+    // Optional: Sort results (default: name)
+    std::string orderBy = request.getQueryParam("orderBy");
+    if (orderBy.empty())
+      orderBy = "name";
+    // Validate orderBy to prevent SQL injection
+    if (orderBy != "name" && orderBy != "email" && orderBy != "age" && orderBy != "created_at") {
+      auto res = HttpResponse(400, "application/json", json{{"error", "invalid orderBy parameter"}}.dump());
+      res.headers.setHeaderLower("content-type", "application/json");
+      co_return res;
+    }
+
+    std::string queryStr =
+        "SELECT id, name, email, age, created_at FROM users WHERE " + whereClause + " ORDER BY " + orderBy + ";";
+
+    // Execute query in thread pool to avoid blocking the event loop
+    std::expected<db::QueryResult, db::DatabaseError> result =
+        co_await threadPool->submit([db, queryStr, params]() -> std::expected<db::QueryResult, db::DatabaseError> {
+          return db->executeQuery(queryStr, params);
+        });
+
+    if (not result) {
+      db::DatabaseError err = result.error();
+      auto res = HttpResponse(500, json{{"error", err.message}}.dump());
+      res.headers.setHeaderLower("content-type", "application/json");
+      co_return res;
+    }
+
+    auto rows = result.value().rows;
+    if (rows.size() == 0) {
+      co_return HttpResponse(200, "application/json", json::array().dump());
+    }
+
+    // Build response as array of user objects
+    auto arr = json::array();
+    for (auto row : rows) {
+      json user = json::object();
+
+      auto id = row.as<int64_t>("id");
+      user["id"] = id ? *id : 0;
+
+      auto name = row.as<std::string>("name");
+      user["name"] = name ? *name : "";
+
+      auto email = row.as<std::string>("email");
+      user["email"] = email ? *email : "";
+
+      auto age = row.as<int64_t>("age");
+      user["age"] = age ? *age : 0;
+
+      auto createdAt = row.as<std::string>("created_at");
+      user["created_at"] = createdAt ? *createdAt : "";
+
+      arr.push_back(user);
+    }
+    co_return HttpResponse(200, "application/json", arr.dump());
+  });
+
+  // POST /tests/db/insert
+  // Inserts a new user record into the users table
+  // Required JSON fields:
+  //   - name: User's full name (string)
+  // Optional JSON fields:
+  //   - email: User's email address (string)
+  //   - age: User's age (integer)
+  router.post("/tests/db/insert", [threadPool, db](HttpRequest &request) -> Task<Response> {
+    auto body = co_await request.jsonBody();
+    if (body.is_discarded())
+      co_return HttpResponse(400, "application/json", json{{"error", "invalid JSON"}}.dump());
+
+    // Validate required 'name' field
+    if (!body.contains("name") || !body["name"].is_string())
+      co_return HttpResponse(400, "application/json", json{{"error", "name is required"}}.dump());
+
+    std::string name = body["name"].get<std::string>();
+    db::DbValue email = body.contains("email") && body["email"].is_string()
+                            ? db::DbValue{body["email"].get<std::string>()}
+                            : db::DbValue{nullptr};
+    db::DbValue age = body.contains("age") && body["age"].is_number_integer() ? db::DbValue{body["age"].get<int64_t>()}
+                                                                              : db::DbValue{nullptr};
+
+    std::string sql = "INSERT INTO users (name, email, age) VALUES (?, ?, ?);";
+    std::vector<db::DbValue> params = {name, email, age};
+
+    // Execute insert in thread pool to avoid blocking the event loop
+    auto result = co_await threadPool->submit([db, sql, params]() -> std::expected<db::QueryResult, db::DatabaseError> {
+      return db->executeQuery(sql, params);
+    });
+
+    if (!result)
+      co_return HttpResponse(500, "application/json", json{{"error", result.error().message}}.dump());
+
+    co_return HttpResponse(201, "application/json", json{{"inserted", result->affectedRows}}.dump());
   });
 }

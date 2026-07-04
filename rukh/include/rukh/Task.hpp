@@ -2,6 +2,7 @@
 
 #include <coroutine>
 #include <exception>
+#include <optional>
 
 namespace rukh {
 

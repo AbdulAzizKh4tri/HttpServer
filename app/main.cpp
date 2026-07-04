@@ -7,6 +7,7 @@
 #include <rukh/HttpServer.hpp>
 #include <rukh/Router.hpp>
 #include <rukh/ThreadPool.hpp>
+#include <rukh/db/Sqlite3Db.hpp>
 #include <rukh/logUtils.hpp>
 
 #include "include/errors.hpp"
@@ -20,11 +21,13 @@ using namespace rukh;
 int main() {
 
   int N;
-  std::string logging;
+  std::string logging, middleware;
   std::string host = "0.0.0.0";
 
   std::cout << "Do we want logging? (y/n)" << std::endl;
   std::cin >> logging;
+  std::cout << "Do we want middleware? (y/n)" << std::endl;
+  std::cin >> middleware;
   std::cout << "How many threads?" << std::endl;
   std::cin >> N;
 
@@ -32,12 +35,17 @@ int main() {
   SPDLOG_DEBUG("C++ standard: {}", __cplusplus);
 
   Router router(getErrorFactory());
-  registerMiddlewares(router, host);
+  if (middleware.contains('y'))
+    registerMiddlewares(router, host);
 
   HttpServer server(getErrorFactory());
-  ThreadPool threadPool(N * 2);
-  registerRoutes(router, getErrorFactory(), &threadPool);
-  // registerRoutes(router, errorFactory, nullptr);
+  size_t threadPoolSize = N * 2;
+  ThreadPool threadPool(threadPoolSize);
+
+  auto db_path = std::filesystem::path(__FILE__).parent_path() / "test.db";
+  db::IDatabase *db = new db::Sqlite3Db(db_path, threadPoolSize);
+
+  registerRoutes(router, getErrorFactory(), &threadPool, db);
 
   auto cert_path = std::filesystem::path(__FILE__).parent_path() / "cert.pem";
   auto key_path = std::filesystem::path(__FILE__).parent_path() / "key.pem";

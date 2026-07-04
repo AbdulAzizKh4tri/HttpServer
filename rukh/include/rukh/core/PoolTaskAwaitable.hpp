@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rukh/core/TaskState.hpp>
+#include <spdlog/spdlog.h>
 
 namespace rukh {
 

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
+#include <string>
 #include <sys/socket.h>
 
 #include <rukh/core/Socket.hpp>
