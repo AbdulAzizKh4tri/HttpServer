@@ -34,6 +34,6 @@ private:
   CorsConfig corsConfig_;
   std::string allowedHeaders_;
 
-  bool isOriginAllowed(const std::string &origin);
+  bool isOriginAllowed(const std::string_view origin);
 };
 } // namespace rukh

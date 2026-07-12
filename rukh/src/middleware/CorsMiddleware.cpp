@@ -15,7 +15,7 @@ Task<Response> CorsMiddleware::operator()(const HttpRequest &request, Next next)
   if (originView.empty())
     co_return co_await next();
 
-  auto origin = std::string(originView);
+  auto origin = originView;
 
   if (request.getMethod() == "OPTIONS") {
     HttpResponse response(204);
@@ -61,8 +61,8 @@ void CorsMiddleware::setAccessControlAllowCredentials(bool allowCredentials) {
   corsConfig_.allowCredentials = allowCredentials;
 }
 
-bool CorsMiddleware::isOriginAllowed(const std::string &origin) {
-  for (auto &allowedOrigin : corsConfig_.allowedOrigins) {
+bool CorsMiddleware::isOriginAllowed(const std::string_view origin) {
+  for (const auto &allowedOrigin : corsConfig_.allowedOrigins) {
     if (allowedOrigin == origin || allowedOrigin == "*") {
       return true;
     }

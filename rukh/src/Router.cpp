@@ -175,7 +175,7 @@ std::vector<std::pair<std::string, std::string>> Router::getPathParams(const std
     if (patternParts[i] == "**") {
       std::string captured;
       for (size_t j = i; j < pathParts.size(); j++) {
-        captured += std::string(pathParts[j]);
+        captured += pathParts[j];
         captured += "/";
       }
       if (!captured.empty())

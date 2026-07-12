@@ -27,7 +27,7 @@ public:
     headers_.emplace_back(lowerKey, value);
   }
 
-  void setHeaderLower(const std::string_view &lowercaseKey, const std::string &value) {
+  void setHeaderLower(const std::string_view &lowercaseKey, const std::string_view value) {
     std::erase_if(headers_, [&lowercaseKey](const auto &p) { return p.first == lowercaseKey; });
     headers_.emplace_back(lowercaseKey, value);
   }

@@ -10,7 +10,7 @@ namespace rukh {
 
 class CookieStore {
 public:
-  void setCookie(Cookie cookie) { cookies_.push_back(cookie); }
+  void setCookie(const Cookie &cookie) { cookies_.push_back(cookie); }
 
   void unsetCookie(const std::string &name) {
     std::erase_if(cookies_, [&name](const auto &p) { return p.name == name; });
